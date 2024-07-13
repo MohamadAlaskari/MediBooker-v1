@@ -25,29 +25,29 @@ Sie benötigen die folgenden Installationen auf Ihrem Computer:
 2. Node.js installieren:
    Folgen Sie den Anweisungen für Ihr Betriebssystem auf der Node.js [Download-Seite](https://nodejs.org/en/download/package-manager/current).
 3. Angular CLI (Version 17.3.7) installieren:
-   npm install -g @angular/cli@17.3.7
+   ```npm install -g @angular/cli@17.3.7```
 
 #### Einrichtung des Servers (MediBooker-API)
 
 1. Zum Ordner MediBooker-API wechseln:
-   cd MediBooker-API
+   ```cd MediBooker-API```
 
 2. Server-Abhängigkeiten installieren:
-   npm install
+   ```npm install```
 
 3. Den Server starten:
-   npm start
+   ```npm start```
 
 Die Server-Anwendung running wird auf http://localhost:3001 verfügbar sein.
 
 #### Einrichtung des Clients (MediBooker)
 
 1. Zum Ordner MediBooker wechseln:
-   cd MediBooker
+   ```cd MediBooker```
 2. Client-Abhängigkeiten installieren:
-   npm install
+   ```npm install```
 3. Die Angular-Anwendung starten:
-   npm start
+   ```npm start```
 
    Die Angular-Anwendung wird auf http://localhost:4200 verfügbar sein.
 
