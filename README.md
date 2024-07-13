@@ -63,7 +63,10 @@ Durch Befolgen dieser Schritte sollte jede Person in der Lage sein, die Webanwen
 1.
 
 # Client Feature
+1. 
 
 ## Admin Feature
+1. 
 
 ## User Feature
+1.
