@@ -1,0 +1,37 @@
+<div class="calendar">
+  <div class="header">
+    <a (click)="resetToToday()" class="reset"> Reset</a>
+    
+    <div style="text-align: center;">
+      <button (click)="prevMonth()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-left"
+          viewBox="0 0 16 16">
+          <path fill-rule="evenodd"
+            d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0" />
+        </svg>
+      </button>
+      <span>{{ monthNames[currentMonth] }} {{ currentYear }}</span>
+      <button (click)="nextMonth()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-right"
+          viewBox="0 0 16 16">
+          <path fill-rule="evenodd"
+            d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708" />
+        </svg>
+      </button>
+    </div>
+
+  </div>
+  <div class="days">
+    <div class="day-name" *ngFor="let day of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']">{{ day }}</div>
+  </div>
+  <div class="dates">
+    <ng-container *ngFor="let blank of [].constructor(startingDay)">
+      <div class="date">-</div>
+    </ng-container>
+    <div class="date" *ngFor="let day of daysOfMonth">
+      <p (click)="onSelectDate(day)" [class.today]="isToday(day)" [class.selected]="isSelected(day)">
+        {{ day }}
+      </p>
+    </div>
+  </div>
+</div>
