@@ -16,6 +16,12 @@ Sie benötigen die folgenden Installationen auf Ihrem Computer:
 1. **Dieses Repository klonen**:
    [repository_url](https://github.com/MohamadAlaskari/MediBooker-v1.git)
 
+   ```bash
+   git clone https://github.com/MohamadAlaskari/MediBooker-v1.git
+   cd MediBooker-v1
+
+   ```
+
 2. Node.js installieren:
    Folgen Sie den Anweisungen für Ihr Betriebssystem auf der Node.js [Download-Seite](https://nodejs.org/en/download/package-manager/current).
 3. Angular CLI (Version 17.3.7) installieren:
@@ -53,6 +59,8 @@ Möglicherweise müssen Sie Konfigurationen oder Umgebungsparameter an Ihre loka
 Durch Befolgen dieser Schritte sollte jede Person in der Lage sein, die Webanwendung erfolgreich einzurichten und auszuführen.
 
 # Server Feature
+
+1.
 
 # Client Feature
 
