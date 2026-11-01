@@ -1,0 +1,3 @@
+# Local Claude Code data (plugin databases, personal settings) — never commit
+.claude/data/
+.claude/settings.local.json
