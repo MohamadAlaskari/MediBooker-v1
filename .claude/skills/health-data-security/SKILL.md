@@ -106,6 +106,8 @@ Data residency is decided per market before infrastructure is built: one deploym
 
 - Configuration from environment variables, validated at startup (fail fast). Commit only `.env.example`.
 - Secret scanning (gitleaks) in pre-commit and CI. A leaked secret is rotated immediately; deleting it from git history is not enough.
+- The git history still holds the v1 database credential (one credential, two findings). It is not rotated and stays valid and public: the user declined U1 on 2026-11-04 and accepted the risk (`docs/architecture/09-risks-and-decisions.md`). The acceptance covers the credential only. Not verified: whether real people's data ever reached the v1 database (it had a public sign-up and stored contact, insurance and booking data; the seed data came from Faker). If real data is ever confirmed there, its controller assesses a breach under GDPR Art. 33/34 (notification within 72 hours of awareness); this decision does not replace that.
+- From F02, `.gitleaksignore` holds exactly the two commit-qualified fingerprints of these findings, under a dated comment, and the scans fail closed when it differs from the pinned list: gitleaks reads the file from the scan root, and a commit-less entry would silence a finding in every commit. A live secret is never added to `.gitleaksignore`; the U1 credential is the only accepted exception. Any other finding is rotated first; if it already reached the pushed history, its commit-qualified fingerprint is then added with a dated comment that names the rotation, in a commit the security-reviewer approves, which also updates the pinned list. A new finding in the v1 history (commits before L00), for example after a gitleaks upgrade or a rule change, goes to the user as a follow-up of U1 and needs a new dated user decision; so does re-recording the two U1 findings after a rule rename.
 - Commit the lockfile. Use Renovate or Dependabot, run `pnpm audit` in CI, pin GitHub Actions to commit SHAs, produce an SBOM for releases.
 - Least privilege: separate database users for migrations and for the running app.
 
@@ -166,21 +168,23 @@ Data residency is decided per market before infrastructure is built: one deploym
 
 ## 12. v1 lessons (must stay fixed)
 
-| v1 problem | Location | v2 rule |
+v1 (an Angular client and an Express API) was removed from the repository on 2026-11-02 and exists only in the git history; v2 shares no code with it. Its failures stay here as lessons, and each v2 rule applies in full.
+
+| v1 problem | Where in v1 | v2 rule |
 |---|---|---|
-| Database password in source code and git history | `MediBooker-ApI/config/dbConfig.js`, `MediBooker-ApI/dev.env` | §10 |
-| New random JWT secret at every start | `MediBooker-ApI/middlewares/tockenService.js` | §3 |
-| Plain-text tokens stored in the database | `MediBooker-ApI/models/PatientToken.js`, `EmployeeToken.js` | §3 |
-| No role checks: any logged-in patient could list all patients | `MediBooker-ApI/routes/patientsRoutes.js` | §4 |
-| Reservation routes and service update without authentication | `MediBooker-ApI/routes/reservationRoutes.js`, `serviceRoutes.js` | §4 |
-| Double booking possible (check, then write, no lock) | `MediBooker-ApI/controllers/ReservationController.js` | §8, BR-01 |
-| Reschedule deletes before it books; the old slot can be lost | `ReservationController.update` | BR-05 |
-| Mass assignment via `...updates` | `ReservationController.update` | §5 |
-| Implicit global variable `patientId` shared between requests | `ReservationController.create` | Strict TypeScript + lint |
-| Crash when the `Authorization` header is missing | several controllers | Global guard |
-| Patient names broadcast to every WebSocket client | `MediBooker-ApI/middlewares/Socket.js` | §9 |
-| CORS open to every origin | `MediBooker-ApI/index.js` | §8 |
-| No input validation | all controllers | §5 |
+| Database password in source code and git history | API database configuration and a committed `.env` file | §10 |
+| New random JWT secret at every start | Token service | §3 |
+| Plain-text tokens stored in the database | Patient and employee token tables | §3 |
+| No role checks: any logged-in patient could list all patients | Patient routes | §4 |
+| Reservation routes and service update without authentication | Reservation and service routes | §4 |
+| Double booking possible (check, then write, no lock) | Reservation controller | §8, BR-01 |
+| Reschedule deletes before it books; the old slot can be lost | Reservation update | BR-05 |
+| Mass assignment via `...updates` | Reservation update | §5 |
+| Implicit global variable `patientId` shared between requests | Reservation create | Strict TypeScript + lint |
+| Crash when the `Authorization` header is missing | Several controllers | Global guard |
+| Patient names broadcast to every WebSocket client | WebSocket middleware | §9 |
+| CORS open to every origin | Server setup | §8 |
+| No input validation | All controllers | §5 |
 
 ## 13. Review checklist
 

@@ -15,7 +15,7 @@ You are the lead architect of MediBooker v2, a privacy-first (GDPR-level) appoin
 
 1. Read `CLAUDE.md` (tech-stack status, non-negotiables) and use the preloaded skills.
 2. Read what already exists: `docs/adr/`, `apps/api/prisma/schema.prisma`, `apps/api/openapi.json`, the affected modules. Never design against assumptions.
-3. If v1 behaviour matters, read the legacy code in `MediBooker-ApI/` and `MediBooker/`, but never reuse it.
+3. v1 (an Angular client and an Express API) was removed on 2026-11-02 and exists only in the git history; v2 shares no code with it. Where v1 behaviour matters, use the summary in `medibooker-domain` (v1 behaviour) and the v1 lessons in `health-data-security` §12. Never restore or reuse v1 code.
 
 ## Responsibilities
 

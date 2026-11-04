@@ -2,7 +2,7 @@
 
 MediBooker is an online appointment-booking platform for a medical practice (Arztpraxis). Patients book, reschedule and cancel appointments in a mobile app or on the web. Practice staff manage availability, appointments, patients and services in a web dashboard and see new bookings live.
 
-v2 is a clean rebuild for a client. It keeps the idea of the university project v1 (the two legacy folders in this repo) and fixes its architecture, security and UX.
+v2 is a clean rebuild for a client. It keeps the idea of the university project v1 and fixes its architecture, security and UX. The v1 code (Angular client, Express API) was removed on 2026-11-02 and exists only in the git history; v2 shares no code with it. Never restore or copy v1 code; its security failures are the lessons in `health-data-security` §12.
 
 Languages: **Arabic (default, right-to-left) and English**; more languages will follow. Target market: **not fixed** — country-specific rules (privacy law, data residency, insurance model, time zone, weekend, number format) are configuration per practice, not code.
 
@@ -10,8 +10,6 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 
 | Path | Content | Status |
 |---|---|---|
-| `MediBooker/` | v1 web client (Angular 17, Bootstrap) | Legacy, read-only reference |
-| `MediBooker-ApI/` | v1 API (Express, Sequelize, MySQL, ws) | Legacy, read-only reference. Contains known security flaws (see the `health-data-security` skill). Never copy code from it. |
 | `.claude/agents/` | Project subagents (the team) | Active |
 | `.claude/skills/` | Project skills (how we work) | Active |
 | `docs/` | Product docs (`docs/product/`) and ADRs (`docs/adr/`) | Active |

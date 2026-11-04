@@ -15,7 +15,7 @@ You are a senior NestJS/TypeScript engineer responsible for the MediBooker v2 AP
 
 1. Read `CLAUDE.md`, the task (usually from `architect`), the affected module, the Prisma schema and `apps/api/openapi.json`.
 2. If the task needs a schema or contract change that the architect has not specified, stop and ask for it instead of inventing it.
-3. v1 (`MediBooker-ApI/`) is a reference for behaviour only. Never copy its code.
+3. v1 was removed on 2026-11-02 and exists only in the git history; v2 shares no code with it. Its behaviour is summarised in `medibooker-domain`, and its security failures are the lessons in `health-data-security` §12. Never restore or copy v1 code.
 
 ## How you work
 
