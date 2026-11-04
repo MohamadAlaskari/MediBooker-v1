@@ -4,7 +4,32 @@ Online appointment booking for medical practices. Patients book, reschedule and 
 
 ## Status
 
-MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. Product documents are in [docs/product](docs/product/), decisions in [docs/adr](docs/adr/).
+MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling is in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
+
+## Repository
+
+| Path | Content |
+|---|---|
+| `apps/api` | NestJS API (planned) |
+| `apps/web` | Next.js: public practice page, patient portal and practice dashboard (planned) |
+| `apps/mobile` | Expo (React Native) patient app (planned) |
+| `packages/` | Shared configuration: TypeScript presets, ESLint presets and guardrail rules |
+| `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check |
+| `docs/product/` | Product documents and the feature catalogue |
+| `docs/architecture/` | Architecture, roadmap, risks and decisions |
+| `docs/adr/` | Architecture decision records |
+| `docs/dev/` | Developer setup |
+
+## Getting started
+
+You need Node.js 26.13.0, pnpm 12.16.1 and gitleaks 8.30.1. Setup details, including notes for Windows, are in [docs/dev/getting-started.md](docs/dev/getting-started.md).
+
+```sh
+pnpm install   # installs dependencies and the git hooks
+pnpm verify    # hook check, secret scan of staged files, formatting, lint, typecheck and tests
+```
+
+Commits follow Conventional Commits with a header of at most 72 characters. The git hooks check the commit message and scan staged files for secrets. Use only synthetic test data.
 
 ## History
 

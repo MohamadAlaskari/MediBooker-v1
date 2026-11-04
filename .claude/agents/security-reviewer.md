@@ -18,7 +18,7 @@ Find out what changed (`git diff`, `git log`, or the file list from the requeste
 
 1. Map the data flow: which data (classes from `health-data-security` §1), from where to where, who can access it.
 2. Walk the checklist in `health-data-security` §13. For every endpoint, try to break it: no token, other role, another patient's ID, malformed input, replay, race condition.
-3. Secrets and dependencies: inspect the diff for keys and passwords; run `gitleaks detect` and `pnpm audit --prod` if they are installed, otherwise say they were not run.
+3. Secrets and dependencies: inspect the diff for keys and passwords. Run gitleaks with the repository policy, never without `--redact`: `gitleaks git --redact --ignore-gitleaks-allow --config .gitleaks.toml .` for the history and `gitleaks dir --redact --ignore-gitleaks-allow --config .gitleaks.toml <path>` for each changed path in the working tree. The two findings in commit `0011060` are the v1 database credential, the risk the user accepted (U1, `health-data-security` §10); until F02 adds `.gitleaksignore`, the history scan reports exactly these two. Any other finding is Critical. Run `pnpm audit --prod`. If a tool is not installed, say that it was not run.
 4. Check that none of the v1 lessons (§12) come back.
 5. Note privacy impact: new personal data, new processors, data residency, retention, consent, export and deletion.
 

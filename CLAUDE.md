@@ -12,8 +12,10 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 |---|---|---|
 | `.claude/agents/` | Project subagents (the team) | Active |
 | `.claude/skills/` | Project skills (how we work) | Active |
-| `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`) | Active |
-| `apps/`, `packages/` | v2 monorepo | Not scaffolded yet (waiting for tech decisions) |
+| `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
+| `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules) | Active |
+| `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check | Active |
+| `apps/` | `api` (NestJS), `web` (Next.js), `mobile` (Expo) | Built feature by feature along `docs/architecture/08-roadmap.md` |
 
 When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 
@@ -97,4 +99,19 @@ Figma file: https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker (fil
 
 ## Commands
 
-Add install, dev, lint, typecheck, test, e2e and db migrate/seed commands here once the monorepo exists.
+Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks 8.30.1 must be on `PATH`. On this Windows machine `pnpm` on `PATH` is broken: run `npx --yes pnpm@12.16.1 <command>` instead (see `docs/dev/windows.md`).
+
+| Task | Command |
+|---|---|
+| Install (also installs the git hooks) | `pnpm install` |
+| Install exactly from the lockfile (CI) | `pnpm install --frozen-lockfile` |
+| Lint (fails on any warning) | `pnpm lint` |
+| Typecheck | `pnpm typecheck` |
+| Unit tests (Vitest) | `pnpm test` (run `pnpm test --force` once after installing gitleaks) |
+| Format / check formatting | `pnpm format` / `pnpm format:check` |
+| All checks before a commit, after `git add`: hook check, staged secret scan, formatting, lint, typecheck, tests | `pnpm verify` |
+| One package only | `pnpm --filter @medibooker/eslint-config test` |
+| Ignore the Turborepo cache | `pnpm lint --force` |
+| Reinstall missing or stale git hooks | `pnpm exec lefthook install` |
+
+Commits follow Conventional Commits with a header of at most 72 characters; the `commit-msg` hook enforces it. Never use `--no-verify` or `LEFTHOOK=0` locally; inline `gitleaks:allow` comments are ignored. Setup details: `docs/dev/getting-started.md`. Dev server, build, e2e and database commands are added with the apps.

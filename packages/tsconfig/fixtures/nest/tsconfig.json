@@ -1,0 +1,4 @@
+{
+  "extends": "../../nest.json",
+  "include": ["src"]
+}

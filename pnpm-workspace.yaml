@@ -1,0 +1,40 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalogMode: prefer
+savePrefix: ''
+
+# Install only versions published at least one day ago (minutes; pnpm 12's default, written out
+# on purpose). "Latest" means the newest version that has passed this gate (ADR 0006).
+# minimumReleaseAgeExclude is reserved for urgent security fixes: exact pkg@x.y.z entries,
+# each with a dated comment, removed once the version is older than the gate.
+minimumReleaseAge: 1440
+
+# Refuse a version that was published with less trust than an earlier one (for example without
+# the provenance its predecessors had): a sign of a possible package takeover (ADR 0006).
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  # 2026-11-02 security review: the JavaScript of 2.2.2 is byte-identical to 2.2.1 and its
+  # platform binaries have provenance. Remove when lefthook publishes with provenance again.
+  - lefthook@2.2.2
+
+catalog:
+  '@eslint/js': 10.0.1
+  '@types/node': 26.6.6
+  '@vitest/eslint-plugin': 1.6.28
+  eslint: 10.14.0
+  eslint-config-prettier: 10.1.8
+  eslint-import-resolver-typescript: 4.4.5
+  eslint-plugin-import-x: 4.17.1
+  globals: 17.14.0
+  lefthook: 2.2.2
+  prettier: 3.9.10
+  turbo: 2.11.10
+  typescript: 6.0.3
+  typescript-eslint: 8.72.1
+  vite: 8.3.5
+  vitest: 5.1.0
+
+allowBuilds:
+  lefthook: true

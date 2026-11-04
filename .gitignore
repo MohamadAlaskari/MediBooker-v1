@@ -1,3 +1,40 @@
 # Local Claude Code data (plugin databases, personal settings) — never commit
 .claude/data/
 .claude/settings.local.json
+
+# Dependencies, caches and build output
+node_modules/
+.turbo/
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Environment files: only .env.example (placeholders) is committed
+.env
+.env.*
+*.env
+!.env.example
+
+# Local lefthook overrides: they can turn off a hook, so they stay on the developer's machine
+lefthook-local.*
+.lefthook-local.*
+
+# Logs, OS and editor files
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Keys, certificates and signing material (gitleaks cannot scan binary key stores)
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision

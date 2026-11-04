@@ -1,0 +1,39 @@
+# gitleaks configuration for the pre-commit hook, `pnpm verify` and CI.
+# The default rules miss plain password assignments such as DB_PASSWORD=... in an env file,
+# so this file adds one rule for them. scripts/gitleaks-config.test.ts proves what it reports.
+# Never allowlist a real secret: rotate it (docs/dev/getting-started.md).
+
+title = "MediBooker gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "medibooker-password-assignment"
+description = "Password or secret assigned a literal value, or a connection URL with an inline password"
+# The key ends in password, passwd, passphrase, pwd or secret (any case, so also DB_PASSWORD,
+# JWT_SECRET, "client_secret"), or it is pass on its own or after _, . or - (SMTP_PASS,
+# auth.pass; not bypass). After =, :, := or =>, it reports a value of at least 8 characters:
+#   1. A quoted value without whitespace, also as the fallback of `x ?? '...'` or `x || '...'`.
+#      Quoted values with spaces (labels, passphrases) are not reported on purpose: allowing
+#      spaces would flag the translation catalogs.
+#   2. An unquoted value that runs to the end of the line (env, YAML, ini), optionally followed
+#      by a # comment. It may contain , and ; but not end with them, so code such as
+#      `password: dto.password,` is not reported.
+#   3. The password of a connection URL: scheme://user:value@host, also with an empty user.
+# The secret is the first non-empty capture group.
+regex = '''(?im)(?:(?:[\w.-]*(?:password|passwd|passphrase|pwd|secret)|(?:\b|_)pass)["']?[ \t]*(?:=|:=|:|=>)[ \t]*(?:(?:[\w.]+[ \t]*(?:\?\?|\|\|)[ \t]*)?(?:"([^"\s]{8,})"|'([^'\s]{8,})'|`([^`\s]{8,})`)|([^\s"'`]{7,}[^\s"'`,;])[ \t]*(?:#[^\r\n]*)?\r?$)|[a-z][a-z0-9+.-]*://[^\s:@/]*:([^\s:@/]{8,})@)'''
+keywords = ["pass", "pwd", "secret", "://"]
+
+[[rules.allowlists]]
+description = "Placeholders: changeme, example, <...>, ${VAR}, $VAR, process.env.* (empty values are too short)"
+regexes = [
+  '''(?i)change[_-]?me''',
+  '''(?i)example''',
+  '''^<[^>]*>$''',
+  # A variable reference, also with an empty default or an error message (${VAR:-}, ${VAR:?msg}).
+  # A literal default such as ${VAR:-...} is reported.
+  '''^\$\{[A-Za-z_][A-Za-z0-9_]*(?::?-|:?\?[^}]*)?\}$''',
+  '''^\$[A-Za-z_][A-Za-z0-9_]*$''',
+  '''^process\.env\b''',
+]

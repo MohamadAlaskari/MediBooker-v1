@@ -1,0 +1,17 @@
+{
+  "name": "@medibooker/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript presets for MediBooker v2 (compilerOptions only).",
+  "type": "module",
+  "exports": {
+    "./*.json": "./*.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p fixtures/node && tsc -p fixtures/library --noEmit && tsc -p fixtures/nest && tsc -p fixtures/nextjs"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

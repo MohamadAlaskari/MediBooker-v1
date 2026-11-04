@@ -1,0 +1,22 @@
+# LF everywhere. The Windows dev machine has core.autocrlf=true; eol=lf overrides it.
+# gitattributes has no brace expansion: one pattern per line.
+* text=auto eol=lf
+# Windows scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: no line-ending conversion, no text diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+pnpm-lock.yaml linguist-generated

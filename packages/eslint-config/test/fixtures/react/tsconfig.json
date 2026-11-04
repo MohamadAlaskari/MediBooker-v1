@@ -1,0 +1,7 @@
+{
+  "extends": "@medibooker/tsconfig/node.json",
+  "compilerOptions": {
+    "jsx": "preserve"
+  },
+  "include": ["*.tsx"]
+}

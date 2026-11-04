@@ -1,0 +1,4 @@
+{
+  "extends": "@medibooker/tsconfig/nest.json",
+  "include": ["src"]
+}

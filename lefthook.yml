@@ -1,0 +1,29 @@
+# Git hooks, installed by `pnpm install` (lefthook's postinstall). Never bypass them with
+# --no-verify; CI sets LEFTHOOK=0 and runs its own checks. See docs/dev/getting-started.md.
+#
+# Every command calls node directly: on Windows, lefthook runs commands through Git's sh, where
+# pnpm may not resolve. lefthook wraps each command in double quotes there, so quote arguments
+# with single quotes only.
+
+# Fail closed: when the installed hooks cannot find lefthook (for example after node_modules was
+# deleted), they block the commit instead of letting it through unchecked. Run pnpm install.
+assert_lefthook_installed: true
+# An older lefthook found first on PATH fails instead of running these hooks.
+min_version: 2.2.2
+
+pre-commit:
+  # lefthook skips these commands when nothing is staged.
+  parallel: true
+  commands:
+    format:
+      # Check only; never rewrite and re-stage files behind the author's back.
+      run: node node_modules/prettier/bin/prettier.cjs --check --ignore-unknown {staged_files}
+    secrets:
+      # Fails closed: without gitleaks on PATH, the commit is blocked.
+      run: node scripts/run-gitleaks.ts
+
+commit-msg:
+  commands:
+    conventional-commit:
+      # lefthook does not quote {1}; in a linked worktree its path can contain spaces.
+      run: node scripts/check-commit-msg.ts '{1}'

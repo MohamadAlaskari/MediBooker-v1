@@ -1,0 +1,32 @@
+{
+  "name": "@medibooker/root",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": "^26.13.0"
+  },
+  "scripts": {
+    "lint": "turbo run lint lint:root",
+    "lint:root": "eslint --max-warnings=0 scripts eslint.config.js prettier.config.js vitest.config.ts",
+    "typecheck": "turbo run typecheck typecheck:root",
+    "typecheck:root": "tsc -p tsconfig.json",
+    "test": "turbo run test test:root",
+    "test:root": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root"
+  },
+  "devDependencies": {
+    "@medibooker/eslint-config": "workspace:*",
+    "@medibooker/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "lefthook": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,10 @@
+# Prettier 3 also honours .gitignore (node_modules, dist, coverage, ...).
+
+# Claude Code agents and skills: hand-formatted.
+.claude/
+
+# Markdown is hand-formatted (README, CLAUDE.md, ADRs, product docs).
+*.md
+
+# Written by pnpm.
+pnpm-lock.yaml
