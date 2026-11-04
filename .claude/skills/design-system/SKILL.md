@@ -163,6 +163,14 @@ Code: font stack `"Noto Sans Arabic", "Inter", sans-serif` for `ar` (Latin snipp
 
 `Elevation/1` (cards), `Elevation/2` (menus), `Elevation/3` (dialogs, toasts), `Focus ring` (2 px `border/focus` with a 2 px gap). Clip content must be on for the focus ring spread to render in Figma. In code: `outline: 2px solid var(--color-border-focus); outline-offset: 2px`.
 
+### Motion (ADR 0008)
+
+To be added in Figma as a `Motion` collection, then exported like all tokens: `motion/duration/instant` 0 · `fast` 120 · `base` 200 · `slow` 320 (ms) and `motion/ease/standard` (0.2, 0, 0, 1) · `enter` (0.05, 0.7, 0.1, 1) · `exit` (0.3, 0, 1, 1) as cubic-bezier control points. These starting values are confirmed by the ui-designer in X05. Code uses them as CSS variables (transitions), a TypeScript object for GSAP (`CustomEase`) and Reanimated (`Easing.bezier`). Reduced motion: end state at once, or an opacity fade of at most `fast`.
+
+### Web components (ADR 0007)
+
+The web components are shadcn/ui on React Aria, restyled to the Figma components. shadcn's CSS variables are mapped to the semantic tokens in `apps/web/src/styles/theme.css` (`--primary` → `--color-bg-brand`, `--ring` → `--color-border-focus`, `--radius` → `--radius-md`, and so on); dark mode uses `[data-theme='dark']`; practice themes change only `--brand-*`. Component sizes follow the Figma variants, not shadcn's defaults.
+
 ## RTL (Arabic) rules
 
 - Figma has no native RTL auto layout. Direction-dependent components therefore have a variant property **`Direction = LTR | RTL`**: child order reversed, start alignment on the right, text right-aligned, start-edge accents and borders moved, directional icons swapped.

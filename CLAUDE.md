@@ -12,7 +12,7 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 |---|---|---|
 | `.claude/agents/` | Project subagents (the team) | Active |
 | `.claude/skills/` | Project skills (how we work) | Active |
-| `docs/` | Product docs (`docs/product/`) and ADRs (`docs/adr/`) | Active |
+| `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`) | Active |
 | `apps/`, `packages/` | v2 monorepo | Not scaffolded yet (waiting for tech decisions) |
 
 When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
@@ -35,17 +35,19 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 | Mobile toolchain | Expo (Expo Router, EAS) | Proposed |
 | Data fetching | Generated OpenAPI client + TanStack Query | Proposed |
 | UI sharing | Separate component implementations per platform; shared tokens, i18n, API client, validation | Proposed |
-| Web styling | Design tokens as CSS variables (+ Tailwind CSS) | Proposed |
+| Web styling | Design tokens as CSS variables + Tailwind CSS v4 (required by shadcn/ui) | Confirmed (2026-11-01) |
+| Web UI components | shadcn/ui on React Aria Components, RTL mode, source in `apps/web/src/components/ui` (managed with the shadcn CLI); shadcn variables mapped to our tokens; sonner toasts, lucide icons — `docs/adr/0007-web-ui-shadcn.md` | Confirmed (2026-11-01) |
+| Animation | Web: GSAP + `@gsap/react` (`useGSAP`; ScrollTrigger/Flip only where needed), CSS transitions for simple states; app: react-native-reanimated (GSAP has no React Native support); shared motion tokens; reduced motion and RTL respected — `docs/adr/0008-animation-gsap.md` | Confirmed (2026-11-01) |
 | Practice themes | Brand colour layer: presets (Teal default, Ocean, Indigo, Violet, Graphite) or any custom colour with automatic contrast adjustment; applies to app, portal, public page, e-mails and dashboard; status colours and the MediBooker logo fixed — `docs/adr/0002-practice-themes.md` | Confirmed (2026-11-01) |
 | Realtime | Socket.IO through a NestJS gateway | Proposed |
 | Web framework | Next.js (App Router), self-hosted Node.js container; public practice page server-rendered for search engines — `docs/adr/0003-web-framework-nextjs.md` | Confirmed (2026-11-01) |
-| Auth | Built-in (argon2id, short JWT + rotating refresh token, TOTP for staff) vs. an identity provider (e.g. Keycloak) | Open |
+| Auth | Built-in in the NestJS API: argon2id, short-lived JWT + rotating refresh token, TOTP for staff; e-mail address required in v1, sign-in by phone number later — `docs/adr/0004-authentication.md` | Confirmed (2026-11-01) |
 | i18n | i18next with ICU messages (web + mobile); RTL via CSS logical properties / React Native I18nManager | Proposed |
 | Fonts | Noto Sans Arabic (ar) + Inter (en), self-hosted | Proposed |
 | Target market(s) | Not fixed: drives privacy law, data residency, insurance model | Open |
 | Hosting | Region per target market (data residency); provider open | Open |
 | Notifications | Push in the patient app; appointment messages per practice by e-mail only, SMS only, or both (SMS to verified phones only); account and security messages always by e-mail; WhatsApp later — see `docs/adr/0001-notification-channels-and-content.md` and `docs/product/notifications.md` | Channels confirmed (2026-11-01); providers Open (SMS provider not chosen) |
-| Tenancy | One practice vs. multi-practice SaaS | Open |
+| Tenancy | Multi-practice SaaS: one platform, many practices; **one PostgreSQL database per practice** (platform database for accounts, practice registry and membership index) — `docs/adr/0005-multi-tenancy.md` | Confirmed (2026-11-02) |
 
 Rules: use a **Proposed** choice as the default. Never change a **Confirmed** one on your own. For an **Open** item, present options with a recommendation and wait for a decision. Record decisions as ADRs in `docs/adr/` (template in the `architect` agent).
 

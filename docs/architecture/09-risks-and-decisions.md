@@ -1,0 +1,384 @@
+# Risks and decisions
+
+State on 2026-11-04, after the client's decision for one PostgreSQL database per practice ([ADR 0005](../adr/0005-multi-tenancy.md)) and the architecture, security and data-operations reviews of these documents. This file holds the user's decisions of 2026-11-04, the risks with their mitigations, the actions only the user can take (`U1`–`U11`), the decisions the client still has to make (`D1`–`D16`) and the verdicts on the red-team issues `RT-01` to `RT-87`. The roadmap ([08](08-roadmap.md)) refers to the `U` and `D` ids; a Proposed row in `CLAUDE.md` changes only through a decision here. Decisions already made are ADRs ([README](README.md#decisions-this-architecture-rests-on)).
+
+## Decisions recorded on 2026-11-04
+
+| # | Decision | Effect |
+|---|---|---|
+| 1 | **v1 removed.** On 2026-11-02 the user deleted the v1 Angular client and Express API from the working tree: v2 is built with other technology and features and shares no code with v1. | Roadmap item L00 "Remove the v1 apps" is committed first, before R00. v1 lives on only in the git history and as lessons (`health-data-security` §12). |
+| 2 | **U1 declined.** The user does not act on the v1 database credential. | It stays valid in the public history; risk 14 is accepted by the user. F02 records the two history findings in `.gitleaksignore` with a dated comment and makes the full-history scan required; F08 is merged into F02. |
+| 3 | **D4 decided:** the repository stays public for now (option A). | F02 records it in ADR 0009. The choice is revisited before the first real practice data (OPS01). |
+| 4 | **Order:** the API skeleton (F03) before CI (F02). | U2 and U3 are needed before F02, which now follows F03. |
+| 5 | **U11 resolved** by the main agent from the conversation record: the user named NestJS, Next.js and React Native (React) as the stack and never explicitly confirmed pnpm workspaces + Turborepo, PostgreSQL + Prisma, Expo, or the generated OpenAPI client + TanStack Query. | The `CLAUDE.md` rows Monorepo, Database / ORM, Mobile toolchain and Data fetching stay Proposed, which makes them the default; ADR 0006 claims no client confirmation for them (corrected in F01). |
+
+## 1. Risks
+
+### 1.1 One database per practice
+
+| # | Risk | Mitigation | Residual risk and trigger |
+|---|---|---|---|
+| 1 | **Connections.** Each open practice client holds up to `PRACTICE_POOL_MAX` (3) connections, so one API process may open `10 + 40 × 3 = 130`. Two instances with the defaults exceed a cluster with `max_connections=200` once workers and the migration runner connect. A pool of 3 also caps the concurrent transactions of one busy practice per instance. | Hard client limit with LRU and idle eviction: `acquire()` waits at most 2 s, then 503 for that practice only. A budget per cluster and per role: `CONNECTION LIMIT` from `PRACTICE_APP_CONNECTION_LIMIT` and `PRACTICE_OWNER_CONNECTION_LIMIT`, `statement_timeout` and `idle_in_transaction_session_timeout` on the app role, set by provisioning and `roles reconcile` (ADR 0005 §2.3). OPS01 records the budget per environment in ADR 0010 and alerts on connections against `max_connections` and per role, and on open clients per instance. PgBouncer in transaction mode is the scaling path; the code keeps no session state (ADR 0005 §2.4). | Rising waits, evictions or P2028 errors (transaction start timeout) for one practice. Then PgBouncer, more instances or a larger pool; a pool override per practice is a follow-up only if one practice needs it. |
+| 2 | **Memory.** Every open client is a `PrismaClient` with its own pool; 40 of them per process must fit the container limit (`mem_limit: 512m` in the compose baseline). | F04 measures the heap per open client with 20 clients and derives the `PRACTICE_CLIENTS_MAX` default from it (numbers in the commit body); the LRU bounds the total. | OPS01 sets production memory limits from the measurement. An out-of-memory restart means the client limit is too high for the instance size. |
+| 3 | **Client churn.** When more practices are active than the LRU holds (a crawler walking the sitemap, the polling workers), clients are created and closed continuously: a secret read, new connections and the identity check per creation, and signed-in users could lose their clients. | Separate budgets: public requests and jobs never evict a client a signed-in request used recently, and a per-process creation rate cap answers excess public requests with 503 at once (ADR 0005 §2.2); app secrets are cached per practice and `route_version`; once-per-period jobs claim each practice in `practice_job_runs` before leasing it; edge rate limits and bot rules for the public page (OPS01); metrics for creations, evictions and waits. | Workers poll every `ACTIVE` practice every 30 s. When the `ACTIVE` practices exceed `PRACTICE_CLIENTS_MAX` or the metrics show job-driven creations, work hints in the platform database replace polling ([02 §5](02-api.md#5-data-layer-and-tenancy)). If the public page drives the churn, the next steps are caching (D2, option B) or a public read model in the platform database. |
+| 4 | **Migration fan-out.** One `prisma migrate deploy` per database (a Node process and the native schema engine each), `MIGRATION_CONCURRENCY` (4) at a time, so a release takes longer with every practice. A failing practice stays on its previous version and answers 503 until fixed; a contract step waits until every practice the runner migrates has reached the previous release. A migration waiting for a lock stalls its practice. | Atomic migrations with `lock_timeout` and `statement_timeout`, enforced by `pnpm check:migrations` from F04 together with the `-- contract` rule; a resumable runner that resolves its own failed entries (P3009), retries lock timeouts and terminates its backend on its own timeout; a status per practice, an exit code and an alert; `verify` after every release; the schema guard answers 503 instead of running code against an older schema (ADR 0005 §6). | OPS01 records the measured time per practice. `CREATE INDEX CONCURRENTLY` cannot run inside the atomic wrapper: practice tables are small, so a plain index build blocks writes only briefly; a large table needs a reviewed exception. A lost connection during a migration (`MIGRATION_STATE_UNKNOWN`) needs the runbook. |
+| 5 | **Operational cost.** Two roles and four secrets per practice (app, owner, field key, backup key; secret managers often charge per secret), a logical backup per practice and its storage, monitoring per practice, catalog and autovacuum overhead per database, a bounded number of databases per cluster, and practices on one cluster competing for CPU and I/O. | Every lifecycle step is a command of the migrate image (provision, migrate, verify, backup, restore, move, rotate, deprovision). `database_clusters` records each cluster's measured limit; new or heavy practices are placed on another cluster through their routing entry. Per-practice alerts on schema version, backup age and 503 rate, and autovacuum sized for the database count (OPS01). | The cost per practice stays higher than in a shared database; it is the price of the isolation the client chose. The client prices it per practice with the provider's numbers (D9). |
+| 6 | **Cross-practice reporting and support.** There is no SQL across practices: platform analytics need a fan-out or an aggregated projection, and operators have no standing access to practice data. | ADR 0005 §9: aggregated, non-personal counts only (none planned); a bounded fan-out with partial results for "my appointments" (B03) and the export (PR01), each branch authorised in its own practice database; support only through a support membership with a hard expiry granted by the practice admin, off until D8 confirms it; break-glass per incident through `medibooker-db break-glass` (OPS01). | Every new cross-practice feature needs its own fan-out or projection design and a privacy check. `GET /me/appointments` queries at most `ME_FANOUT_MAX_PRACTICES` (20) practices and names the rest with the reason `LIMIT`. |
+| 7 | **Index consistency and restores.** Memberships and patient profiles are authoritative in the practice database; the platform index (`practice_access`) follows through the integration outbox. A practice database restored from a backup would bring back memberships, family links, consents and notes that were removed, revoked, withdrawn or marked wrong after the backup point, and would undo saga steps. | A missing index row denies and a stale one is overruled by the practice database, so both fail closed; write-through after commit and the relay with versioned upserts (A01). Revocations are mirrored into `revocation_journal`; `restore` re-applies them, reconciles the index with a version reset, resets later saga steps, copies newer audit rows when it can, and keeps the practice in `RESTORE_REVIEW` until confirmed (ADR 0005 §8.4, OPS02). Incident restores start from a PITR-derived dump. | Audit rows written after the restore point are lost when the old database is unreadable (a disaster restore). |
+| 8 | **Wrong database or stale client.** A routing mistake, a restore into the wrong database, a database created without its ACL, a client cached across a move or an offboarding, or a bug in the custom tenancy code (`PracticeConnectionManager`, `PracticeTransactionalAdapter`) could serve another practice's data. | Two barriers: `CONNECT` set by `createPracticeDatabase()` on every path that creates a practice database, and table grants only to the database's own app role (ADR 0005 §4.2); `practice_identity` and an open `CONNECT` checked on every client creation (503); `route_version` in the cache key; registry status read on every signed-in request; `CONNECT` revoked and sessions terminated on a move and on offboarding; `verify` and an alert on any other ACL; the fail-closed request context; the isolation specs of ADR 0005 §11 on every push; security review of F04. | Public requests use the route cache for up to `PUBLIC_ROUTE_CACHE_MS` (10 s) after unpublishing. |
+| 9 | **Credentials, transport and the secret store.** A practice credential reaches one practice, but the provisioner and the runner's owner identity reach every practice; a credential that never changes stays useful to whoever obtained it. A secret-store outage blocks new practice clients; cached clients keep working. | Provisioner and owner secrets only in one-off tasks, never in the API; separate identities for the API, the runner and backups (OPS01); `rotate-credentials` without downtime, scheduled and on suspicion; passwords sent only as SCRAM verifiers; TLS with host verification on every database connection; `platform_app` cannot change routing (ADR 0005 §4); break-glass roles per incident with an expiry and statement logging; a refused connection is a 503 for that practice and counts in the per-practice 503 alert. | A compromised migrate-task identity reaches every practice, so it runs only from the release pipeline behind the production approval (U5), and every command it runs is audited with its principal. |
+| 10 | **Managed PostgreSQL support.** The model needs a non-superuser role with `CREATEDB` and `CREATEROLE`, a settable `createrole_self_grant` and `ADMIN` on the roles it creates, the trusted extensions `btree_gist` and `citext` (some services need an allow-list), `CONNECT` revocable from `PUBLIC`, the builtin locale provider, the server log parameters of ADR 0005 §4.10, per-role statement logging for break-glass, `hostssl` with `scram-sha-256`, many databases per cluster and `pg_dump` as the owner. | Selection criteria of D9; OPS01 checks them with `cluster bootstrap` before building the infrastructure. | If no managed service in the region qualifies: self-managed PostgreSQL (D9, option C), with backups, PITR and patching as our work. |
+| 11 | **The platform database on every request.** Session checks, the registry and the index run against `medibooker_platform`; when it is down, no practice works. | Readiness fails without it, so instances leave rotation instead of failing per request; the dataset is small (accounts, registry, index); high availability with automatic failover is a D9 criterion. | A platform outage is a full outage; the public route cache bridges at most 10 s. Follow-up: OPS01's scope names high availability for the platform database. |
+| 12 | **Cross-practice sagas.** Account deletion and the data export need a step in every practice of the account; one unavailable practice delays completion. | One idempotent step per practice with a persisted state, retries with backoff and an alert; the export stays pending; the account is anonymised only after every step (PR01). | Completion time depends on the slowest practice. |
+| 13 | **Cross-region placement.** A practice database outside its deployment's region makes every request cross regions (latency) and splits a patient's data across regions (residency). | Allowed only with the DPO's confirmation (D8); otherwise the practice belongs to a deployment in its own region (ADR 0005 §7). | — |
+
+### 1.2 Other risks
+
+| # | Risk | Mitigation |
+|---|---|---|
+| 14 | **v1 credential.** The v1 MySQL credential has been public in this repository's history since 2024-07-13 and stays valid; whoever reads the history can use it while the v1 database is reachable, and if that database held real personal data, a notifiable breach may exist. | Accepted by the user on 2026-11-04 (U1 declined). The acceptance covers the credential only. Not verified: whether real people's data ever reached the v1 database (it had a public sign-up and stored contact, insurance and booking data; the seed data came from Faker). If real data is ever confirmed there, its controller assesses a breach under GDPR Art. 33/34 (notification within 72 hours of awareness); this decision does not replace that. v2 shares no code, database or credential with v1. From F02, `.gitleaksignore` holds exactly the two commit-qualified history fingerprints and is pinned to them, so any new finding still fails CI. |
+| 15 | **Uncommitted decision records.** ADR 0004, 0005, 0007, 0008 and these documents are untracked; committed after F01, the decisions would ship without their records. | L00 (the v1 removal) is the first commit and R00 the second, both staged by explicit paths; ADR 0006 ships with F01. |
+| 16 | **Supply chain under "always the latest version".** | pnpm's one-day release-age gate and Renovate's three days; `trustPolicy: no-downgrade` (F01); the lockfile and reviewed `allowBuilds`; SHA-pinned actions and digest-pinned images; `pnpm audit`, the SPDX submission with dependency review, Trivy and CodeQL ([07 §5](07-docker-ci-cd.md#5-supply-chain)). An urgent fix younger than a day needs a dated exception. |
+| 17 | **Tool versions lag.** TypeScript stays at 6.0.3; the Next.js and Expo ESLint configs pull plugins that declare ESLint 9; Prisma's `latest` tag is an 8.0 release candidate and `partialIndexes` is a preview feature; Expo SDK 58 holds React at 19.3.0. | Deviations with exit conditions in [ADR 0006](../adr/0006-toolchain-and-version-policy.md) and [01 §5](01-repo-and-tooling.md#5-versions); F06 and F07 choose ESLint 10-compatible rules; the drift specs catch a changed partial-index predicate; pnpm `overrides` keep one React copy, and the SDK runbook moves it ([04 §14](04-mobile.md#14-expo-sdk-upgrade-runbook)). |
+| 18 | **Date and time correctness.** BR-15 depends on Node 26's new native `Temporal` and on the tz data in Node's ICU (2026e). | The fixtures of [06 §3](06-testing.md#br-15-fixtures) at ± 1 minute; Renovate's `node runtime` group brings Node releases with newer tz data, and base-image digests update without a release-age delay; fallback `temporal-polyfill` behind `common/time` if a defect appears. |
+| 19 | **Hermes Intl gaps.** Arabic plural categories, `numberingSystem: 'arab'` and time-zone formatting may be incomplete on Hermes; Jest runs on V8 and cannot show it. | The X08 `intl-check` screen, the nightly X10 emulator job, `@formatjs` polyfills only for gaps found. |
+| 20 | **Uncached public page.** Per-request CSP nonces make every HTML response dynamic; every view costs an API call and a practice database query, and scraping is cheap. | D2; the named `public` throttler keyed by the visitor's address; edge rate limits and bot rules (OPS01); free times cached for 30 s. |
+| 21 | **One API instance assumed.** The throttler counts per instance, Socket.IO rooms live in memory, schedule loops run in every instance. | Edge rate limits (OPS01); the Socket.IO adapter once a second instance runs (OPS01); once-per-period jobs claim each practice in `practice_job_runs` before leasing it; outbox rows are claimed with `FOR UPDATE SKIP LOCKED`. |
+| 22 | **Released apps cannot update at once.** | Only additive changes inside `/v1`; unknown error codes and enum values fall back on the client; the `minimumSupportedVersion` gate (X02, X08); app identifiers fixed by D6 before the first store submission. |
+| 23 | **Windows development machine.** `pnpm` on `PATH` is broken; the checkout path has spaces, so local native Android builds fail, and Expo Go on Android has had no remote push since SDK 53; Windows limits native modules to 260 characters. | The `npx --yes pnpm@12.16.1` fallback and U7; U8 before N02; a short checkout path ([windows.md](../dev/windows.md)); CI on Linux is the reference. |
+| 24 | **Repository visibility.** The client's code is public; going private on the current plan removes delivery gates. | D4 decided on 2026-11-04: public for now (option A); revisited before the first real practice data (OPS01), recommendation C. |
+| 25 | **Silent configuration gaps.** Turborepo's strict env mode hides undeclared variables from tasks; an ESM import cycle crashes Nest at startup; an agent that follows an outdated skill builds what the plan rejected. | A commit that adds a variable declares it in `turbo.json`; `import-x/no-cycle` and the AppModule smoke spec; skills and agent files change in the commit that changes the convention (rules in [08](08-roadmap.md)). |
+| 26 | **Processors.** E-mail, SMS, push, error tracking, EAS and GitHub receive personal data or code; SMS costs money per segment (Arabic texts need two) and needs sender registration per country. | D10 with data processing agreements and in-region processing; texts without health data ([ADR 0001](../adr/0001-notification-channels-and-content.md)); e-mail fallback while no SMS provider is connected. |
+| 27 | **Logs outside the API.** PostgreSQL's own log can hold constraint details, bind values and statement text; the edge log concrete paths with practice and patient ids; the Prisma CLI's output error details; GitHub Actions logs are public while D4 stays at option A. | Server log settings and an in-region health-data log sink (ADR 0005 §4.10); passwords only as SCRAM verifiers; F04 checks the test server's log; `medibooker-db` prints only its JSON summary and `deploy.yml` streams no task log; the edge logs route templates and truncated addresses (OPS01); D4 revisited before the first real practice data (recommendation C). |
+| 28 | **Offboarding residue.** A deleted practice's data survives in files and their versions, exports, backups, PITR and index rows. | `--finalize` destroys the practice's keys first (crypto-shredding), then the database, files with every version, export, backups and platform rows; the tombstone records `purged_at`, the end of PITR retention; the PITR runbook drops finalized practices first (ADR 0005 §5.5, §8.1). |
+| 29 | **Operator commands.** Commands that reach every practice (provision, migrate, restore, finalize, break-glass) could act without a trace or approval. | Every `medibooker-db` command writes the platform audit log before and after it runs, with the principal from the task's cloud identity; a routed restore, `--finalize`, the practice-export download and break-glass need an approval reference; break-glass roles are `SELECT`-only, expire and are logged (ADR 0005 §5.2, §9.4). |
+
+## 2. User actions
+
+Only the user can do these, listed in the order they are needed. U1 is declined and U11 is resolved.
+
+### U1. The v1 database credential (declined on 2026-11-04)
+
+Commit `0011060` of 2024-07-13 added the host, user, database name and password of the v1 MySQL database on a remote Hostinger server to two v1 files, `MediBooker-ApI/dev.env` and `MediBooker-ApI/config/dbConfig.js`. They have been public since, and they stay in the git history after L00 removed the v1 folders. Nobody printed the values during the reviews; do not paste them anywhere.
+
+U1 asked the user to rotate the credential or drop the database. On 2026-11-04 the user declined: the credential stays valid, and the user accepted the risk (risk 14). Consequences:
+
+- Nothing waits for U1, and the rotation is not asked for again; only a new finding in the v1 history goes to the user (below).
+- The acceptance covers the credential only. Not verified: whether real people's data ever reached the v1 database (it had a public sign-up and stored contact, insurance and booking data; the seed data came from Faker). If real data is ever confirmed there, its controller assesses a breach under GDPR Art. 33/34 (notification within 72 hours of awareness); this decision does not replace that.
+- F02 records the two findings in `.gitleaksignore`, exactly their two commit-qualified fingerprints under a comment dated 2026-11-04 that names this decision, pins the file to them, and makes the full-history scan a required check from the start ([07 §4](07-docker-ci-cd.md#4-secret-scanning)). F08 is merged into F02.
+- v2's own rules do not change: v2 shares no code, database or credential with v1; a secret that reaches the repository is removed and rotated (`health-data-security` §10).
+- A live secret is never added to `.gitleaksignore`; the U1 credential is the only accepted exception. Any other finding is rotated first; if it already reached the pushed history, its commit-qualified fingerprint is then added with a dated comment that names the rotation, in a commit the security-reviewer approves, which also updates the pinned list. A new finding in the v1 history (commits before L00), for example after a gitleaks upgrade or a rule change, goes to the user as a follow-up of U1 and needs a new dated user decision; so does re-recording the two U1 findings after a rule rename.
+
+### U2–U11
+
+| ID | Action | When | Unblocks |
+|---|---|---|---|
+| U2 | Make `v2-planning` the default branch (Settings → General) and add a ruleset on it that blocks force pushes and deletion; direct pushes stay allowed. `main` keeps v1 until v2 is merged. | Before F02, which follows F03 | Scheduled and dispatch workflows, Renovate's configuration |
+| U3 | Turn on secret scanning and push protection for the repository, including non-provider patterns where the plan offers them. | Before F02, which follows F03 | The GitHub layer of secret scanning ([07 §4](07-docker-ci-cd.md#4-secret-scanning)) |
+| U4 | Install the Renovate GitHub App for this repository only. | Right after F02 is pushed | Dependency updates; F02's Renovate acceptance |
+| U5 | Create the GitHub Environments `staging` and `production`; `production` gets a required reviewer. | Before F05 | The approval gate of `deploy.yml` |
+| U6 | Optional: create a read-only Docker Hub access token and store it as the repository secret `DOCKERHUB_TOKEN`, together with the account name. | When CI starts pulling images (F02, F04) | Image pulls without anonymous rate limits |
+| U8 | Clone the repository to a short path without spaces, for example `D:\dev\medibooker` (no `subst`). | Before N02 | Local native Android builds and development builds |
+| U9 | Create the developer accounts in the client's name: an Expo organisation with an EAS project and the repository secret `EXPO_TOKEN`, the Apple Developer Program, and a Firebase project for FCM. | Before N02 | Development builds and the push credentials (APNs key, FCM) |
+| U10 | Create the store records in App Store Connect and the Google Play Console with the D6 identifiers: privacy labels and the data-safety form (with the DPO), TestFlight and an internal test track. | Before REL01 | Store builds and releases |
+| U7 | Optional: repair `pnpm` on `PATH` as administrator ([windows.md](../dev/windows.md#pnpm)); until then `npx --yes pnpm@12.16.1 <command>` works. Run `git config --global core.longpaths true` once. | Any time | Plain `pnpm` commands on this machine |
+| U11 | Resolved on 2026-11-04 by the main agent from the conversation record: the user named NestJS, Next.js and React Native (React) as the stack and never explicitly confirmed the toolchain rows Monorepo (pnpm and Turborepo), Database / ORM (PostgreSQL and Prisma), Mobile toolchain (Expo) and Data fetching (generated client and TanStack Query). The earlier F01 brief wrongly called them confirmed by the client. | Done | The four rows stay Proposed in `CLAUDE.md` (a Proposed choice is the default: it is used, not confirmed); F01 corrects ADR 0006's Context and status line. R00 has no U11 step |
+
+## 3. Decisions needed from the client
+
+| ID | Decision | Decided by | Needed before |
+|---|---|---|---|
+| D4 | Repository home and visibility | decided on 2026-11-04 by the user: option A, public for now | revisited before the first real practice data (OPS01) |
+| D5 | Visibility of the container images | client | F05 |
+| D1 | i18n library binding | client (changes a Proposed row) | X04 |
+| D2 | Caching of the public practice page | client (reading of ADR 0003) | P03 |
+| D3 | Address of the public practice page | client | M01 |
+| D16 | Where patients enter their personal details | client with the ui-designer | A05 |
+| D14 | Reception staff on the public page | client | not blocking; M03 builds option A |
+| D10 | E-mail, push, SMS and error-tracking providers | client with the DPO | N02, N03 |
+| D13 | Sharing and reading of clinical notes | client | R01 |
+| D9 | Hosting provider and region | client with the DPO | R02, OPS01 |
+| D15 | Patient uploads | client | R02 |
+| D12 | Age of majority and guardian rules | client's counsel | FA01 |
+| D8 | First market, data residency and legal roles | client with the DPO | PR01, OPS01 |
+| D11 | Retention periods | client's DPO | PR01 |
+| D6 | Mobile app identity | client | REL01 |
+| D7 | How the app chooses the deployment | client | a second market |
+
+### D1. i18n library binding
+
+Option B changes the Proposed i18n row in `CLAUDE.md`. Needed before X04 (also X06, X08 and A02); ADR 0013 records it. Options and trade-offs: [05 §2.2](05-errors-i18n-tokens.md#22-binding-decision-d1).
+
+**Recommendation: B**, next-intl on the web, use-intl in the app and `use-intl/core` for e-mail, push and SMS texts. It formats ICU natively, gives cookie-free locale routing with hreflang and server-component support in the App Router, and one engine renders every text from the shared catalogue. The catalogue stays ICU JSON either way, so the choice changes only three bindings.
+
+### D2. Caching of the public practice page
+
+[ADR 0003](../adr/0003-web-framework-nextjs.md) #3 says the public page is "server-rendered and cached". Its #6 (per-request CSP nonces) makes every HTML response dynamic, and BR-24 requires a withdrawn staff consent to disappear at once. Needed before P03.
+
+| Option | For | Against |
+|---|---|---|
+| A. Not cached: rendered per request, the API answers `no-store`, free times `max-age=30` with client polling every 45 s (current plan) | Always current: consent withdrawal and unpublishing take effect at once; no purge machinery; the nonce CSP stays | Every view costs an API call and a practice database query (risks 3 and 20) |
+| B. Cached: hash-based CSP for the public route group, Next.js `use cache` with tag revalidation on every change of a shown field, a purge hook for a CDN | Lower load per view | More moving parts; one missed revalidation shows a withdrawn consent or old hours |
+
+**Recommendation: A**, read as "server-rendered and current on every request"; the architect adds this reading to ADR 0003's follow-ups. Revisit B when OPS01's metrics show the load.
+
+### D3. Address of the public practice page
+
+Product decision 8 in the [feature catalogue](../product/feature-catalog.md). Needed before M01 (slug settings); A05 builds the portal and dashboard routes on the default.
+
+| Option | For | Against |
+|---|---|---|
+| A. Path `/{locale}/{slug}` on the platform domain (current design, default) | One certificate and one origin; cookie-free public pages | Practices share the platform domain |
+| B. A subdomain per practice | A practice-specific address | Wildcard certificate, host-based routing, sign-in across origins |
+| C. The practice's own domain | Strongest branding | Domain verification, a certificate per domain at the edge, a host-to-slug lookup; a lapsed domain can be taken over by someone else |
+
+**Recommendation: A** for v1. C can follow as an add-on at the edge that maps a verified host to the slug, without changing the page.
+
+### D4. Repository home and visibility
+
+**Decided on 2026-11-04 by the user: option A, the repository stays public for now.** F02 records it in ADR 0009, together with GitHub and Renovate as processors without patient data. The repository holds only synthetic data; its history also holds the v1 credential, whose risk the user accepted (U1).
+
+| Option | For | Against |
+|---|---|---|
+| A. Stay public until hosting and the GitHub plan are chosen | Free CodeQL, dependency review, required reviewers, environment secrets and rulesets | The client's code is visible to everyone |
+| B. Private on the current Free plan | Code hidden | Required reviewers and environment secrets for deploys are gone, rulesets need Pro or higher, CodeQL and dependency review need GitHub Code Security; quotas for Actions minutes and 500 MB of package storage. The production approval would have to move to the hosting platform |
+| C. Private with a paid plan (Team or Enterprise Cloud) and GitHub Code Security, or v2 in its own private repository on that plan | Code hidden, gates kept | Recurring cost |
+
+**Recommendation: A now, C** when v2 moves to its own repository or before the first real practice data, whichever comes first. A is decided; the move to C is the open part, revisited at the latest before OPS01.
+
+### D5. Visibility of the container images
+
+GHCR packages `medibooker-api`, `medibooker-api-migrate` and `medibooker-web`. Needed before F05.
+
+- A. Private: only this repository's workflows and named accounts can pull; OPS01 gives the deploy identity a read-only token.
+- B. Public: anyone can pull; the images hold no secrets, but they expose the built code and its dependencies.
+
+**Recommendation: A**, as [07 §6](07-docker-ci-cd.md#6-image-publishing-and-the-deploy-placeholder) assumes.
+
+### D6. Mobile app identity
+
+The iOS bundle identifier, the Android package name, the display names in Arabic and English, and the owner of the Expo, Apple and Google accounts (U9, U10). Placeholders work until REL01. After the first store submission the identifiers cannot change, and the web's verified-link files (`assetlinks.json`, `apple-app-site-association`) depend on them.
+
+- A. One platform app with practice selection (ADR 0005 §3); identifiers in reverse-DNS form of a domain the client owns.
+- B. A white-label app per practice: identifiers, builds and store listings per practice.
+
+**Recommendation: A.** B multiplies store and release work and contradicts one account across practices.
+
+### D7. How the app chooses the deployment
+
+Every market region has its own deployment, accounts exist per deployment (ADR 0005 §7), and the app bakes in one API origin. Needed before a second market launches; nothing earlier depends on it.
+
+| Option | For | Against |
+|---|---|---|
+| A. One app with a deployment directory: market, API origin and web origin per deployment (no personal data), shipped in the app and refreshed through `GET /api/v1/public/app-config`; a practice link or QR code selects the deployment by its host, otherwise the user picks the country once | One store listing; no personal data crosses regions; additive for released apps | A country choice on first start once there are several markets |
+| B. One app per market | Simple and strictly separate | Identifiers (D6), builds and store listings per market |
+| C. A global lookup from e-mail address to deployment | No country choice | A cross-region index of personal data, which the residency baseline forbids |
+
+**Recommendation: A**, as a new optional `app-config` field when the second market is planned.
+
+### D8. First market, data residency and legal roles
+
+The target market is Open in `CLAUDE.md`. Decided by the client with its DPO or counsel; needed before PR01, OPS01 and the first real practice data.
+
+1. **First market:** sets `MARKETS` and the region of the first deployment. Recommendation: one market and one deployment first; the Riyadh and Berlin seed practices are a local test only.
+2. **Legal roles** ([ADR 0005](../adr/0005-multi-tenancy.md) §13): A. each practice is the controller of its patients' data and the platform its processor, while the platform is the controller of platform accounts; B. the platform is the controller of everything; C. joint controllers (Art. 26). Recommendation: A, because the platform and practice databases already separate these data sets. The answer fixes the data processing agreements, who answers data-subject requests and how `DELETE /me` meets each practice's duty to keep medical records (PR01). With A, reminder consent (BR-13, BR-21) is given to each practice separately, off by default in every practice and withdrawn per practice (ADR 0005 §1.3, built in N01); the DPO confirms this together with the consent text.
+3. **Cross-region placement** of a single practice database (ADR 0005 §7): recommendation: not allowed; a practice in another market belongs to that market's deployment.
+4. **Support access** (ADR 0005 §9.4): confirm "no standing operator access; support only through a support membership granted by the practice admin, with a reason and an expiry of at most 72 hours; break-glass per incident with approval, expiry and logging". A04 builds support access behind `SUPPORT_ACCESS_ENABLED`, which stays `false` until this is confirmed.
+5. The DPIA and the records of processing for the first market, and the processor contracts of D9 and D10.
+6. **Accounts per deployment** (ADR 0005 §7.1): ADR 0004 #2 says "one account per person on the platform". Because the residency baseline forbids replicating accounts across regions, the architecture keeps one account per person and deployment: a doctor who works in two markets has two accounts, two passwords and two TOTP set-ups. The alternative, one account across regions, needs a cross-region index of personal data, which D7 option C already rejects. Recommendation: accept accounts per deployment. Once the client confirms, the main agent adds "Amended by ADR 0005 §7.1 — <date>" to ADR 0004's status block in the next docs commit.
+
+### D9. Hosting provider and region
+
+Hosting is Open in `CLAUDE.md`. Needed before R02 (object storage in the practice's region) and OPS01. Criteria from ADR 0005 and OPS01:
+
+- managed PostgreSQL 18 in the D8 region on a private network, with point-in-time recovery, encrypted backups and high availability for the platform database;
+- a non-superuser role with `CREATEDB` and `CREATEROLE`, a settable `createrole_self_grant` and `ADMIN` on the roles it creates, the trusted extensions `btree_gist` and `citext` (some services need an allow-list), `CONNECT` revocable from `PUBLIC`, the builtin locale provider, enough databases and connections per cluster (risks 1 and 10);
+- TLS: `hostssl` only with `scram-sha-256`, `ssl_min_protocol_version = 'TLSv1.2'`, a CA the clients can verify host names against;
+- logs: the server parameters of ADR 0005 §4.10 settable, statement logging per role for break-glass (directly, through a parameter grant or `pgaudit`), and a log sink in the region with a retention of at most 30 days;
+- a connection pooler, if one is offered, that supports many database and user pairs and `auth_query`;
+- the backup objectives of ADR 0005 §8.3, which the client confirms with this decision: an RPO of 24 hours for one practice and the provider's PITR objective for a cluster, an RTO of 4 hours for one practice and 8 hours for a cluster;
+- containers with one-off tasks inside the network (the migrate image), a secret manager (four secrets per practice, often priced per secret), KMS, object storage with server-side encryption and versioning, an edge with TLS, rate limits and bot rules, OIDC federation for GitHub Actions;
+- a data processing agreement and guarantees for the region.
+
+| Option | For | Against |
+|---|---|---|
+| A. A large cloud provider with a region in the market | All services above in one place; managed PITR and KMS | Each managed PostgreSQL's role and extension limits need checking |
+| B. A regional or sovereign cloud in the market | Fits residency rules that prefer local providers | Fewer managed services; every criterion needs checking |
+| C. Self-managed PostgreSQL on virtual machines | Full control of roles and extensions | Backups, PITR, high availability and patching become our work |
+
+**Recommendation: A** if it has a region in the D8 market that meets the residency rules, otherwise B; C only if no managed service meets the PostgreSQL criteria.
+
+### D10. Providers and processors
+
+Notification providers are Open in `CLAUDE.md` ([ADR 0001](../adr/0001-notification-channels-and-content.md)). Needed before N02 (push) and N03 (SMS); the production e-mail provider and the error tracker before real users. Until then the SMTP adapter talks to Mailpit and `reportError()` does nothing.
+
+| Service | Options | Recommendation |
+|---|---|---|
+| E-mail | The hosting provider's mail service in the region, or a transactional provider with a DPA (for example Postmark or Amazon SES) | An in-region service; one MediBooker sender domain per deployment with SPF, DKIM and DMARC; a sender domain per practice later |
+| Push | Expo's push service (one more processor that sees device tokens and payloads), or FCM and APNs directly from the API | FCM and APNs directly: one processor fewer, the same ID-only payloads |
+| SMS | An international provider with sender registration per country, or a local provider per market | Per market after D8; the practice pays per segment (Arabic texts need two); e-mail stays the fallback |
+| Error tracking | A self-hosted tracker in the region, or a SaaS with processing in the region, both with PII scrubbing | Whichever runs in the D8 region |
+
+The DPO's register of processors also lists the hosting provider (D9); EAS Build and Submit (code and signing credentials, no patient data); EAS Update (device IP addresses; only after the DPO's approval, REL01); GitHub (code, CI, GHCR; synthetic data only); Renovate (dependency metadata).
+
+### D11. Retention periods
+
+Decided by the client's DPO per market (BR-14). Needed before PR01; OPS02 uses it for `drop_after` when a practice is offboarded. Periods to set: patient records with appointments, clinical notes and files (medical documentation duty); accounts after `DELETE /me`; both audit logs; notification outbox rows; logical backups per practice and PITR; the data of an offboarded practice and its export after the hand-over; the platform tables classified as health data (`practice_access` after deactivation, `account_deletions`, `account_exports`, `revocation_journal`, `provider_messages`, proposed 30 days); break-glass statement logs and the server log (at most 30 days).
+
+PITR keeps a finalized practice's data until the end of the cluster's PITR retention (`purged_at`, ADR 0005 §5.5); the DPO accepts this residual with the PITR period. Old backup-key versions are kept until the last backup encrypted with them has expired.
+
+**Recommendation:** the DPO delivers one table per market, and its values become configuration. Until then nothing medical is deleted automatically; `DELETE /me` deactivates at once and anonymises only once the periods are confirmed.
+
+### D12. Age of majority and guardian rules
+
+Product decision 4 (BR-19). Needed before FA01.
+
+- A. A market default in the practice settings (for example 18), with the notice period before guardian access ends.
+- B. A fixed 18 everywhere.
+
+**Recommendation: A**, with defaults from counsel per market.
+
+### D13. Sharing and reading of clinical notes
+
+Product decisions 1 and 2 (BR-16). Needed before R01.
+
+- Sharing: A. the doctor shares single notes, `INTERNAL` by default (current design); B. only certain note types, such as instructions, can be shared.
+- Receptionists: A. no access by default, a practice setting allows it (current design); B. never; C. always.
+
+**Recommendation: A and A**, the current design.
+
+### D14. Reception staff on the public page
+
+Product decision 14. M03 builds option A; option B is a small change later.
+
+- A. One "Reception team" card without names (current design).
+- B. Names, each with the person's own consent, like doctors (BR-24).
+
+**Recommendation: A** for v1; B reuses the consent model.
+
+### D15. Patient uploads
+
+Product decision 3. Needed before R02.
+
+- A. No patient uploads in v1: doctors upload clinical files, receptionists administrative ones (BR-17).
+- B. Patients upload files to an appointment, for example earlier findings: scanned, quota-limited, visible to the practice.
+
+**Recommendation: A.** B can reuse the R02 pipeline later, with per-user quotas and its own security review.
+
+### D16. Where patients enter their personal details
+
+Product features P-02 (name, date of birth, phone) and P-03 (insurance with options per market) are designed as sign-up screens 10 and 11. With one database per practice, the patient profile lives in each practice's database (ADR 0005 §1.3), and the insurance options depend on the practice's market. At sign-up there is no practice yet, so screens 10–11 would have no endpoint and no options to show. Needed before A05; the ui-designer changes the Figma flow and the main agent updates P-02 and P-03 in the feature catalogue with the decision.
+
+| Option | For | Against |
+|---|---|---|
+| A. Sign-up creates the account only (screens 09 and 12). Screens 10–11 become a "Your details for <practice>" step, shown the first time a signed-in user books at or joins a practice, with that practice's insurance options, on B01's join endpoint (B04, B05) | Profile data stays in the practice's database, which is the controller's (D8 option A); insurance options always fit the practice; nothing personal outside the practice databases | A patient of two practices enters the details twice; a later convenience can offer to prefill from the patient's own profile at another practice, read with their own token and submitted by them |
+| B. An account-level profile in the platform database at sign-up, copied into a practice's database when the patient joins | One entry | More personal data outside the practice databases; the copies go stale; insurance options at sign-up need a market choice |
+
+**Recommendation: A.**
+
+### Other open product questions
+
+No roadmap item waits for these: medical imaging (DICOM, out of scope), WhatsApp, quiet hours and a second reminder, the legal notice and privacy policy per market (each practice provides them), and sign-in by phone number (after the SMS provider, ADR 0004). They are listed in the [feature catalogue](../product/feature-catalog.md) and in [notifications.md](../product/notifications.md).
+
+## 4. Red-team decision log
+
+The red-team review of 2026-11-01 raised 87 issues against the first blueprint. Verdicts:
+
+- **accepted:** the fix, or the variant named in the note, is part of these documents; "Built in" names the roadmap item whose scope or acceptance contains it (`F01`: already in the scaffold; `R00`: in these documents).
+- **rejected:** not adopted, with the reason.
+- **deferred:** valid, but postponed to the named item or decision without a fixed solution.
+- **superseded:** the problem no longer exists because of a later decision.
+
+ADR 0006 records the F01 status of 25 of these issues; its "Deferred: Fxx" means "built in Fxx" and appears here as accepted.
+
+Summary: every issue is accepted as a whole, several in a variant named in the note. Rejected parts: RT-01, RT-02, RT-49, RT-73, RT-79. Declined by the user: the credential rotation of RT-01 (U1, 2026-11-04). Parts superseded by ADR 0005 §10 (tenant columns, composite tenant keys, Row-Level Security): RT-19, RT-56, RT-70. Deferred part: RT-08 (the app's deployment selection, D7).
+
+| ID | Issue | Verdict | Built in | Note |
+|---|---|---|---|---|
+| RT-01 | v1 database credential in the public history | accepted; rotation declined by the user | U1, F02 | Handled as an incident: U1 asked the user to rotate the credential. The user declined on 2026-11-04 and accepted the risk, so F02 records the two history fingerprints in `.gitleaksignore` under a dated comment and makes `secrets-history` required at once (F08 merged into F02). Rejected part: U1 as a gate for R00 or for the roadmap, because the credential has been public since 2024-07-13 and later commits change nothing; only rotation would end the exposure. |
+| RT-02 | Secret scanning only after a push | accepted | F01, U3, F02 | Pre-commit hook and `pnpm verify` fail closed; gitleaks is a required tool; push protection (U3); CI scans every push. Rejected part: a pre-push hook, which would only catch commits made with `--no-verify`, which is not allowed (ADR 0006 §9). |
+| RT-03 | Throttling keyed to the web server and the proxy | accepted | F03, F05, X06, P02, OPS01 | `TRUST_PROXY_HOPS` required in staging and production and 1 in compose; `api.server.ts` forwards `X-Forwarded-For`; per-address limits and forged headers tested in P02 and the `images` job; edge limits and bot rules, API and web reachable only through the edge (OPS01). |
+| RT-04 | Database error text in logs | accepted | F03, F04, X01 | `errorFormat: 'minimal'`; the error serializer drops `message` (except for `DomainException`), `cause`, `detail` and `meta` values; log-capture tests with `secret-value` after a validation error and a CHECK violation. |
+| RT-05 | Tokens and health-related IDs in logged URLs | accepted | F03, X02, A02–A05, F06, OPS01 | Logs carry the route pattern only; tokens travel in POST bodies and URL fragments (`…/family-invitations/accept`, the E10 token); Caddy writes no access log; the edge logs no query strings or cookies. |
+| RT-06 | Security updates suppressed or blocked | accepted | F01, F02 | `dependencyDashboardApproval` instead of `enabled: false`; the one-day gate is never 0; exceptions only for urgent security fixes, with a dated comment, removed once past the gate (not after 48 h); no exception today; `pnpm audit --prod` on every push and weekly. |
+| RT-07 | Publishing and deploys not gated | accepted | U2, F02, F05 | `publish` needs every other job; dependency review on push through the SPDX submission; provenance attestations verified by `deploy.yml`; a ruleset on `v2-planning`. |
+| RT-08 | ADR 0005 without a residency boundary; legal roles fixed | accepted | R00, F04, PR01 | ADR 0005 §7: one deployment per market region, accounts per deployment (pending the client's confirmation, D8 question 6), `MARKETS` checked by provisioning and per practice on every request (503 for that practice only; readiness checks only that `MARKETS` is set; seed exempt in local and CI); §13: legal roles Proposed pending the DPO (D8). Deferred part: the app's deployment selection, needed only for a second market (D7), not before A06. |
+| RT-09 | Offline appointment cache unencrypted | accepted | F07, X08, B05 | Variant: an allowlisted projection (no service, provider or note) as one `expo-secure-store` value (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`), an AES-GCM file only if it outgrows the store; `allowBackup: false`; purged on logout, on a switch and on a failed refresh; Jest tests. |
+| RT-10 | HSTS condition frozen at build time | accepted | F06 | Static `max-age=31536000` and COOP in `headers()`, which reads no `process.env`; a unit test compares the output per `APP_ENV`; `includeSubDomains` and `preload` at the edge (OPS01). |
+| RT-11 | Theme scale not constrained before CSS | accepted | P01, P02, P03 | `scale text[]` with a CHECK; the item pattern in the response DTO and the generated zod schema; `brandStyle` validates again and falls back to Teal (test with `#000;}</style><script>`). |
+| RT-12 | No guard against public caching of signed-in responses | accepted | X02 | `@PublicCache` works only on `@Public()` routes under `/api/v1/public/`, otherwise `no-store` and an error log; architecture test; every non-public route answers `no-store`. |
+| RT-13 | Public caching vs. immediate consent withdrawal | accepted | P02, P05, M03, X02 | Variant: the practice endpoint is `no-store` without ETag (RT-84, D2) instead of `no-cache` with ETag; free times keep `max-age=30`; M03 proves the request right after a withdrawal omits the member; no purge path is needed while nothing is cached. |
+| RT-14 | Another practice can claim a retired slug | accepted | F04, P02, M01, A04, OPS02 | `practice_slugs` in the platform database holds current and retired slugs in one uniqueness space; a retired slug answers 308; claiming it gives 409 `PRACTICE_SLUG_TAKEN`; offboarding keeps a tombstone. |
+| RT-15 | Open redirect and e-mail link poisoning | accepted | P06, A02, A03, A05 | `safeReturnPath` with the listed rejections; `PUBLIC_WEB_URL` for every e-mail link; tests with a forged `Host`. |
+| RT-16 | Docker hardening | accepted | F05 | `.dockerignore` mirrors the secret patterns; `files: ["dist"]` (migrations ship in the migrate image); Trivy `vuln,secret` at HIGH and CRITICAL; `cap_drop`, `no-new-privileges` and limits as the OPS01 baseline; secrets only through `--mount=type=secret` (ADR 0010). |
+| RT-17 | Persisted CI token and unused OIDC grant | accepted | F02, F05 | `persist-credentials: false`; write permissions only in `publish`, which runs no install; no `id-token` in `deploy.yml` until OPS01; both rules in the pull request template. |
+| RT-18 | Cleartext transport and interceptable links | accepted | F07, A06, REL01 | https enforced in `env.ts` and for the `eas.json` profiles (CI check); `usesCleartextTraffic: false`. Variant: token links open the web page and never reach the app; the custom scheme carries IDs only and ignores `token`; App Links and Universal Links for token-free paths in REL01. |
+| RT-19 | No proof of staff consent | accepted | P01, M03 | `staff_consents` with `text_version`, `given_at`, `withdrawn_at` and a partial unique index on active rows; one row and one audit event per give or withdraw. The `practice_id` column and composite keys are superseded by ADR 0005 §10. |
+| RT-20 | Nest error messages carry input text | accepted | X01 | Every non-`DomainException` is mapped by status; `detail` is the catalogue title; tests with malformed JSON containing `secret-value` and with a 404 that has a query string. |
+| RT-21 | Lockfile resolved before the policies | accepted | R00, F01 | R00 stages explicit paths; the lockfile was resolved again with the final settings; `trustPolicy: no-downgrade` with the dated `lefthook@2.2.2` exclusion is part of the F01 scaffold (ADR 0006, decision 3). |
+| RT-22 | `env()` in the Prisma config | accepted | F04 | Both configs read `process.env`; `db:generate` declares no variables and runs in `quality` without database variables; the Docker build doubles as the regression test. |
+| RT-23 | Filtered install vs. Turbo in images | accepted | F01, F05, F06 | Every package declares the tools its scripts call; images build with a filtered `pnpm run`, without Turbo. |
+| RT-24 | Store cache mount with `--offline` | accepted | F05, F06 | Option A: the store stays in the `pnpm fetch` layer; `--offline --frozen-lockfile --trust-lockfile`; per-image workspace copies; `type=gha,mode=max` per scope. |
+| RT-25 | Prisma schema engine and OpenSSL | accepted | F05 | OpenSSL in `base` before any install; the build fails without the OpenSSL 3 engine; `CHECKPOINT_DISABLE` in the migrate stage; the compose `migrate` service is `read_only`. |
+| RT-26 | e2e database as a service container | accepted | P03 | `docker compose up -d --wait db` with the init script, as locally. |
+| RT-27 | Default branch `main` | accepted | U2, F02 | Default branch `v2-planning` with a ruleset; Renovate without `baseBranchPatterns`; recorded in ADR 0009. |
+| RT-28 | Docker job: matrix, scan, smoke and publish | accepted | F05, F06 | `docker-bake.hcl`; `images` builds, scans and smoke-tests the compose stack with the bake tags, without a write token; `publish` after every job; `ci-ok` as the only required check; lowercase GHCR prefix. |
+| RT-29 | Dependency graph blind to the pnpm 12 lockfile | accepted | F02, REL01 | SPDX submission from `pnpm sbom`, then dependency review on push and pull request; `pnpm audit --prod --audit-level=high` on every push; a CycloneDX SBOM per app release. |
+| RT-30 | Build-time values in the web image | accepted | F06, P03 | No environment condition in `next.config.ts`; `robots.ts` and `sitemap.ts` are `force-dynamic`; the `images` job runs one web image under two `APP_ENV` values. |
+| RT-31 | Bloated migrate image | accepted | F04, F05 | `@medibooker/db-migrate` carries the Prisma CLI and `pg`; the migrate image holds that package, the schemas and the configs, at most 200 MB. |
+| RT-32 | gitleaks in the CI job | accepted | F02 | `fetch-depth: 0`, `--redact` and `--ignore-gitleaks-allow`, only redacted SARIF, self-test secrets generated at run time, the weekly scan in `scheduled.yml`. Both scans are required from F02: the pushed range (a new branch is scanned from `origin/v2-planning`) and the full history in its own job, with the two accepted v1 fingerprints in `.gitleaksignore`, pinned by `ACCEPTED_FINGERPRINTS` (U1, [07 §4](07-docker-ci-cd.md#4-secret-scanning)). |
+| RT-33 | `migrate diff` flags and database lifetime | accepted | F04 | Drift check inside the integration suite against copies of the migrated templates (the templates accept no connections once copies start) with `--from-config-datasource --to-schema --exit-code`, for both schemas; `medibooker-db verify` runs the same diff against live practices after every release. |
+| RT-34 | Real cost of a private repository | accepted | D4, F02 | D4 lists the gates a private repository loses on the current plan; the user chose option A, public for now (2026-11-04); ADR 0009 records the choice and GitHub and Renovate as processors without patient data. |
+| RT-35 | pnpm 12 bootstrap on Windows | accepted | F01, U7 | Variant: pnpm 12.16.1 is installed directly with npm, without the self-switch; without administrator rights `npx --yes pnpm@12.16.1` replaces the `pnpm -v` precondition; the permanent repair is U7. |
+| RT-36 | Diverging F01 scaffold | accepted | F01 | The working-tree scaffold is the source of truth; `engines` is `^26.13.0`. |
+| RT-37 | Extension and roles only in the init script | accepted | F04, P01, A01, OPS01 | `btree_gist` in P01's practice migration, `citext` in A01's platform migration; the init script and Testcontainers create cluster roles only; `medibooker-db cluster bootstrap` creates them in production (OPS01); the provider's extension allow-list is a D9 criterion. |
+| RT-38 | Renovate configuration gaps | accepted | F02 | No global `rangeStrategy` (pins come from the catalog; `engines` keeps its range); digest updates without release age; the `node runtime` group with `@types/node` below 27; gitleaks and actionlint as digest-pinned containers plus a custom manager for the setup action; the Testcontainers constant; urgent fixes with a dated exception. |
+| RT-39 | Runner image and Trivy not the latest | accepted | F02, F05 | `ubuntu-26.04` with 24.04 as the fallback; Trivy `v0.76.1` set explicitly. |
+| RT-40 | Turbo cache key, triggers and cache budget | accepted | F02 | A cache key per job, saved only by `quality` on `v2-planning`; pushes to `v2-planning` and `main`, tags and pull requests; scheduled scans in their own workflow; cache review after F06. |
+| RT-41 | Deploy placeholder and rollback policy | accepted | F04, F05, OPS01 | `git_sha` input resolved to three digests, `concurrency`, one job, no `id-token`; migrations as one-off tasks in the region; rollback by digest with expand and contract (ADR 0010, ADR 0005 §6); the `-- contract` and atomic-wrapper check (`pnpm check:migrations`) from F04. |
+| RT-42 | Runtime image hardening and size | accepted | F05, F06 | Root-owned files; npm and npx removed; the health check reads `PORT`; `files: ["dist"]`; compressed budgets of 150 MB (200 MB for the migrate image). |
+| RT-43 | e2e against another server; one rate-limit bucket | accepted | F05, F06 | Playwright `@smoke` and axe against the compose `app` stack in `images`; `TRUST_PROXY_HOPS: 1` in compose; `e2e-web` serves the standalone `server.js`. |
+| RT-44 | `.gitattributes` brace pattern | accepted | F01 | One line each for `*.cmd`, `*.bat` and `*.ps1`; `.editorconfig` matches. |
+| RT-45 | EAS processors and app config evaluation | accepted | F06, F07, REL01, D10 | No `expo-updates` until the DPO approves EAS Update or an in-region server exists; `app.config.ts` imports the committed `locales.json`; `node` and `pnpm` pinned per EAS profile; EAS, GitHub and Renovate in the processor register of D10. |
+| RT-46 | `env()` in the Prisma config (data layer) | accepted | F04 | Same fix as RT-22. |
+| RT-47 | SWC rejects target es2025 | accepted | F01, F03 | The presets keep es2024; the API adds `lib` es2025 and `esnext.temporal`; `.swcrc` is the single SWC configuration for `nest build` and Vitest; the AppModule smoke spec. |
+| RT-48 | The e2e-web job cannot start the stack | accepted | F06, P03, P06 | The compose database; `test:e2e` depends on `build` and `@medibooker/api#build` and passes `E2E_*`; the fixtures read the root `.env` through `@medibooker/db-migrate/testing`; the seed through Turbo after `db:generate`; the standalone server. |
+| RT-49 | Drift check after the container is gone; partial indexes | accepted | F04, B02 | The drift check runs inside the suite, spawned through `process.execPath`. Rejected part: remodelling BR-01 with `activeSlotId`, because Prisma 7's `partialIndexes` preview declares the partial unique index in the schema (RT-70); B02 keeps the raw-SQL test for a second active row. |
+| RT-50 | Matrix tests not enforced | accepted | X02, P02, A01 | `AUTHZ_MATRIX`, `PUBLIC_OPERATIONS` and `CROSS_PRACTICE` with an architecture test over `openapi.json`; cross-practice tests in both directions. |
+| RT-51 | Weak booking concurrency tests | accepted | B02, B03 | The listed tests with code assertions, 20 repetitions and a burst in two practices; configurable transaction limits; `PRACTICE_POOL_MAX` at least concurrency + 2 in the test app. |
+| RT-52 | Cache headers vs. the BR-22 and BR-24 tests | accepted | P02, P05, P06, M03 | Variant: the practice page is `no-store` (D2, RT-84) instead of `no-cache` with ETag; the free-time hooks fetch with `cache: 'no-cache'`; exact `Cache-Control` assertions; `page.clock.fastForward` in P06. |
+| RT-53 | Playwright flakes and visual baselines | accepted | F06, X06, P03 | `forbidOnly`, one CI retry with `failOnFlakyTests`, `updateSnapshots: 'none'` in CI, reports always uploaded; `@visual` only on Linux with the container workflow; the ui-designer approves the first baselines; `@quarantine`. |
+| RT-54 | ESM-only dependencies in mobile Jest | accepted | F07, X03, X08 | No MSW, faker or Orval mocks in Jest; `configureApiClient({ fetch })` with a route-table fake; `transformIgnorePatterns` extended for the binding's packages; a provider test with a real Arabic plural. |
+| RT-55 | Real time in web e2e | accepted | P02, P03, X06, P06 | `CLOCK_FIXED_AT` (local and CI only); time-derived fields from the API; lint on `src/app/**`; a fixed browser clock; the seed relative to the fixed instant. |
+| RT-56 | Shared mutable e2e data | accepted | P06, A05 | The seeded practices are read-only; a test that changes data provisions its own practice database through `createPractice()` and drops it in teardown. Deleting rows by `practice_id` is superseded by ADR 0005. |
+| RT-57 | Host time zone, ambient environment, shared throttler | accepted | F03, F06, F07, P02 | `TZ=Pacific/Chatham` in Vitest and Jest, zones per Playwright project; `createTestApp` with an explicit environment; the named `public` throttler; `Temporal.Now` banned by the local `no-system-clock` rule instead of `no-restricted-syntax`. |
+| RT-58 | Dead coverage gates | accepted | F02, F03 | Root-level coverage with `include`, 80/70 and 100 % for `*.rules.ts`, only in `test`; packages 90/85. |
+| RT-59 | Web component-test harness | accepted | F06, X03, X06 | `server-only` alias; the React Compiler in tests; synchronous content components; `renderWithProviders`; `createTestQueryClient` and `shouldRetryQuery`; seeded faker with a fixed reference date; MSW with `onUnhandledRequest: 'error'`. |
+| RT-60 | What Jest cannot prove on mobile | accepted | X08, X09, X10, B05 | Jest asserts props only; the `intl-check` screen; the nightly Maestro emulator job with airplane-mode steps; Jest projects for iOS and Android. |
+| RT-61 | Vacuous DST fixtures | accepted | P04, B02, B03, N01 | The fixtures of 06 §3: the weekday after a change, elapsed-hour deadlines, Cairo's missing midnight and its 25-hour day; ADR 0014. |
+| RT-62 | Silent green test runs | accepted | F01, F02, F07 | `passWithNoTests: false`; `.only` and `.skip` as lint errors; a quarantine helper with an issue URL; JUnit and JSON reports; a 0-test check in CI; the pull request template rule. |
+| RT-63 | Async side effects outside the `Clock` | accepted | A02, N01, RT01 | Plain-SQL outboxes with `scheduled_for` and `next_attempt_at` from the `Clock`; tests call `processDue(now, limit)`; the in-memory `EmailSender`, Mailpit in one e2e test; RT01 without a latency gate. |
+| RT-64 | RTL layout, WebKit, axe enforcement | accepted | F06, X07, P03 | `e2e/rtl-layout.spec.ts` with long synthetic values; `webkit-ar-rtl` at 390 px; axe as an automatic fixture. |
+| RT-65 | Catalogue tests vs. the runtime engine | accepted | X04 | A render-all test with the runtime engine of the chosen binding. |
+| RT-66 | Network calls in required gates | accepted | F02, F04, F07, U6 | The directory check only in the weekly workflow; Docker Hub login when `DOCKERHUB_TOKEN` exists; the Testcontainers image pinned by digest. |
+| RT-67 | Release-age gate vs. exact "latest" pins | accepted | F01 | ADR 0006 §1: "latest" is the newest stable version past the one-day gate; `minimumReleaseAge: 1440` written out; Renovate waits 3 days; exceptions only for urgent security fixes. |
+| RT-68 | Prisma config environment handling | accepted | F04 | Same fix as RT-22: plain `process.env` instead of a conditional `datasource`. |
+| RT-69 | Health probes under `/v1` | accepted | F03 | A `VERSION_NEUTRAL` controller, prefix exclusions in object form, `{*path}` middleware routes; tests for `/health/live`, the two 404s and no legacy-route warning. |
+| RT-70 | Constraints that Prisma can express | accepted | F04, P01, P04, B02 | Foreign keys and partial indexes are declared in the schema (`partialIndexes` preview, predicates as `db pull` prints them); hand-written SQL only for CHECK, EXCLUDE, grants, extensions and the transaction wrapper; the drift check from F04. Composite tenant relations and Row-Level Security are superseded by ADR 0005 §10. |
+| RT-71 | Database bootstrap outside migrations | accepted | F04, P01, A01 | Extensions and default privileges in migrations, as static SQL identical in authoring, shadow, template and production databases (grants go to the role named in `medibooker.app_role` and are skipped where it is unset); cluster roles outside migrations; no `prisma dev` fallback; Docker Desktop required for database work. |
+| RT-72 | Typecheck on a clean checkout | accepted | F06, F07 | `next typegen && tsc --noEmit`; a committed `expo-env.d.ts`; typecheck after `git clean -xfd` in both acceptances. |
+| RT-73 | Blueprint ignores the scaffold | accepted | R00, F01 | F01 reconciles the scaffold; R00 stages explicit paths. Rejected part: target es2025 in `node.json`, because @swc/core 1.16.21 rejects it (RT-47). |
+| RT-74 | Skills and agent files contradict the plan | accepted | every item | Each item updates the skills and agent files of its area in the same commit, with grep checks in the acceptance of F06, X02, X03, X05 and X08. |
+| RT-75 | Mobile preset order drops the DOM lib | accepted | F01, F07, X03 | `strict.json` without `lib` or `target`; mobile extends it before `expo/tsconfig.base`; the api-client uses only fetch types React Native declares. |
+| RT-76 | App config imports build output | accepted | F06, F07, X04 | The committed `locales.json`, exported as `./locales.json`; config files never import build output. |
+| RT-77 | Build-time headers and environment in the web image | accepted | F06, P03 | Same fix as RT-10 and RT-30. |
+| RT-78 | One React copy across SDK upgrades | accepted | F07 | pnpm `overrides` for React and its types; a CI check for one `react` and one `@tanstack/react-query`; the SDK upgrade runbook (04 §14). |
+| RT-79 | Prisma CLI in the runtime image | accepted | F05 | Option B: `packageExtensions` makes the adapter's `prisma` peer optional, so the API image has no Prisma CLI. Rejected part: option A (no migrate image), because the migrate image now carries the lifecycle CLI `medibooker-db`, which runs under identities the API never holds (ADR 0005 §4). |
+| RT-80 | MSW under Jest | accepted | F07, X03, X08 | Same decision as RT-54: an injected `fetch`; MSW only under Vitest. |
+| RT-81 | Two test renderers | accepted | F07 | `test-renderer` 1.3.0, moved only together with jest-expo. |
+| RT-82 | Dev loop for built packages | accepted | F03, X04, X05 | i18n and design tokens run `tsc -b -w` under `turbo dev`. |
+| RT-83 | Practice time zone in the i18n request config | accepted | X06, P03 | `timeZone: 'UTC'` in the request config; `formatInPracticeZone(practice)` on the server; a nested provider with the practice zone on the client. |
+| RT-84 | Public caching machinery without a consumer | accepted | P02, X02 | No ETag and no `@PublicCache` on the practice endpoint, which answers `no-store`; the client confirms this reading of ADR 0003 in D2. |
+| RT-85 | Repository path with spaces | accepted | U8 | A fresh clone at a short path without spaces before N02; no `subst`. |
+| RT-86 | Events fired before commit | accepted | P04 | Variant: `emitAfterCommit` queues events in the request context; the transaction owner emits them after commit and drops them on rollback; only `common/events` imports the emitter (lint); P04 tests "after commit, never on rollback". |
+| RT-87 | Entry points drift from `configureApp` | accepted | F03, X02 | `APP_OPTIONS` shared by `main.ts`, `createTestApp` and `generate.ts`; the `Env` object is passed to `AppModule.forRoot(env)`, so import order cannot bypass it. |

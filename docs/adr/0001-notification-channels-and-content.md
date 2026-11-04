@@ -1,5 +1,5 @@
 # 0001. Notification channels and content
-Status: Accepted (channels, incl. optional SMS) / Proposed (providers) — 2026-11-01
+Status: Accepted (channels, incl. optional SMS) — 2026-11-01; providers Open (decision D10)
 
 History: 2026-11-01 accepted with e-mail and push · 2026-11-01 SMS added as an optional channel per clinic at the client's request · 2026-11-01 each clinic chooses the channels for appointment messages: e-mail only, SMS only, or both (client); SMS provider still open.
 

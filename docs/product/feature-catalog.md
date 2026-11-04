@@ -310,4 +310,4 @@ App and portal in portrait (834 × 1194, iPad 11"), dashboard in landscape (1194
 12. Legal notice and privacy policy per market: required content differs per country; the clinic provides it.
 13. SMS: **decided 2026-11-01: each clinic chooses e-mail only, SMS only, or both** (W21). Still open: the SMS provider, registration of sender names per country, who pays (Arabic SMS need two segments, see notifications.md).
 14. Reception staff on the public page by name (if they agree) or only as "Reception team" (current design).
-15. Clinics with "SMS only": patients still need an e-mail address for the account (verification, password reset, security messages). Alternative: sign-up and sign-in with phone number and SMS code — a change to the auth design (decide before building auth).
+15. ~~Clinics with "SMS only"~~ — **decided 2026-11-01 (ADR 0004): every account needs an e-mail address in v1, also in SMS-only clinics.** Sign-in with phone number and SMS code follows once an SMS provider is chosen.

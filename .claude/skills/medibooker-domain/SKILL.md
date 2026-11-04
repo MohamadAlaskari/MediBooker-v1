@@ -52,6 +52,8 @@ Use these terms in UI copy, code, API and tests. Do not bring back the v1 names 
 
 ## Entities (v2 proposal; the `architect` owns changes)
 
+Storage (ADR 0005, decided by the client 2026-11-02): **one PostgreSQL database per practice**. Accounts, sessions, the practice registry (slug, routing) and the membership index live in the platform database; everything a practice owns lives in that practice's own database. A `practiceId` in the table below names the logical owner; inside a practice database it is not needed as a column.
+
 | Entity | Key fields | Notes |
 |---|---|---|
 | `User` | id (uuid), email (unique, case-insensitive), passwordHash, role, status (`PENDING_VERIFICATION`, `ACTIVE`, `DISABLED`), emailVerifiedAt, mfaSecret (encrypted, staff roles), locale, lastLoginAt | One login table; role data lives in profiles |
@@ -157,22 +159,30 @@ MFA is mandatory for Staff, Doctor and Admin.
 
 ## Realtime events
 
-Namespace `/realtime`. After verifying the token, the server puts sockets into the rooms `staff` (all non-patient roles) and `user:{id}`. Clients cannot choose rooms.
+Namespace `/realtime`. After verifying the token, the server puts each socket into its rooms (ADR 0005 §10); clients cannot choose rooms:
+
+- `practice:{practiceId}:staff`: staff, doctors and admins of that practice, joined only after the same membership and practice-status check as a practice-scoped request;
+- `practice:{practiceId}:doctors`: the doctors of that practice (note events);
+- `user:{userId}`: the signed-in user.
+
+There is no room across practices. Every payload carries `practiceId`, so clients can call the practice-scoped paths (`/practices/{practiceId}/…`).
 
 | Event | Rooms | Payload (IDs and times only) |
 |---|---|---|
-| `appointment.booked` | staff, user | `{ appointmentId, slotId, providerId, startsAt }` |
-| `appointment.cancelled` | staff, user | `{ appointmentId, slotId, providerId, startsAt }` |
-| `appointment.rescheduled` | staff, user | `{ appointmentId, previousAppointmentId, slotId, providerId, startsAt }` |
-| `appointment.status_changed` | staff, user | `{ appointmentId, status }` |
-| `slots.changed` | staff | `{ providerId, from, to }` |
-| `note.created`, `note.amended` | staff (doctors) | `{ noteId, appointmentId, patientId }` |
-| `attachment.ready`, `attachment.rejected` | staff, uploader | `{ attachmentId, appointmentId, scanStatus }` |
-| `record.shared_item_added` | user (managers of the patient) | `{ patientId }` → push "A new document is available in your record" (no content) |
+| `appointment.booked` | practice staff, user | `{ practiceId, appointmentId, slotId, providerId, startsAt }` |
+| `appointment.cancelled` | practice staff, user | `{ practiceId, appointmentId, slotId, providerId, startsAt }` |
+| `appointment.rescheduled` | practice staff, user | `{ practiceId, appointmentId, previousAppointmentId, slotId, providerId, startsAt }` |
+| `appointment.status_changed` | practice staff, user | `{ practiceId, appointmentId, status }` |
+| `slots.changed` | practice staff | `{ practiceId, providerId, from, to }` |
+| `note.created`, `note.amended` | practice doctors | `{ practiceId, noteId, appointmentId, patientId }` |
+| `attachment.ready`, `attachment.rejected` | practice staff, uploader (`user:{userId}`) | `{ practiceId, attachmentId, appointmentId, scanStatus }` |
+| `record.shared_item_added` | user (each manager of the patient) | `{ practiceId, patientId }` → push "A new document is available in your record" (no content) |
 
 Clients fetch details through the API. Payloads never contain names, services or notes. (v1 sent "New reservation for <patient name>" to every connected client.)
 
 ## v1 behaviour (reference only)
+
+v1 was removed from the repository on 2026-11-02 and exists only in the git history; v2 shares no code with it. This summary is the reference for its behaviour.
 
 - Patients: sign up (name, birth date, e-mail, phone, insurance provider, number and type, address), log in, see services, book a free slot for a service, see and cancel their reservations. Maximum 2 future reservations.
 - Staff: log in; manage employees, patients and services; create slots one by one, several at once, or for a date range; see the reservation of a slot; live updates over WebSocket.
