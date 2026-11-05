@@ -5,10 +5,11 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { childEnv } from '../../../test/support/child-env.js';
 import { createCapturedLogger, type LogLine } from '../../../test/support/log-capture.js';
+import { TEST_ENV } from '../../../test/support/test-env.js';
 import { parseEnv } from '../../config/env.schema.js';
 import { registerProcessHandlers } from './process-handlers.js';
 
-const env = parseEnv({ APP_ENV: 'ci', LOG_LEVEL: 'info' });
+const env = parseEnv(TEST_ENV);
 
 /** A message with the synthetic markers of 02 §8, as a database or library error can carry. */
 const LEAKY_MESSAGE = 'duplicate key for sara@example.test (secret-value)';

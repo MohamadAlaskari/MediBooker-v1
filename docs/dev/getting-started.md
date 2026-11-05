@@ -10,7 +10,7 @@ How to set up a development machine for the MediBooker v2 monorepo and how the r
 | pnpm | 12.16.1 | Install it directly with `npm install -g pnpm@12.16.1`, not through corepack. `packageManager` in `package.json` pins it. |
 | Git | recent (tested with 2.55) | On Windows: Git for Windows, which includes Git Bash. |
 | gitleaks | the version of the [install lines](#install-gitleaks), which CI pins too | **Required.** The pre-commit hook and `pnpm verify` fail without it. See [Install gitleaks](#install-gitleaks). |
-| Docker Desktop | current | Required from the database item on. Before that, only to lint the workflows locally ([Continuous integration](#continuous-integration)). |
+| Docker Desktop | current | **Required for database work** (since F04): the local database (`pnpm db:up`, [Databases](#databases)) and the integration tests (`pnpm test:integration`, Testcontainers). Also to lint the workflows locally ([Continuous integration](#continuous-integration)). `pnpm test` and `pnpm verify` need no Docker. On Windows see [windows.md](windows.md#docker-desktop). |
 
 ### Install gitleaks
 
@@ -74,6 +74,11 @@ cp .env.example .env
 - With `pnpm dev`, set every value in `.env`. `pnpm dev` runs the API through Turborepo, whose strict environment mode passes only `CI` and `NODE_ENV` from your shell, so `PORT=3002 pnpm dev` or `HOST=127.0.0.1 pnpm dev` changes nothing. A value set in the shell reaches the API, and wins over `.env`, only when you start the API directly: `PORT=3002 pnpm --filter @medibooker/api dev` or `pnpm --filter @medibooker/api start`.
 - The API refuses to start with an invalid environment. It prints one line per invalid variable, with the variable name and the reason, never the value, and exits with code 1. `APP_ENV` has no default: without `.env`, the API started by `pnpm dev` exits at once with `APP_ENV (invalid_value)`, and the watcher waits for a change.
 - `.env.example` sets `HOST=127.0.0.1`, so the development API is not reachable from the local network.
+- **The database part** (since F04) serves the compose database and the database tools as well:
+  - The four passwords of the compose cluster (`POSTGRES_PASSWORD`, `PLATFORM_OWNER_PASSWORD`, `PLATFORM_APP_PASSWORD`, `PROVISIONER_PASSWORD`) are `changeme-…` placeholders, and each is repeated in the URLs that use it: `PLATFORM_DATABASE_URL` (the API, as `platform_app`), `PLATFORM_MIGRATION_URL` (`platform_owner`), `PROVISIONER_DATABASE_URL` (`medibooker_provisioner`), and `DATABASE_ADMIN_URL`, `PRACTICE_MIGRATION_URL` and `SHADOW_DATABASE_URL` (the cluster superuser `postgres`). The database listens on `127.0.0.1` only. If you change a password, change it in its URLs too, before the first `pnpm db:up`: the cluster keeps the passwords of its first start until `docker compose down -v` removes its volume.
+  - `SECRET_STORE=dev` with `DEV_SECRET_SEED`: every practice's database passwords derive from the seed (local and CI only). After a change of the seed the existing practice roles keep their old passwords; start over with `pnpm db:reset && pnpm db:seed`.
+  - `medibooker-db`, both Prisma configs and the seed read this root `.env` themselves. A variable set in your shell wins over `.env`; `pnpm db:migrate`, `pnpm db:seed` and `pnpm db:reset` pass the database variables through Turborepo (`passThroughEnv`).
+  - The keys at the end of `.env.example`, below the comment that names docker compose, `medibooker-db` and the Prisma CLI, are never read by the API.
 
 ## Run the API
 
@@ -83,9 +88,70 @@ pnpm dev
 
 `pnpm dev` runs the Turborepo `dev` task, today only `nest start --watch` in `apps/api`: it compiles with SWC, serves on <http://localhost:3001> and restarts after every change. Check it with `curl -s localhost:3001/health/live`, which prints `{"status":"ok"}`. In Windows PowerShell, `curl` is an alias of `Invoke-WebRequest`; call the real curl there: `curl.exe -s http://localhost:3001/health/live`. Versioned routes live under `/api/v1`; every route without `@Public()` answers 401 until authentication exists. Stop it with Ctrl+C; for a server started in the background on Windows, see [windows.md](windows.md#stop-a-dev-server-started-in-the-background).
 
+- Since F04 the API checks the platform database right after it starts listening: run `pnpm db:up && pnpm db:migrate` first ([Databases](#databases)). Without a reachable platform database it writes one fatal log line and exits with code 1. `curl -s localhost:3001/health/ready` prints `{"status":"ok"}` once the platform database answers and is migrated.
 - Logs are JSON lines. For readable logs set `LOG_PRETTY=true` in `.env` (never in production).
 - `pnpm build` compiles every app (`nest build` writes `apps/api/dist`); `pnpm --filter @medibooker/api start` runs the built API.
-- `pnpm --filter @medibooker/api test` runs the API's unit and HTTP tests with coverage; it fails below the coverage thresholds ([06 §8](../architecture/06-testing.md#8-coverage-gates)). The HTTP tests need no Docker and no network service.
+- `pnpm --filter @medibooker/api test` runs the API's unit and HTTP tests with coverage; it fails below the coverage thresholds ([06 §8](../architecture/06-testing.md#8-coverage-gates)). The HTTP tests need no Docker and no network service. A direct run like this one does not go through Turborepo: after a fresh clone or a schema change, run `pnpm --filter @medibooker/api db:generate` first, which needs no database. `pnpm dev`, `pnpm test` and the other Turborepo commands generate the Prisma clients themselves.
+
+## Databases
+
+Since F04 the API needs PostgreSQL: one platform database and one database per practice ([ADR 0005](../adr/0005-multi-tenancy.md)). Locally they all run in the compose service `db`, so Docker Desktop must be running. There is no other way: no `prisma dev` fallback and no `prisma db push`.
+
+```sh
+pnpm db:up && pnpm db:migrate && pnpm db:seed
+```
+
+- `pnpm db:up` starts `db` (PostgreSQL 18.6 on `127.0.0.1:5432`) and waits until it is healthy. On its first start, `infra/local/postgres/init/01-cluster.sh` creates the cluster roles `platform_owner`, `platform_app` and `medibooker_provisioner` and the platform database `medibooker_platform`, with the passwords from `.env`.
+- `pnpm db:migrate` runs `medibooker-db migrate all`: the platform migrations as `platform_owner`, then the migration runner for every practice database. It prints JSON lines only, one per practice and a summary, and exits with 1 when anything failed.
+- `pnpm db:seed` provisions the seed practices `al-noor` and `lindenhof` as their own databases through the real provisioning code, as `medibooker_provisioner`, registers their slugs and keeps a migrated `practice_template` for test fixtures. A second run changes nothing.
+- Check the result:
+
+  ```sh
+  docker compose exec -T db psql -U postgres -lqt
+  ```
+
+  It lists `medibooker_platform`, the two `practice_…` databases and `practice_template` (`-T`: no terminal, which Git Bash needs).
+- `pnpm db:reset` starts over (local and CI only): it drops every practice database, `practice_template` and the practice roles, recreates the platform database and migrates it. Run `pnpm db:seed` afterwards. `docker compose down -v` removes the container and its volume as well.
+- `node apps/db-migrate/src/cli.ts verify` compares every practice database with the practice schema and checks its access list; exit code 2 means drift or a wrong ACL.
+- `pnpm test:integration` runs the API's integration tests against a PostgreSQL container of their own (Testcontainers, the image that `compose.yaml` pins), not against the compose database. Run it before a commit that changes database code; CI runs it in the job `integration`.
+
+### Author a migration
+
+Schema changes are reviewed SQL migrations ([02 §9](../architecture/02-api.md#authoring-migrations), ADR 0005 §6).
+
+1. Once, create the authoring and the shadow database of `prisma migrate dev`. Prisma 7.10.1 does not create a shadow database that `SHADOW_DATABASE_URL` names; it fails with P1003.
+
+   ```sh
+   docker compose exec -T db psql -U postgres -c 'CREATE DATABASE practice_authoring' -c 'CREATE DATABASE practice_shadow'
+   ```
+
+2. Change `apps/api/prisma/practice/schema.prisma` or `apps/api/prisma/platform/schema.prisma`, then create the migration without applying it. Pass the arguments without a `--` in front: pnpm 12 would hand it to the script.
+
+   ```sh
+   pnpm --filter @medibooker/api db:migrate:dev:practice --name <name>
+   pnpm --filter @medibooker/api db:migrate:dev:platform --name <name>
+   ```
+
+   The practice command works on `practice_authoring` as the cluster superuser, the platform command on the local `medibooker_platform` as `platform_owner`; both use `practice_shadow`.
+3. Edit the new `migration.sql` by hand:
+   - It starts with the transaction header and ends with `COMMIT;`:
+
+     ```sql
+     BEGIN;
+     SET LOCAL lock_timeout = '3s';
+     SET LOCAL statement_timeout = '60s';
+
+     -- the statements
+
+     COMMIT;
+     ```
+
+   - Every `DROP`, `RENAME` and type change carries a `-- contract` comment and ships one release after the code stopped using the object (expand, then contract).
+   - `CONCURRENTLY` and a longer timeout need an `-- exception: <reason>` comment.
+   - A practice migration grants to its database's own app role only through `EXECUTE format('…', app_role())`, never to a role by name.
+   - Add by hand what Prisma cannot express: CHECK and EXCLUDE constraints, grants and default privileges, extensions.
+4. `pnpm check:migrations` checks these rules; `pnpm verify` and CI's `quality` job run it too. Then `pnpm db:migrate` applies the migration locally, and `pnpm db:seed` refreshes `practice_template`; `pnpm --filter @medibooker/api db:generate` regenerates the Prisma clients (Turborepo also runs it before the API's build, lint, typecheck and tests in `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm verify`).
+5. A migration that was applied anywhere is never edited; write a new one.
 
 ## Commands
 
@@ -102,23 +168,33 @@ Run every command from the repository root.
 | Typecheck | `pnpm typecheck` |
 | Unit tests (Vitest) | `pnpm test` |
 | API tests with coverage | `pnpm --filter @medibooker/api test` |
+| Generate the Prisma clients (no database needed) | `pnpm --filter @medibooker/api db:generate` |
+| Start the local database (Docker Desktop must run) | `pnpm db:up` |
+| Migrate the platform database and every local practice database | `pnpm db:migrate` |
+| Provision the seed practices and `practice_template` (after `pnpm db:migrate`) | `pnpm db:seed` |
+| Start the local databases over (local and CI only; then `pnpm db:seed`) | `pnpm db:reset` |
+| Integration tests against PostgreSQL in Testcontainers (Docker) | `pnpm test:integration` |
+| Check the migration rules (also run by `pnpm verify` and CI `quality`) | `pnpm check:migrations` |
+| Check schema drift and database ACLs of every practice | `node apps/db-migrate/src/cli.ts verify` |
 | Format all files | `pnpm format` |
 | Check formatting only | `pnpm format:check` |
-| Everything before a commit, after `git add`: hook check, secret scan of the staged changes, formatting, the lockfile dedupe check, lint, typecheck, tests, build | `pnpm verify` |
+| Everything before a commit, after `git add`: hook check, secret scan of the staged changes, formatting, the lockfile dedupe check, the migration check, lint, typecheck, tests, build | `pnpm verify` |
 | One package only | `pnpm --filter @medibooker/eslint-config test` |
 | Ignore the Turborepo cache | `pnpm lint --force` |
 | Check the `.gitleaksignore` pin | `node scripts/scan-secrets.ts pin` |
 | Scan the full git history for secrets, as CI does | `node scripts/scan-secrets.ts history` |
 
-The e2e and database commands arrive with the web and database items. Linting the workflows and validating `renovate.json` need Docker: see [Continuous integration](#continuous-integration).
+The e2e commands arrive with the web item. The database commands need Docker Desktop ([Databases](#databases)), and so do linting the workflows and validating `renovate.json` ([Continuous integration](#continuous-integration)).
 
 ## Repository layout
 
 | Path | Content |
 |---|---|
-| `apps/` | The applications: `api` (NestJS 12, `@medibooker/api`); web and mobile follow. |
+| `apps/` | The applications: `api` (NestJS 12, `@medibooker/api`, with the Prisma schemas of the platform and practice databases in `prisma/`) and `db-migrate` (`@medibooker/db-migrate`, the database lifecycle CLI `medibooker-db` and the test helpers `./testing`); web and mobile follow. |
 | `packages/` | Shared packages: `@medibooker/tsconfig`, `@medibooker/eslint-config`. |
-| `scripts/` | Repo scripts behind the git hooks and the CI secret scans (`scan-secrets.ts`), with their tests. Run by Node directly (TypeScript type stripping). |
+| `infra/local/` | Local infrastructure: `postgres/init/01-cluster.sh`, which creates the cluster roles and the platform database on the compose database's first start. |
+| `compose.yaml` | The compose service `db` for local development ([07 §2](../architecture/07-docker-ci-cd.md#2-compose-for-local-development)). |
+| `scripts/` | Repo scripts behind the git hooks, the CI secret scans (`scan-secrets.ts`) and the migration check (`check-migrations.ts`), with their tests. Run by Node directly (TypeScript type stripping). |
 | `.github/` | CI: the workflows, the composite actions `setup` and `gitleaks`, the actionlint configuration and the pull request template. `renovate.json` at the root configures Renovate. |
 | `docs/` | Product docs (`docs/product`), architecture (`docs/architecture`), decision records (`docs/adr`) and these developer docs (`docs/dev`). |
 
@@ -209,7 +285,8 @@ GitHub Actions runs `.github/workflows/ci.yml` on every push to `v2-planning` an
 | Job | Checks |
 |---|---|
 | `config-lint` | actionlint and the Renovate validator, each in a pinned container; the only job that can hold the optional Docker Hub token, so it runs no repository or package code |
-| `quality` | `pnpm install --frozen-lockfile`, `pnpm format:check`, `pnpm dedupe --check`, and lint, typecheck, tests with coverage and the build, as in `pnpm verify` without the hooks; the tests include `scripts/ci-config.test.ts`, which checks the rules of the workflows |
+| `quality` | `pnpm install --frozen-lockfile`, `pnpm format:check`, `pnpm dedupe --check`, and lint, typecheck, tests with coverage and the build, as in `pnpm verify` without the hooks; the tests include `scripts/ci-config.test.ts`, which checks the rules of the workflows. Then `db:generate` without any database variable and `pnpm check:migrations` |
+| `integration` | `pnpm test:integration`: the API's integration tests against PostgreSQL in Testcontainers, whose image it pulls anonymously; it holds no secret |
 | `security` | the `.gitleaksignore` pin, a secret scan of the pushed commits, the scanner self-test and `pnpm audit --prod --audit-level=high` |
 | `secrets-history` | a secret scan of the full history |
 | `sbom` | the SPDX snapshot of the lockfile for GitHub's dependency graph, and the dependency review, which fails on a new high or critical advisory |

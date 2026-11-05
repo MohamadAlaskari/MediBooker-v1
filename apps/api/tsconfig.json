@@ -2,7 +2,16 @@
   "extends": "@medibooker/tsconfig/nest.json",
   "compilerOptions": {
     "lib": ["es2025", "esnext.temporal"],
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "prisma",
+    "scripts",
+    "prisma.platform.config.ts",
+    "prisma.practice.config.ts",
+    "vitest.config.ts"
+  ]
 }

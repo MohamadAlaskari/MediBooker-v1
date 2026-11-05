@@ -8,8 +8,8 @@ The repository root is the v2 monorepo. The F01 scaffold in the working tree is 
 MediBooker-v1/                         v2 monorepo; v1, removed on 2026-11-02 (L00), is in the git history
 ├─ .github/                            F02: actions/setup and actions/gitleaks (composite actions), workflows/ci.yml, codeql.yml and scheduled.yml, actionlint.yaml, pull_request_template.md (07 §3)
 ├─ apps/
-│  ├─ api/                             F03: @medibooker/api, NestJS 12 (02-api.md); F04: Prisma schemas of the platform and practice databases
-│  ├─ db-migrate/                      F04: @medibooker/db-migrate, the database lifecycle CLI medibooker-db (02 §6); F05: the migrate image
+│  ├─ api/                             F03: @medibooker/api, NestJS 12 (02-api.md); F04: the data layer and the Prisma schemas of the platform and practice databases
+│  ├─ db-migrate/                      F04: @medibooker/db-migrate, the database lifecycle CLI medibooker-db and ./testing (02 §6); F05: the migrate image
 │  ├─ web/                             F06: @medibooker/web, Next.js 16 (03-web.md)
 │  └─ mobile/                          F07: @medibooker/mobile, Expo SDK 58 (04-mobile.md)
 ├─ packages/
@@ -19,7 +19,7 @@ MediBooker-v1/                         v2 monorepo; v1, removed on 2026-11-02 (L
 │  ├─ api-client/                      X03: generated client, error mapping, query client
 │  └─ design-tokens/                   X05: design and motion tokens for web and React Native
 ├─ infra/local/                        F04: postgres/init/01-cluster.sh · F06: Caddyfile
-├─ scripts/                            F01: git-hook scripts with tests (check-commit-msg.ts, check-hooks.ts, run-gitleaks.ts, lib/) · F02: scan-secrets.ts, the CI secret scans (pin, range, history, self-test), with lib/scan-range.ts · F04: check-migrations.ts · X02: check-drift.ts
+├─ scripts/                            F01: git-hook scripts with tests (check-commit-msg.ts, check-hooks.ts, run-gitleaks.ts, lib/) · F02: scan-secrets.ts, the CI secret scans (pin, range, history, self-test), with lib/scan-range.ts · F04: check-migrations.ts with lib/migration-rules.ts, lib/migration-tree.ts and lib/sql-statements.ts · X02: check-drift.ts
 ├─ docs/                               adr/, architecture/, dev/ (F01), product/
 ├─ compose.yaml · docker-bake.hcl      F04 · F05 (07)
 ├─ package.json · pnpm-workspace.yaml · pnpm-lock.yaml · turbo.json                  F01
@@ -45,16 +45,25 @@ v2 shares no code with v1. The workspace members are `apps/*` and `packages/*` o
   | `typecheck` · `typecheck:root` | `turbo run typecheck typecheck:root` · `tsc -p tsconfig.json` |
   | `test` · `test:root` | `turbo run test test:root` · `vitest run --coverage` (the tests of `scripts/`; the coverage gate of `scripts/lib` since F02) |
   | `format` · `format:check` | `prettier --write .` · `prettier --check .` |
-  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && turbo run lint lint:root typecheck typecheck:root test test:root build` (`build` since F03, `pnpm dedupe --check` since F02) |
+  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && node scripts/check-migrations.ts && turbo run lint lint:root typecheck typecheck:root test test:root build` (`build` since F03, `pnpm dedupe --check` since F02, `scripts/check-migrations.ts` since F04) |
 
 - `verify` starts with `scripts/check-hooks.ts` (`lefthook check-install`): it fails with an install hint when the git hooks are missing or out of date, because a commit would then skip the secret scan and the commit-message check. `LEFTHOOK=0` or `false` switches the hooks off; with `CI=true` as well (CI sets both and has no hooks) the script skips the check, because lefthook's own `check-install` ignores that switch and fails on a checkout without hooks. On any other machine the switch fails the check, because commits would skip the secret scan (ADR 0006, decision 9). The staged secret scan follows, so `verify` runs after `git add`. `pnpm dedupe --check` runs before Turbo, as in CI's `quality`, so a lockfile that CI would reject fails before the commit.
 - Every lint script, in the root and in each package, runs ESLint with `--max-warnings=0`: a warning fails like an error.
-- Scripts added by later items: `build` and `dev` (F03); `test:integration`, `db:up`, `db:migrate`, `db:seed`, `db:reset` and `check:migrations` (F04); `test:e2e` (F06); `generate` and `check:drift` (X02). From F03 on, `verify` also runs `build`: the tests compile through `unplugin-swc`, so only the build compiles through `nest-cli.json`, whose `ignore` entry keeps spec files out of `dist`, and catches a broken one before CI. From F04 on it runs `check:migrations`, and from X02 on `check:drift`.
+- Scripts added by later items: `build` and `dev` (F03); `test:integration`, `db:up`, `db:migrate`, `db:seed`, `db:reset` and `check:migrations` (F04, below); `test:e2e` (F06); `generate` and `check:drift` (X02). From F03 on, `verify` also runs `build`: the tests compile through `unplugin-swc`, so only the build compiles through `nest-cli.json`, whose `ignore` entry keeps spec files out of `dist`, and catches a broken one before CI. From F04 on it runs `node scripts/check-migrations.ts` after `pnpm dedupe --check`, and from X02 on `check:drift`.
+- The F04 scripts as built:
+
+  | Script | Command |
+  |---|---|
+  | `db:up` | `docker compose up -d --wait db`: the compose database, healthy over TCP ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)) |
+  | `db:migrate` · `db:reset` | `turbo run db:migrate` · `turbo run db:reset`: `@medibooker/db-migrate` runs `node src/cli.ts migrate all` · `node src/cli.ts reset-local` |
+  | `db:seed` | `turbo run db:seed`: the API's `tsx prisma/seed.ts`, after `db:generate` |
+  | `test:integration` | `turbo run test:integration`: the API's `vitest run --project integration`, after `db:generate`; needs Docker |
+  | `check:migrations` | `node scripts/check-migrations.ts` ([02 §9](02-api.md#authoring-migrations)) |
 - Root `devDependencies` serve the root scripts and configs: `@medibooker/eslint-config`, `@medibooker/tsconfig` (`workspace:*`), `@types/node`, `@vitest/coverage-v8` (F02), `eslint`, `lefthook`, `prettier`, `turbo`, `typescript`, `vite`, `vitest`, `yaml` (F02, for `scripts/ci-config.test.ts`) (`catalog:`). Every package declares the tools its own scripts call (`typescript`, `vitest`, `@nestjs/cli`, …), so filtered installs in Docker work (07).
 
 ### pnpm-workspace.yaml
 
-As built in F01, with the `allowBuilds` entry of F03:
+As built in F01, with the `allowBuilds` entries of F03 and F04 and F04's trust exclusion:
 
 ```yaml
 packages:
@@ -66,17 +75,25 @@ minimumReleaseAge: 1440    # pnpm 12 default, written out on purpose (ADR 0006)
 trustPolicy: no-downgrade  # refuse versions that lost provenance (ADR 0006, decision 3)
 trustPolicyExclude:
   - lefthook@2.2.2         # with a dated comment
+  - prisma@7.10.1          # F04, with a dated comment
 catalog: { … }             # one exact version per shared dependency
 allowBuilds:
   lefthook: true
   '@swc/core': false       # F03, with a dated comment: denied on purpose
+  '@prisma/engines': true  # F04: downloads the schema engine that prisma migrate spawns
+  prisma: false            # F04: denied, as are the four below, each with a dated comment
+  esbuild: false
+  protobufjs: false
+  ssh2: false
+  cpu-features: false
 ```
 
 Added by later items, each with a reason in the commit body:
 
 | Setting | Item | Content |
 |---|---|---|
-| `allowBuilds` entries | per item | `'@swc/core': false` (F03: denied, because the optional platform package carries the native binary and SWC works without the script, which would only check the binding and fall back to downloading `@swc/wasm`; without any entry pnpm 12 fails with `ERR_PNPM_IGNORED_BUILDS`, ADR 0006 decision 3), `prisma` and `@prisma/engines` (F04), `argon2` (A01); others only after review of the install report |
+| `allowBuilds` entries | per item | `'@swc/core': false` (F03: denied, because the optional platform package carries the native binary and SWC works without the script, which would only check the binding and fall back to downloading `@swc/wasm`; without any entry pnpm 12 fails with `ERR_PNPM_IGNORED_BUILDS`, ADR 0006 decision 3); F04: `'@prisma/engines': true`, and `prisma`, `esbuild` (through tsx), `protobufjs` (through testcontainers), `ssh2` and `cpu-features` (through testcontainers) denied, with the reasons of ADR 0006 decision 3; `argon2` (A01); others only after review of the install report |
+| `trustPolicyExclude` | F04 | `prisma@7.10.1` with a dated comment: the CLI's 7.10.x releases were published without the provenance of 7.9.1 (ADR 0006, decision 3) |
 | `packageExtensions` | F05 | Marks the `prisma` peer of `@nestjs-cls/transactional-adapter-prisma` as optional, so `pnpm deploy --prod` leaves the Prisma CLI out of the API image |
 | `overrides` | F07 | Pins `react`, `react-dom`, `@types/react`, `@types/react-dom` to the catalog version, so no package can install a second React |
 
@@ -87,16 +104,16 @@ Added by later items, each with a reason in the commit body:
 - As built in F01: `globalDependencies` `.node-version` and `pnpm-workspace.yaml`; `globalEnv` `CI` and `NODE_ENV`; strict environment mode (Turborepo 2's default), so a task sees only the variables it declares.
 - Tasks `build` (`^build`, outputs `dist/**`), `lint` and `typecheck` (`^build`), `test` (`^build`, outputs `coverage/**` since F03, which turned coverage on in the API, and `reports/**` since F02: every Vitest config writes its JUnit report to `reports/junit.xml`, so a cached run restores it for CI, [06 §9](06-testing.md#9-flaky-tests-and-silent-green)).
 - No package overrides the `test` outputs. F03 had added `packages/eslint-config/turbo.json` with `outputs: []`, because that package's tests write no coverage and Turborepo 2.11.10 prints "no output files found" for a task whose declared outputs are all missing; F02 removed it, since the package's tests now write `reports/junit.xml`, and the warning is gone.
-- `apps/api/turbo.json` (`extends: ["//"]`, F03) sets the inputs of the API's `test` task to `["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]`: `src/config/env-example.spec.ts` reads the root `.env.example`, so a change to that file alone must rerun the test instead of replaying the cache. F04 adds `db:generate` to the same file.
-- The root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` list their `inputs` explicitly (the scripts, the root configs and `pnpm-lock.yaml`; `//#lint:root` also the eslint-config sources), so they stay cacheable. `//#test:root` also reads `.gitleaks.toml`, `.gitleaksignore` (since F02), `lefthook.yml`, `.github/**`, `renovate.json` and `docs/dev/getting-started.md` (F02: `scripts/ci-config.test.ts` reads them), which its tests use, outputs `coverage/**` and `reports/**` (F02), and declares `env: ["GITLEAKS_VERSION"]`: CI's gitleaks action exports the version of the gitleaks it installs, so a gitleaks upgrade reruns the rule test.
+- `apps/api/turbo.json` (`extends: ["//"]`, F03) sets the inputs of the API's `test` task to `["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]`: `src/config/env-example.spec.ts` reads the root `.env.example`, so a change to that file alone must rerun the test instead of replaying the cache. Since F04 the same file defines the API's `db:generate` task (inputs: both schemas, both migration folders, both Prisma configs and `scripts/write-schema-versions.ts`; outputs `src/generated/**`) and makes `build`, `lint`, `typecheck`, `test`, `dev`, `test:integration` and `db:seed` depend on it.
+- The root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` list their `inputs` explicitly (the scripts, the root configs and `pnpm-lock.yaml`; `//#lint:root` also the eslint-config sources), so they stay cacheable. `//#test:root` also reads `.gitleaks.toml`, `.gitleaksignore` (since F02), `lefthook.yml`, `.github/**`, `renovate.json`, `docs/dev/getting-started.md` (F02) and `apps/api/test/integration/support/postgres-image.ts` (F04; `scripts/ci-config.test.ts` reads them), which its tests use, outputs `coverage/**` and `reports/**` (F02), and declares `env: ["GITLEAKS_VERSION"]`: CI's gitleaks action exports the version of the gitleaks it installs, so a gitleaks upgrade reruns the rule test.
 - Added later:
 
   | Task | Item | Rule |
   |---|---|---|
   | `dev` | F03 (built) | `persistent: true`, `cache: false`; the API reads the root `.env` itself, so no pass-through: under `pnpm dev` only the root `.env`, `CI` and `NODE_ENV` reach the API, and a shell override needs a direct run (`pnpm --filter @medibooker/api dev`); i18n and design-tokens run `tsc -b -w` next to the apps (X04, X05) |
-  | `db:generate` | F04 | `apps/api/turbo.json` makes `build`, `lint`, `typecheck`, `test` and `dev` depend on it; declares no environment variables |
-  | `test:integration` | F04 | no cache; passes through `DOCKER_HOST` and `TESTCONTAINERS_*` |
-  | `db:migrate`, `db:seed`, `db:reset` | F04 | no cache; `passThroughEnv: ["PLATFORM_DATABASE_URL", "PLATFORM_MIGRATION_URL", "PRACTICE_MIGRATION_URL", "SHADOW_DATABASE_URL", "PROVISIONER_DATABASE_URL", "DATABASE_CLUSTER_ENDPOINTS", "SECRET_STORE", "DEV_SECRET_SEED", "APP_ENV"]` for values set in the shell; locally the tools read the root `.env` themselves ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)); `db:seed` depends on `db:generate` |
+  | `db:generate` | F04 (built) | root: `outputs: ["src/generated/**"]`, no `env`, so `prisma generate` runs without any database variable (CI `quality` proves it); `apps/api/turbo.json` adds its inputs and makes `build`, `lint`, `typecheck`, `test`, `dev`, `test:integration` and `db:seed` depend on it |
+  | `test:integration` | F04 (built) | no cache; `passThroughEnv: ["DOCKER_*", "TESTCONTAINERS_*"]` |
+  | `db:migrate`, `db:seed`, `db:reset` | F04 (built) | no cache; `passThroughEnv`: `PLATFORM_DATABASE_URL`, `PLATFORM_MIGRATION_URL`, `PRACTICE_MIGRATION_URL`, `SHADOW_DATABASE_URL`, `PROVISIONER_DATABASE_URL`, `DATABASE_ADMIN_URL`, `DATABASE_CLUSTER_ENDPOINTS`, `SECRET_STORE`, `DEV_SECRET_SEED`, `APP_ENV`, `MARKETS`, `MIGRATION_*`, `PRACTICE_APP_CONNECTION_LIMIT` and `PRACTICE_OWNER_CONNECTION_LIMIT`, for values set in the shell; locally the tools read the root `.env` themselves ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)); `db:seed` depends on `db:generate` |
   | `test:e2e` | F06 | `dependsOn: ["build"]`, from P03 also `@medibooker/api#build`; `passThroughEnv: ["E2E_*"]`; no cache; the fixtures read the root `.env` through `loadWorkspaceEnv()` (P06) |
   | `generate` | X02 | api: after `build`; api-client: after `@medibooker/api#generate`; i18n, design-tokens: none. Outputs are committed |
 
@@ -114,9 +131,9 @@ Added by later items, each with a reason in the commit body:
 
 Each preset is proven by a fixture project in `packages/tsconfig/fixtures`. App specifics:
 
-- **api:** extends `nest.json` and sets `lib: ["es2025", "esnext.temporal"]` and `useDefineForClassFields: false`. The emit target stays `es2024` because `unplugin-swc` copies `target` into SWC and @swc/core 1.16.21 rejects `es2025`; Node 26 runs ES2025 either way.
+- **api:** extends `nest.json` and sets `lib: ["es2025", "esnext.temporal"]` and `useDefineForClassFields: false`, and since F04 `allowImportingTsExtensions`. The emit target stays `es2024` because `unplugin-swc` copies `target` into SWC and @swc/core 1.16.21 rejects `es2025`; Node 26 runs ES2025 either way. One tsconfig covers `src`, `test`, `prisma`, `scripts`, both Prisma configs and `vitest.config.ts`; it is `noEmit` (`nest build` compiles with SWC).
 - **db-migrate:** extends `node.json` with `allowImportingTsExtensions` and `erasableSyntaxOnly`, like the root `tsconfig.json`, because Node runs it by type stripping.
-- **Consumers of `@medibooker/db-migrate/testing`:** the API's test tsconfig (F04) and the web's e2e tsconfig (P06) set `allowImportingTsExtensions`, which `noEmit` allows; without it TypeScript reports TS5097 for db-migrate's `.ts` imports.
+- **Consumers of `@medibooker/db-migrate/testing`:** the API's tsconfig (F04) and the web's e2e tsconfig (P06) set `allowImportingTsExtensions`, which `noEmit` allows; without it TypeScript reports TS5097 for db-migrate's `.ts` imports.
 - **mobile:** `extends: ["@medibooker/tsconfig/strict.json", "expo/tsconfig.base"]`, in this order, so Expo's `DOM` and `ESNext` libs win.
 - **api-client:** extends `strict.json` with bundler resolution and the DOM lib, and uses only fetch types that React Native also declares (`RequestInit`, `Response`, `AbortSignal`, not `HeadersInit`).
 
@@ -145,7 +162,7 @@ Per app:
 
 | App | Composition | App-level additions |
 |---|---|---|
-| api | `base` + `nest` + `vitest` | `no-restricted-imports` of `@nestjs/event-emitter` outside `src/common/events` (P04) |
+| api | `base` + `nest` + `vitest` | F04: `no-system-clock` also in `src/common/tenancy` (outside specs), and `process.env` only in `src/main.ts` (`no-restricted-properties`); `no-restricted-imports` of `@nestjs/event-emitter` outside `src/common/events` (P04) |
 | db-migrate | `base` + `vitest` | `no-console` off for the CLI entry |
 | web | `base` + `react` + `vitest` + ESLint 10-compatible Next.js and accessibility rules chosen in F06 | `no-system-clock` also on `src/app/**` (X06); no `localStorage`/`sessionStorage`; `react/no-danger` except the JSON-LD component |
 | mobile | `base` + `react` + Expo rules chosen in F07 + a `jest` preset (`eslint-plugin-jest`, `no-focused-tests` and `no-disabled-tests` as errors) | no `left`/`right`/`marginLeft`/`paddingRight` style keys |
@@ -194,7 +211,7 @@ eslint-config-next and eslint-config-expo depend on plugins that declare ESLint 
 
 - The API needs plain JavaScript at run time, so packages it imports are built with `tsc`. The api-client is consumed only by bundlers (Next `transpilePackages`, Metro, Vitest, Jest), so it ships source.
 - Config files (`app.config.ts`, `metro.config.js`, `next.config.ts`, `jest.config.js`) never import workspace build output: a fresh clone and an EAS worker have no `dist/`. They import committed JSON such as `@medibooker/i18n/locales.json`.
-- `@medibooker/db-migrate` is an app, not a shared package: the command-line tool of the migrate image. Its `exports` add `./testing` (`provisionPractice`, `dropPractice`, `seedPracticeFixture(practice, data)`, `loadWorkspaceEnv()`), covered by an API integration test. It is a devDependency of the API (seed, integration harness; F04) and of the web (e2e fixtures; P06), which then need no raw SQL and no direct `pg` dependency of their own ([02 §6](02-api.md#6-database-lifecycle-provisioning-migrations-and-operations)).
+- `@medibooker/db-migrate` is an app, not a shared package: the command-line tool of the migrate image. Its `exports` are `.` (the commands as functions with explicit options, `createPracticeDatabase()`, the `SecretStore` port with the development store, `parseToolEnvironment`, the error codes) and `./testing` (`provisionPractice`, `dropPractice`, `seedPracticeFixture(practice, data)`, `ensurePracticeTemplate`, `PRACTICE_TEMPLATE`, `loadWorkspaceEnv()`), covered by the API's `db-migrate-testing.int-spec.ts`; both point at TypeScript sources. It is a devDependency of the API (seed, integration harness; F04) and of the web (e2e fixtures; P06), which then need no raw SQL and no direct `pg` dependency of their own ([02 §6](02-api.md#6-database-lifecycle-provisioning-migrations-and-operations)).
 
 Deliberately not packages:
 
@@ -268,7 +285,7 @@ Features import each other only through their `index.ts`.
 
 ## 5. Versions
 
-"Latest" means the newest stable release that is older than pnpm's `minimumReleaseAge` of one day at the moment a package is added (ADR 0006). Packages are added with `pnpm add <pkg>` without a version, so pnpm picks that release; Renovate later moves pins after its own three-day age. The table was checked against the npm registry, Docker Hub and GitHub releases on 2026-11-02; every deviation has its reason. The CI rows were re-checked for F02 on 2026-11-05, and the exact pins of F02 follow in [CI pins](#ci-pins). ADR 0006 holds the authoritative table for the F01 catalog.
+"Latest" means the newest stable release that is older than pnpm's `minimumReleaseAge` of one day at the moment a package is added (ADR 0006). Packages are added with `pnpm add <pkg>` without a version, so pnpm picks that release; Renovate later moves pins after its own three-day age. The table was checked against the npm registry, Docker Hub and GitHub releases on 2026-11-02; every deviation has its reason. The CI rows were re-checked for F02 on 2026-11-05, and the exact pins follow in [CI pins](#ci-pins). The F04 rows (the data layer's packages and the PostgreSQL image) were checked on 2026-11-05, and F04 re-resolved the CI pins the same day. ADR 0006 holds the authoritative table for the catalog.
 
 | Package or tool | Chosen | Newest on 2026-11-02 | Deviation and reason |
 |---|---|---|---|
@@ -290,10 +307,11 @@ Features import each other only through their `index.ts`.
 | nestjs-pino · pino · pino-http · pino-pretty (dev) | 5.3.1 · 10.4.0 · 11.0.0 · 13.2.0 | same | — |
 | nestjs-cls · @nestjs-cls/transactional · …-adapter-prisma | 7.0.2 · 4.0.2 · 2.0.2 | same | — (the adapter's `prisma` peer is made optional, §2; the practice connection uses a custom adapter, 02 §5) |
 | class-validator · class-transformer · reflect-metadata · rxjs · helmet · zod | 0.15.1 · 0.5.1 · 0.2.2 · 7.8.2 · 8.3.0 · 4.6.7 | same | — |
-| prisma (CLI) | 7.10.1 | dist-tag `latest` = 8.0.0-rc.29 | The tag points to a release candidate; the CLI must equal @prisma/client |
-| @prisma/client · @prisma/adapter-pg · pg · @types/pg | 7.10.1 · 7.10.1 · 8.23.1 · 8.23.1 | same | — (`pg` and `@types/pg` also in db-migrate) |
+| prisma (CLI) | 7.10.1 (2026-10-15) | dist-tag `latest` = 8.0.0-rc.30 (2026-11-03) | The tag points to a release candidate; F04 takes the newest stable release, and the CLI equals @prisma/client (ADR 0006). Node 26 is not on Prisma 7.10.1's list of supported versions (20.19+, 22.12+, 24.0+); every F04 command worked on Node 26.13.0 |
+| @prisma/client · @prisma/adapter-pg · pg · @types/pg | 7.10.1 · 7.10.1 · 8.23.1 · 8.23.1 | same (F04: published 2026-10-15, 2026-10-15, 2026-09-30, 2026-08-17) | — (`pg` and `@types/pg` also in db-migrate) |
 | tsx (seed only) · @swc/core · @swc/cli · unplugin-swc | 4.23.15 · 1.16.21 · 0.8.2 · 2.0.0 | same | — |
-| supertest · testcontainers · @testcontainers/postgresql · @faker-js/faker | 7.3.1 · 12.2.1 · 12.2.1 · 10.6.0 | same | — |
+| supertest · testcontainers · @testcontainers/postgresql · @faker-js/faker | 7.3.1 · 12.2.1 · 12.2.1 · 10.6.0 | same (F04: both Testcontainers packages published 2026-10-13) | — |
+| @peculiar/x509 (F04, a devDependency of the API) | 3.1.0 | same (published 2026-10-27) | — (the TLS spec generates its CA and server certificate at run time; Node has no API that generates X.509 certificates) |
 | argon2 (A01) | 0.45.1 | same | — |
 | orval · msw (Vitest only) | 8.46.0 · 3.0.3 | same | — |
 | style-dictionary · culori (M01) · @formatjs/icu-messageformat-parser | 5.7.1 · 4.0.2 · 3.5.22 | same | — |
@@ -326,19 +344,19 @@ Features import each other only through their `index.ts`.
 | lucide-react-native · @expo-google-fonts/inter · /noto-sans-arabic | 1.66.0 · 0.4.2 · 0.4.3 | same | — |
 | jest · jest-expo · @testing-library/react-native | 30.5.2 · ~58.0.13 · 14.1.0 | same | — |
 | test-renderer | 1.3.0 | 1.3.1 | jest-expo 58.0.13 depends on exactly 1.3.0; one renderer copy |
-| Docker images | node:26.13.0-trixie-slim · postgres:18.6-trixie · caddy:2.11.7-alpine · axllent/mailpit:v1.33.0 | same | Pinned by digest; PostgreSQL 19 is a release candidate |
+| Docker images | node:26.13.0-trixie-slim · postgres:18.6-trixie · caddy:2.11.7-alpine · axllent/mailpit:v1.33.0 | same (postgres re-checked for F04 on 2026-11-05: 18.6 is the newest 18.x) | Pinned by digest; PostgreSQL 19 is a release candidate. F04 pins `postgres:18.6-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b547f540c730478583`, the multi-arch index pushed on 2026-11-05 at 10:14 UTC, in `compose.yaml` and in the Testcontainers constant |
 | PostgreSQL client tools (OPS02) | `postgresql-client-18` from the PGDG repository (`trixie-pgdg`) | Debian trixie ships 17 | `pg_dump` 17 refuses a PostgreSQL 18 server; the migrate image checks `pg_dump --version`, and a Renovate custom manager moves the pin ([07 §1](07-docker-ci-cd.md#1-images)) |
 | PgBouncer | not used yet | — | Chosen in OPS01 if the connection budget requires it (ADR 0005 §2.4) |
 | GitHub runner | `ubuntu-26.04` | generally available since 2026-09-17; `ubuntu-latest` moves from 24.04 to 26.04 until 2026-11-19 | Newest available image; never `ubuntu-latest` while it moves; `ubuntu-24.04` is the documented fallback if a tool breaks. actionlint 1.7.12 needs the label declared in `.github/actionlint.yaml` |
-| actions/checkout · setup-node · pnpm/action-setup · cache · upload-artifact | v7.0.1 · v7.1.0 · v6.1.1 · v6.1.0 · v7.0.2 | same (re-checked 2026-11-05) | Pinned to commit SHAs ([CI pins](#ci-pins)) |
+| actions/checkout · setup-node · pnpm/action-setup · cache · upload-artifact | v7.0.1 · v7.1.0 · v6.1.1 · v6.1.0 · v7.0.2 | same (re-checked 2026-11-05 for F02 and again for F04) | Pinned to commit SHAs ([CI pins](#ci-pins)) |
 | docker/setup-buildx-action · login-action · metadata-action · bake-action | v4.4.1 · v4.7.0 · v6.2.0 · v7.5.0 | same | — |
 | aquasecurity/trivy-action with Trivy | v0.36.0 with `version: v0.76.1` | Trivy v0.76.1 | The action defaults to Trivy v0.70.0, so the version is set explicitly |
-| github/codeql-action · dependency-review-action · attest-build-provenance · spdx-dependency-submission-action | v4.39.2 · v5.0.0 · v4.2.2 · v0.4.0 | codeql-action v4.39.3 was published on 2026-11-04 at 16:49 UTC | v4.39.3 passes the one-day gate on 2026-11-05 at 16:49:20 UTC; a commit after that moment takes it. attest-build-provenance (F05) was not re-checked in F02 |
+| github/codeql-action · dependency-review-action · attest-build-provenance · spdx-dependency-submission-action | v4.39.3 · v5.0.0 · v4.2.2 · v0.4.0 | same (re-checked 2026-11-05 for F04) | codeql-action v4.39.3, published on 2026-11-04 at 16:49:20 UTC, passed the one-day gate on 2026-11-05 at 16:49:20 UTC; F04 moved all four lines from v4.39.2 to it. attest-build-provenance (F05) was not re-checked in F02 or F04 |
 | reactivecircus/android-emulator-runner · Maestro CLI (X10) | v2.38.0 · newest past one day | Maestro cli-2.12.1 was published on 2026-11-02 | — |
 
 ### CI pins
 
-The pins of F02, checked on 2026-11-05 with `gh api` (release dates) and `git ls-remote` (the commit each tag points to; an annotated tag is peeled to its commit). Each was the newest release past the one-day gate when the workflows were written. The workflow files are the source of truth, and Renovate moves these pins after U4 ([07 §5](07-docker-ci-cd.md#5-supply-chain)).
+The pins of F02, checked on 2026-11-05 with `gh api` (release dates) and `git ls-remote` (the commit each tag points to; an annotated tag is peeled to its commit). Each was the newest release past the one-day gate when the workflows were written. F04 re-resolved every pin on 2026-11-05: codeql-action moved to v4.39.3 and the Renovate image to 44.215.0; the rest stayed. The workflow files are the source of truth, and Renovate moves these pins after U4 ([07 §5](07-docker-ci-cd.md#5-supply-chain)).
 
 | Pin | Version | Pinned to | Published |
 |---|---|---|---|
@@ -347,12 +365,12 @@ The pins of F02, checked on 2026-11-05 with `gh api` (release dates) and `git ls
 | `pnpm/action-setup` | v6.1.1 | `73e46992e05b19abd31f2f3c20e0e7370d762115` (the annotated tag `9bbca1e9…`, peeled) | 2026-11-03 |
 | `actions/cache/restore`, `actions/cache/save` | v6.1.0 | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | 2026-06-26 |
 | `actions/upload-artifact` | v7.0.2 | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | 2026-10-07 |
-| `github/codeql-action` (`init`, `analyze`, `upload-sarif`) | v4.39.2 | `1fc58d04a4d4374f921bdac573c3811c240f9c26` | 2026-11-03; v4.39.3 (`33d7b85da1a04171e211befe2c739303b9a4c066`) passes the gate on 2026-11-05 at 16:49:20 UTC |
+| `github/codeql-action` (`init`, `analyze`, `upload-sarif`) | v4.39.3 | `33d7b85da1a04171e211befe2c739303b9a4c066` (the annotated tag `f3bbb056…`, peeled) | 2026-11-04T16:49:20Z, past the gate on 2026-11-05 at 16:49:20 UTC; F04 moved the two lines of `ci.yml` and the two of `codeql.yml` from v4.39.2 (`1fc58d04a4d4374f921bdac573c3811c240f9c26`) |
 | `advanced-security/spdx-dependency-submission-action` | v0.4.0 | `b009efcf8b9d562a4569d2028c276522232e631f` (not the floating `v0`, which points to v0.3.2) | 2026-09-15 |
 | `actions/dependency-review-action` | v5.0.0 | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | 2026-05-08 |
 | gitleaks binary | 8.30.1 | `gitleaks_8.30.1_linux_x64.tar.gz`, SHA-256 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` (the checksums file, a local `sha256sum` and the release's asset digest agree) | 2026-03-21 |
 | actionlint image | 1.7.12 | `rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667` | 2026-03-30 |
-| Renovate image (`renovate-config-validator`) | 44.212.0 | `ghcr.io/renovatebot/renovate:44.212.0@sha256:11f3f39f324d4b7a1f6e491e44224b5b61cf5506528f146cdf6c7d08c631e569` (the OCI index; `docker buildx imagetools inspect` and the GHCR registry API agree) | npm 2026-11-04 10:57 UTC; the newest past the gate when re-checked at 11:45 UTC on 2026-11-05 (44.210.2 when `ci.yml` was first written) |
+| Renovate image (`renovate-config-validator`) | 44.215.0 | `ghcr.io/renovatebot/renovate:44.215.0@sha256:10b921ce64cac11667849e7c1c4f0c4996d641f88b949652e69a324622538f7a` (the OCI index) | npm 2026-11-04 15:41 UTC; the newest past the gate when F04 re-resolved the pins (F02: 44.212.0, `sha256:11f3f39f…`; 44.210.2 when `ci.yml` was first written) |
 | GitHub runner | `ubuntu-26.04` | GitHub-hosted label | generally available since 2026-09-17 |
 
 - The actionlint and Renovate images are the `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE` lines of `ci.yml`; Renovate's `*_IMAGE` manager moves them, so the developer docs read them from there instead of copying the digests.

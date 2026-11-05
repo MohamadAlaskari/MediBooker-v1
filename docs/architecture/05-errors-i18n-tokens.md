@@ -76,7 +76,7 @@ A global `@Catch()` filter, registered as `APP_FILTER`:
 |---|---|
 | `DomainException` | Its catalogue entry, `detail`, `params`, field errors |
 | `ThrottlerException` | `RATE_LIMITED` with `Retry-After` |
-| `PracticeUnavailableError` (connection manager, schema guard) | `SERVICE_UNAVAILABLE` with `Retry-After: 30`; logged with the practice id and the reason code, never with connection details |
+| `PracticeUnavailableError` (connection manager, schema guard) | `SERVICE_UNAVAILABLE` with `Retry-After: 30`; logged with the practice id and the reason code (`reasonCode`), never with connection details. Until X01, F04's `PracticeContextInterceptor` answers it as a Nest `ServiceUnavailableException` (503) with the same `Retry-After: 30` and log line ([02 §5](02-api.md#practiceconnectionmanager)) |
 | Any other `HttpException`, and body-parser errors with a numeric `status` | By status only: 400 `VALIDATION_FAILED`, 401 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 `CONFLICT`, 413 `PAYLOAD_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 429 `RATE_LIMITED`, 503 `SERVICE_UNAVAILABLE`; any other 4xx becomes 400 `VALIDATION_FAILED` |
 | Prisma P2002, P2003, P2034 that the service did not translate | `CONFLICT` |
 | Prisma P2025 | `NOT_FOUND` |

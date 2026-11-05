@@ -15,9 +15,15 @@
     "typecheck:root": "tsc -p tsconfig.json",
     "test": "turbo run test test:root",
     "test:root": "vitest run --coverage",
+    "test:integration": "turbo run test:integration",
+    "check:migrations": "node scripts/check-migrations.ts",
+    "db:up": "docker compose up -d --wait db",
+    "db:migrate": "turbo run db:migrate",
+    "db:seed": "turbo run db:seed",
+    "db:reset": "turbo run db:reset",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && turbo run lint lint:root typecheck typecheck:root test test:root build"
+    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && node scripts/check-migrations.ts && turbo run lint lint:root typecheck typecheck:root test test:root build"
   },
   "devDependencies": {
     "@medibooker/eslint-config": "workspace:*",

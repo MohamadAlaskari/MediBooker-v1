@@ -1,0 +1,165 @@
+// The platform database medibooker_platform (ADR 0005 §1.1): only what has to exist outside a
+// practice. F04 adds the practice registry, the database clusters and the platform audit log.
+// Conventions: 02 §9. Every field carries a class comment (health-data-security §1); hosts,
+// endpoints and secret references are never logged or returned (02 §8).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../../src/generated/platform"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+  previewFeatures     = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Lifecycle status of a practice; every entry point applies the status table (ADR 0005 §5.1).
+enum PracticeStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  MOVING
+  RESTORE_REVIEW
+  DEPROVISIONING
+  FINALIZED
+
+  @@map("practice_status")
+}
+
+/// TLS of the connections to a cluster; DISABLE only in APP_ENV local and ci (ADR 0005 §4.9).
+enum DatabaseClusterTlsMode {
+  DISABLE
+  VERIFY_FULL
+
+  @@map("database_cluster_tls_mode")
+}
+
+enum DatabaseClusterStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("database_cluster_status")
+}
+
+enum PlatformAuditOutcome {
+  STARTED
+  SUCCEEDED
+  FAILED
+
+  @@map("platform_audit_outcome")
+}
+
+/// A PostgreSQL cluster that hosts practice databases (ADR 0005 §1.1, §7). Written only by
+/// medibooker-db; platform_app may only read it (the first migration revokes its writes).
+model DatabaseCluster {
+  /// class: public (a lowercase slug such as local; logged as clusterId, 02 §8)
+  id                   String                 @id
+  /// class: public (the deployment region)
+  region               String
+  /// class: secret (an endpoint: never logged or returned)
+  host                 String
+  /// class: secret (an endpoint: never logged or returned)
+  port                 Int
+  /// class: public
+  tlsMode              DatabaseClusterTlsMode @map("tls_mode")
+  /// class: secret (a secret-store reference to the CA, not the CA; never logged or returned)
+  caSecretRef          String?                @map("ca_secret_ref")
+  /// class: secret (a secret-store reference, not the secret; never logged or returned)
+  provisionerSecretRef String?                @map("provisioner_secret_ref")
+  /// class: public (the most practice databases the cluster may hold)
+  databaseLimit        Int                    @map("database_limit")
+  /// class: public
+  status               DatabaseClusterStatus  @default(ACTIVE)
+  /// class: public
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: public
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  practices Practice[]
+
+  @@map("database_clusters")
+}
+
+/// The practice registry (ADR 0005 §1.1): every practice, its lifecycle status and the route to
+/// its own database. Status, routing, secret references, route_version and schema_version change
+/// only through medibooker-db (ADR 0005 §4.4); the first migration revokes platform_app's writes.
+model Practice {
+  /// class: public (logged as practiceId, 02 §8)
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: public
+  status             PracticeStatus @default(PROVISIONING)
+  /// class: public (ISO 3166-1 alpha-2, for example SA or DE; CHECK in the migration)
+  market             String         @db.Char(2)
+  /// class: public
+  clusterId          String?        @map("cluster_id")
+  /// class: public (practice_<id32>, derived from the id; CHECK in the migration)
+  databaseName       String?        @unique @map("database_name")
+  /// class: secret (a secret-store reference, not the secret; never logged or returned)
+  appSecretRef       String?        @map("app_secret_ref")
+  /// class: secret (a secret-store reference, not the secret; never logged or returned)
+  ownerSecretRef     String?        @map("owner_secret_ref")
+  /// class: public (incremented when the route or a credential changes)
+  routeVersion       Int            @default(1) @map("route_version")
+  /// class: public (the newest migration applied to the practice database)
+  schemaVersion      String?        @map("schema_version")
+  /// class: public
+  migratedAt         DateTime?      @map("migrated_at") @db.Timestamptz(3)
+  /// class: public (an error code, never a message)
+  migrationErrorCode String?        @map("migration_error_code")
+  /// class: public (when the last physical copy expires after offboarding)
+  purgedAt           DateTime?      @map("purged_at") @db.Timestamptz(3)
+  /// class: public
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: public
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cluster DatabaseCluster? @relation(fields: [clusterId], references: [id], onDelete: Restrict)
+  slugs   PracticeSlug[]
+
+  @@map("practices")
+}
+
+/// Current and retired slugs of every practice in one uniqueness space (ADR 0005 §1.1), so a
+/// retired slug can never be taken by another practice.
+model PracticeSlug {
+  /// class: public (lowercase [a-z0-9-]{3,40}; CHECK in the migration)
+  slug       String    @id
+  /// class: public
+  practiceId String    @map("practice_id") @db.Uuid
+  /// class: public
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: public
+  retiredAt  DateTime? @map("retired_at") @db.Timestamptz(3)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+
+  // One current slug per practice.
+  @@unique([practiceId], map: "practice_slugs_current_practice_id_key", where: raw("(retired_at IS NULL)"))
+  @@map("practice_slugs")
+}
+
+/// Append-only log of the lifecycle commands and registry events (ADR 0005 §5.2), written before
+/// and after each command; platform_app may only insert and read. A row names at most one
+/// practice.
+model PlatformAuditEvent {
+  /// class: public
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: public
+  occurredAt  DateTime             @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  /// class: personal (the operator principal from the task's identity; locally local:<OS user>)
+  actor       String
+  /// class: public (the command or event)
+  action      String
+  /// class: public (no foreign key: audit rows outlive the registry rows that tests drop)
+  practiceId  String?              @map("practice_id") @db.Uuid
+  /// class: public
+  outcome     PlatformAuditOutcome
+  /// class: public (an error code, never a message)
+  errorCode   String?              @map("error_code")
+  /// class: public (the reviewer's approval of a gated command, ADR 0005 §5.2)
+  approvalRef String?              @map("approval_ref")
+
+  @@map("platform_audit_events")
+}

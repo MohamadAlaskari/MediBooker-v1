@@ -231,6 +231,8 @@ describe('the custom managers of renovate.json', () => {
   interface CustomManager {
     managerFilePatterns: string[];
     matchStrings: string[];
+    datasourceTemplate?: string;
+    depNameTemplate?: string;
   }
   const renovate = asMapping(JSON.parse(readText('renovate.json')), 'renovate.json');
   const managers = asList(renovate.customManagers, 'customManagers') as CustomManager[];
@@ -268,5 +270,20 @@ describe('the custom managers of renovate.json', () => {
       'rhysd/actionlint',
       'ghcr.io/renovatebot/renovate',
     ]);
+  });
+
+  it('match the PostgreSQL image of the integration tests once, by tag and digest', () => {
+    const file = 'apps/api/test/integration/support/postgres-image.ts';
+    const manager = managers.find((candidate) => candidate.managerFilePatterns.includes(file));
+    expect(manager?.datasourceTemplate).toBe('docker');
+    expect(manager?.depNameTemplate).toBe('postgres');
+    const images = matchesOf(file, file);
+    expect(images).toHaveLength(1);
+    expect(images[0]?.groups?.currentValue).toMatch(/^\d+\.\d+-[a-z]+$/);
+    expect(images[0]?.groups?.currentDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    // config:best-practices ignores **/test/**, which would hide the file from every manager;
+    // the ignorePaths of renovate.json replace that list.
+    const ignorePaths = asList(renovate.ignorePaths, 'ignorePaths') as string[];
+    expect(ignorePaths.filter((pattern) => path.posix.matchesGlob(file, pattern))).toEqual([]);
   });
 });

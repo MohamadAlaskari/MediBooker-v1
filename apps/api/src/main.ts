@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { APP_OPTIONS, configureApp } from './app.setup.js';
+import { PlatformPrismaService } from './common/database/platform-prisma.service.js';
 import { registerProcessHandlers } from './common/logging/process-handlers.js';
 import { parseEnv } from './config/env.schema.js';
 import { loadWorkspaceEnv } from './config/load-env.js';
@@ -18,3 +19,7 @@ registerProcessHandlers(await app.resolve(PinoLogger), (code) => {
   process.exit(code);
 });
 await app.listen(env.PORT, env.HOST);
+// No provider connects while the app is built (02 §8), so the platform database is checked
+// here: a failure is logged through the process handlers as one fatal line, and the process
+// exits with 1.
+await app.get(PlatformPrismaService).assertReachable();

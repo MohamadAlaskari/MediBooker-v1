@@ -2,8 +2,39 @@
   "$schema": "https://turborepo.com/schema.json",
   "extends": ["//"],
   "tasks": {
+    "db:generate": {
+      "inputs": [
+        "prisma/platform/schema.prisma",
+        "prisma/practice/schema.prisma",
+        "prisma/platform/migrations/**",
+        "prisma/practice/migrations/**",
+        "prisma.platform.config.ts",
+        "prisma.practice.config.ts",
+        "scripts/write-schema-versions.ts"
+      ],
+      "outputs": ["src/generated/**"]
+    },
+    "build": {
+      "dependsOn": ["^build", "db:generate"]
+    },
+    "lint": {
+      "dependsOn": ["^build", "db:generate"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "db:generate"]
+    },
     "test": {
+      "dependsOn": ["^build", "db:generate"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]
+    },
+    "dev": {
+      "dependsOn": ["db:generate"]
+    },
+    "test:integration": {
+      "dependsOn": ["db:generate"]
+    },
+    "db:seed": {
+      "dependsOn": ["db:generate"]
     }
   }
 }

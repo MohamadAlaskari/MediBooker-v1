@@ -31,19 +31,27 @@ const CLUSTER_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 const isClusterId: ValueRule = (value) => typeof value === 'string' && CLUSTER_ID.test(value);
 
+/** A code written in code, in UPPER_SNAKE form, such as `PRACTICE_IDENTITY_MISMATCH`. */
+const REASON_CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
+
+const isReasonCode: ValueRule = (value) =>
+  typeof value === 'string' && value.length <= 64 && REASON_CODE.test(value);
+
 /** `err`, `req` and `res` take any value: their allowlist serializers decide what is logged. */
 const isSerialized: ValueRule = () => true;
 
 /**
  * Reviewed fields: ids, codes, counts and durations, each with the item that logs it and the form
- * of its value, so that the field cannot carry other text. 02 names no code or count field yet; the
- * item that logs one adds it here with its form.
+ * of its value, so that the field cannot carry other text. The item that logs another one adds it
+ * here with its form.
  */
 export const REVIEWED_LOG_FIELDS: ReadonlyMap<string, ValueRule> = new Map([
   // F04: the resolved practice of a request (02 §8) and of the connection manager (02 §5).
   ['practiceId', isUuid],
   // F04: the database cluster of a practice; with the practice id the only database field (02 §8).
   ['clusterId', isClusterId],
+  // F04: why a practice cannot be served, the reason of a PracticeUnavailableError (05 §1.3).
+  ['reasonCode', isReasonCode],
 ]);
 
 const ALLOWED_FIELDS: ReadonlyMap<string, ValueRule> = new Map([

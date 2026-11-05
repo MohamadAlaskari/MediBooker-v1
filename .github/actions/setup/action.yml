@@ -1,6 +1,6 @@
-# The toolchain of the quality job (docs/architecture/07-docker-ci-cd.md §3). The frozen install
-# also verifies the lockfile against minimumReleaseAge and trustPolicy, and unreviewed build
-# scripts fail it (pnpm-workspace.yaml, ADR 0006).
+# The toolchain of the quality and integration jobs (docs/architecture/07-docker-ci-cd.md §3).
+# The frozen install also verifies the lockfile against minimumReleaseAge and trustPolicy, and
+# unreviewed build scripts fail it (pnpm-workspace.yaml, ADR 0006).
 name: Set up the toolchain
 description: pnpm from packageManager, Node.js from .node-version with the pnpm store cache, gitleaks, the Turbo cache and pnpm install --frozen-lockfile.
 

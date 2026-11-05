@@ -1,0 +1,35 @@
+{
+  "name": "@medibooker/db-migrate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MediBooker v2 database lifecycle CLI (medibooker-db): migrations, provisioning and the per-practice migration runner. Run by Node's type stripping.",
+  "type": "module",
+  "bin": {
+    "medibooker-db": "src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "lint": "eslint --max-warnings=0 .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:migrate": "node src/cli.ts migrate all",
+    "db:reset": "node src/cli.ts reset-local"
+  },
+  "dependencies": {
+    "pg": "catalog:",
+    "prisma": "catalog:"
+  },
+  "devDependencies": {
+    "@medibooker/eslint-config": "workspace:*",
+    "@medibooker/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

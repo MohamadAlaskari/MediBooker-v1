@@ -55,6 +55,23 @@ export default defineConfig({
           include: ['src/**/*.spec.ts', 'test/e2e/**/*.e2e-spec.ts'],
         },
       },
+      {
+        extends: true,
+        test: {
+          // Against PostgreSQL in Testcontainers (02 §12): `pnpm test:integration`, which needs
+          // Docker and runs without coverage (06 §8).
+          name: 'integration',
+          include: ['test/integration/**/*.int-spec.ts'],
+          globalSetup: ['test/integration/support/global-setup.ts'],
+          // Provisioning, Prisma CLI runs and lock waits take seconds each.
+          testTimeout: 120_000,
+          hookTimeout: 180_000,
+          // The cluster runs with max_connections=300, 3 of them reserved for the superuser. A
+          // file holds at most about 70 connections at once (the API's platform pool of 10, up to
+          // 20 practice clients, the tools' own), so four files at a time stay below the limit.
+          maxWorkers: 4,
+        },
+      },
     ],
   },
 });

@@ -2,6 +2,7 @@ import { pinoHttp } from 'pino-http';
 import { pinoOptions } from '../../src/common/logging/pino-options.js';
 import { registerProcessHandlers } from '../../src/common/logging/process-handlers.js';
 import { parseEnv } from '../../src/config/env.schema.js';
+import { TEST_ENV } from './test-env.js';
 
 /**
  * A child process for process-handlers.spec.ts: the API's root logger as main.ts gets it (pino on
@@ -12,7 +13,7 @@ import { parseEnv } from '../../src/config/env.schema.js';
  */
 const [failure, handlers] = process.argv.slice(2);
 
-const { pinoHttp: options } = pinoOptions(parseEnv({ APP_ENV: 'ci', LOG_LEVEL: 'info' }));
+const { pinoHttp: options } = pinoOptions(parseEnv(TEST_ENV));
 if (options === undefined || Array.isArray(options) || 'write' in options) {
   throw new Error('pino-http options without a destination expected');
 }

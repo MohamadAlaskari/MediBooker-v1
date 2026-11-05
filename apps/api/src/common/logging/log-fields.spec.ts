@@ -3,8 +3,8 @@ import { onlyAllowedFields, REVIEWED_LOG_FIELDS } from './log-fields.js';
 import { REDACTED_PATHS } from './redaction.js';
 
 describe('REVIEWED_LOG_FIELDS', () => {
-  it('holds exactly the ids that 02 §8 plans to log: changing it is a reviewed change', () => {
-    expect([...REVIEWED_LOG_FIELDS.keys()]).toEqual(['practiceId', 'clusterId']);
+  it('holds exactly the reviewed fields of 02 §8: changing it is a reviewed change', () => {
+    expect([...REVIEWED_LOG_FIELDS.keys()]).toEqual(['practiceId', 'clusterId', 'reasonCode']);
   });
 
   it('shares no name with the redacted fields', () => {
@@ -16,6 +16,9 @@ describe('REVIEWED_LOG_FIELDS', () => {
   it.each([
     ['practiceId', '00000000-0000-4000-8000-000000000001', 'Sara Example, A123456789'],
     ['clusterId', 'eu-central-1', 'Sara Example'],
+    ['reasonCode', 'PRACTICE_IDENTITY_MISMATCH', 'host db.internal.test refused'],
+    ['reasonCode', 'PRACTICE_ACL_OPEN', 'practice_identity_mismatch'],
+    ['reasonCode', 'PRACTICE_CONNECTION_FAILED', `P${'_A'.repeat(40)}`],
   ])('keeps %s only in its form', (field, valid, invalid) => {
     expect(onlyAllowedFields({ [field]: valid })).toEqual({ [field]: valid });
     expect(onlyAllowedFields({ [field]: invalid })).toEqual({ droppedFields: 1 });

@@ -97,6 +97,30 @@ describe('log calls written by hand during a request (02 §8)', () => {
     expect(fieldsOf(lines[0])).toEqual([...LINE_FIELDS, 'droppedFields', 'msg'].sort());
   });
 
+  it('F04 bindLogFields binds a reviewed field to the rest of the request and its access line, and drops one outside the allowlist', async () => {
+    const id = randomUUID();
+    await request(app.getHttpServer())
+      .get('/api/v1/probe/logs/bound-fields')
+      .set('X-Request-Id', id)
+      .expect(200);
+    const accessLine = await logs.waitForAccessLine(id);
+    for (const marker of NEVER_LOGGED) expect(logs.text()).not.toContain(marker);
+    expect(logs.text()).not.toContain('email');
+    const lines = logs
+      .lines()
+      .filter((line) => line.reqId === id && line.responseTime === undefined);
+    expect(lines).toEqual([
+      expect.objectContaining({
+        level: 30,
+        context: 'LogProbeController',
+        practiceId: PRACTICE_ID,
+        droppedFields: 1,
+        msg: 'after binding',
+      }),
+    ]);
+    expect(accessLine).toMatchObject({ practiceId: PRACTICE_ID, droppedFields: 1 });
+  });
+
   it('keeps a reviewed id field and a context, and drops nothing', async () => {
     const lines = await linesLoggedBy('allowed-fields');
     expect(lines).toEqual([

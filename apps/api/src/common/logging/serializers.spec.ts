@@ -1,5 +1,9 @@
 import { IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
+import {
+  PrismaClientKnownRequestError,
+  PrismaClientValidationError,
+} from '@prisma/client/runtime/client';
 import { describe, expect, it } from 'vitest';
 import { serializeError, serializeRequest, serializeResponse } from './serializers.js';
 
@@ -344,5 +348,117 @@ describe('serializeError', () => {
     Object.defineProperty(Unnamed, 'name', { value: '' });
     expect(serializeError(failingConstructor).type).toBe('Error');
     expect(serializeError(new Unnamed('secret-value')).type).toBe('Error');
+  });
+});
+
+/** A Prisma error as the pg driver adapter reports it: its texts carry the synthetic markers. */
+function prismaError(code: string, meta: Record<string, unknown>): PrismaClientKnownRequestError {
+  return new PrismaClientKnownRequestError(
+    'Invalid invocation: duplicate key for sara@example.test (secret-value)',
+    { code, clientVersion: '7.10.1', meta },
+  );
+}
+
+/** The driver adapter's report, as Prisma puts it into `meta`. */
+function adapterReport(cause: Record<string, unknown>): Record<string, unknown> {
+  return { driverAdapterError: { name: 'DriverAdapterError', cause } };
+}
+
+describe('serializeError of Prisma errors (F04, 02 §8)', () => {
+  it('logs a unique violation by its SQLSTATE, Prisma code, model and constraint, never a text or value', () => {
+    const logged = serializeError(
+      prismaError('P2002', {
+        modelName: 'PracticeSlug',
+        target: ['slug'],
+        ...adapterReport({
+          originalCode: '23505',
+          originalMessage: 'duplicate key for sara@example.test (secret-value)',
+          kind: 'UniqueConstraintViolation',
+          constraint: { index: 'practice_slugs_pkey' },
+          table: 'practice_slugs',
+        }),
+      }),
+    );
+    expect(Object.keys(logged)).toEqual([
+      'type',
+      'code',
+      'prismaCode',
+      'model',
+      'constraint',
+      'stack',
+    ]);
+    expect(logged).toMatchObject({
+      type: 'PrismaClientKnownRequestError',
+      code: '23505',
+      prismaCode: 'P2002',
+      model: 'PracticeSlug',
+      constraint: 'practice_slugs_pkey',
+    });
+    expect(logged.stack?.split('\n')[0]).toBe('PrismaClientKnownRequestError');
+    expect(JSON.stringify(logged)).not.toMatch(MARKERS);
+  });
+
+  it('logs a CHECK violation by its SQLSTATE, never the detail that holds the row', () => {
+    const logged = serializeError(
+      prismaError('P2039', {
+        modelName: 'Practice',
+        ...adapterReport({
+          originalCode: '23514',
+          kind: 'postgres',
+          code: '23514',
+          severity: 'ERROR',
+          message: 'new row violates check constraint, sara@example.test',
+          detail: 'Failing row contains (secret-value, sara@example.test).',
+        }),
+      }),
+    );
+    expect(Object.keys(logged)).toEqual(['type', 'code', 'prismaCode', 'model', 'stack']);
+    expect(logged).toMatchObject({ code: '23514', prismaCode: 'P2039', model: 'Practice' });
+    expect(JSON.stringify(logged)).not.toMatch(MARKERS);
+  });
+
+  it('logs a refused connection by its Prisma code only, without host or port', () => {
+    const logged = serializeError(
+      prismaError(
+        'P2010',
+        adapterReport({ kind: 'DatabaseNotReachable', host: '10.1.2.3', port: 5433 }),
+      ),
+    );
+    expect(Object.keys(logged)).toEqual(['type', 'prismaCode', 'stack']);
+    expect(logged.prismaCode).toBe('P2010');
+    expect(JSON.stringify(logged)).not.toMatch(/10\.1\.2\.3|5433/);
+  });
+
+  it('drops a code, a model or a constraint that is not in its form', () => {
+    const logged = serializeError(
+      prismaError('secret-value', {
+        modelName: 'sara@example.test',
+        ...adapterReport({
+          originalCode: 'secret-value',
+          kind: 'UniqueConstraintViolation',
+          constraint: { index: 'drop table sara@example.test' },
+        }),
+      }),
+    );
+    expect(Object.keys(logged)).toEqual(['type', 'stack']);
+    expect(JSON.stringify(logged)).not.toMatch(MARKERS);
+  });
+
+  it('logs a Prisma error without an adapter report by its Prisma code', () => {
+    expect(serializeError(prismaError('P2025', {}))).toMatchObject({
+      type: 'PrismaClientKnownRequestError',
+      prismaCode: 'P2025',
+    });
+  });
+
+  it('logs a validation error by its type only: its message can hold input values', () => {
+    const error = new PrismaClientValidationError(
+      'Argument `id`: Invalid value provided. Expected Int, provided String: secret-value',
+      { clientVersion: '7.10.1' },
+    );
+    const logged = serializeError(error);
+    expect(Object.keys(logged)).toEqual(['type', 'stack']);
+    expect(logged.type).toBe('PrismaClientValidationError');
+    expect(JSON.stringify(logged)).not.toMatch(MARKERS);
   });
 });

@@ -21,6 +21,70 @@
       "cache": false,
       "persistent": true
     },
+    "db:generate": {
+      "outputs": ["src/generated/**"]
+    },
+    "test:integration": {
+      "cache": false,
+      "passThroughEnv": ["DOCKER_*", "TESTCONTAINERS_*"]
+    },
+    "db:migrate": {
+      "cache": false,
+      "passThroughEnv": [
+        "PLATFORM_DATABASE_URL",
+        "PLATFORM_MIGRATION_URL",
+        "PRACTICE_MIGRATION_URL",
+        "SHADOW_DATABASE_URL",
+        "PROVISIONER_DATABASE_URL",
+        "DATABASE_ADMIN_URL",
+        "DATABASE_CLUSTER_ENDPOINTS",
+        "SECRET_STORE",
+        "DEV_SECRET_SEED",
+        "APP_ENV",
+        "MARKETS",
+        "MIGRATION_*",
+        "PRACTICE_APP_CONNECTION_LIMIT",
+        "PRACTICE_OWNER_CONNECTION_LIMIT"
+      ]
+    },
+    "db:seed": {
+      "cache": false,
+      "passThroughEnv": [
+        "PLATFORM_DATABASE_URL",
+        "PLATFORM_MIGRATION_URL",
+        "PRACTICE_MIGRATION_URL",
+        "SHADOW_DATABASE_URL",
+        "PROVISIONER_DATABASE_URL",
+        "DATABASE_ADMIN_URL",
+        "DATABASE_CLUSTER_ENDPOINTS",
+        "SECRET_STORE",
+        "DEV_SECRET_SEED",
+        "APP_ENV",
+        "MARKETS",
+        "MIGRATION_*",
+        "PRACTICE_APP_CONNECTION_LIMIT",
+        "PRACTICE_OWNER_CONNECTION_LIMIT"
+      ]
+    },
+    "db:reset": {
+      "cache": false,
+      "passThroughEnv": [
+        "PLATFORM_DATABASE_URL",
+        "PLATFORM_MIGRATION_URL",
+        "PRACTICE_MIGRATION_URL",
+        "SHADOW_DATABASE_URL",
+        "PROVISIONER_DATABASE_URL",
+        "DATABASE_ADMIN_URL",
+        "DATABASE_CLUSTER_ENDPOINTS",
+        "SECRET_STORE",
+        "DEV_SECRET_SEED",
+        "APP_ENV",
+        "MARKETS",
+        "MIGRATION_*",
+        "PRACTICE_APP_CONNECTION_LIMIT",
+        "PRACTICE_OWNER_CONNECTION_LIMIT"
+      ]
+    },
     "//#lint:root": {
       "inputs": [
         "scripts/**",
@@ -57,7 +121,10 @@
         "lefthook.yml",
         ".github/**",
         "renovate.json",
-        "docs/dev/getting-started.md"
+        "docs/dev/getting-started.md",
+        "apps/api/test/integration/support/postgres-image.ts",
+        "apps/api/prisma/platform/migrations/**",
+        "apps/api/prisma/practice/migrations/**"
       ],
       "outputs": ["coverage/**", "reports/**"]
     }

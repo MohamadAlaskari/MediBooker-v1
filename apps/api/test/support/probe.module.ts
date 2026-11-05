@@ -1,7 +1,9 @@
 import type { IncomingMessage } from 'node:http';
 import { Controller, Get, Logger, Module, Param, Post, Req, SetMetadata } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
+import { PinoLogger } from 'nestjs-pino';
 import type { RequestContext } from '../../src/common/context/request-context.js';
+import { bindLogFields } from '../../src/common/logging/bind-log-fields.js';
 import { Public } from '../../src/common/security/public.decorator.js';
 
 /** A message with the synthetic markers of 02 §8, as a database or library error can carry. */
@@ -140,6 +142,18 @@ class LogProbeController {
   // Without a context of its own, nestjs-pino logs the last argument of a call as the context.
   // eslint-disable-next-line medibooker/require-logger-class-name -- the case under test
   private readonly loggerWithoutContext = new Logger();
+
+  constructor(private readonly pinoLogger: PinoLogger) {
+    pinoLogger.setContext(LogProbeController.name);
+  }
+
+  @Public() // test-only: binds a reviewed field and one that no allowlist names, then logs a line
+  @Get('bound-fields')
+  boundFields(): { isLogged: true } {
+    bindLogFields(this.pinoLogger, { practiceId: PRACTICE_ID, email: SYNTHETIC_EMAIL });
+    this.pinoLogger.info('after binding');
+    return { isLogged: true };
+  }
 
   @Public() // test-only: an interpolation value, as `logger.log('… %s', value)` passes one
   @Get('format-argument')

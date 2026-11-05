@@ -30,16 +30,101 @@ function isOrigin(value: string): boolean {
   return (url.protocol === 'https:' || url.protocol === 'http:') && url.origin === value;
 }
 
-const corsOrigins = z.string().transform((value, ctx) => {
-  const origins = value
+/** The entries of a comma-separated list, trimmed, without empty ones. */
+function listOf(value: string): string[] {
+  return value
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry !== '');
+}
+
+const corsOrigins = z.string().transform((value, ctx) => {
+  const origins = listOf(value);
   if (!origins.every(isOrigin)) {
     ctx.addIssue({ code: 'custom', params: { reason: 'not_an_origin' } });
     return z.NEVER;
   }
   return origins;
+});
+
+/** A PostgreSQL connection URL with a host, as pg reads it. */
+function isPostgresUrl(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return (url.protocol === 'postgresql:' || url.protocol === 'postgres:') && url.hostname !== '';
+}
+
+/** TLS with certificate and host-name verification, as ADR 0005 §4.9 requires outside local and ci. */
+function verifiesServer(value: string): boolean {
+  const { searchParams } = new URL(value);
+  return (
+    searchParams.get('sslmode') === 'verify-full' && (searchParams.get('sslrootcert') ?? '') !== ''
+  );
+}
+
+const postgresUrl = z.string().superRefine((value, ctx) => {
+  if (!isPostgresUrl(value))
+    ctx.addIssue({ code: 'custom', params: { reason: 'not_a_postgres_url' } });
+});
+
+/** Where the API reaches one database cluster (02 §5). */
+export interface ClusterEndpoint {
+  readonly host: string;
+  readonly port: number;
+}
+
+/** A cluster id as `database_clusters` stores it: a lowercase slug such as `local`. */
+const CLUSTER_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** `host:port`: a host name, an IPv4 address or a bracketed IPv6 address, and a port. */
+const HOST_AND_PORT = /^(?<host>[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):(?<port>\d{1,5})$/;
+
+function endpointOf(value: unknown): ClusterEndpoint | undefined {
+  const groups = typeof value === 'string' ? HOST_AND_PORT.exec(value)?.groups : undefined;
+  if (groups?.host === undefined || groups.port === undefined) return undefined;
+  const port = Number(groups.port);
+  if (port < 1 || port > 65_535) return undefined;
+  return { host: groups.host.replace(/^\[(.*)\]$/, '$1'), port };
+}
+
+/**
+ * DATABASE_CLUSTER_ENDPOINTS: a JSON object from cluster id to `host:port`, so host processes
+ * (`127.0.0.1:5432`) and compose containers (`db:5432`) reach the same cluster. A Map, so a key
+ * such as `__proto__` stays an ordinary key.
+ */
+const clusterEndpoints = z
+  .string()
+  .transform((value, ctx): ReadonlyMap<string, ClusterEndpoint> => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      parsed = undefined;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      ctx.addIssue({ code: 'custom', params: { reason: 'not_a_json_object' } });
+      return z.NEVER;
+    }
+    const endpoints = new Map<string, ClusterEndpoint>();
+    for (const [clusterId, address] of Object.entries(parsed)) {
+      const endpoint = endpointOf(address);
+      if (!CLUSTER_ID.test(clusterId) || endpoint === undefined) {
+        ctx.addIssue({ code: 'custom', params: { reason: 'not_a_cluster_endpoint_map' } });
+        return z.NEVER;
+      }
+      endpoints.set(clusterId, endpoint);
+    }
+    return endpoints;
+  });
+
+/** ISO 3166-1 alpha-2 codes in upper case, as `practices.market` stores them. */
+const markets = z.string().transform((value, ctx): readonly string[] => {
+  const codes = listOf(value);
+  if (!codes.every((code) => /^[A-Z]{2}$/.test(code))) {
+    ctx.addIssue({ code: 'custom', params: { reason: 'not_a_market_list' } });
+    return z.NEVER;
+  }
+  return codes;
 });
 
 const envObject = z.object({
@@ -55,6 +140,27 @@ const envObject = z.object({
   TRUST_PROXY_HOPS: integer(0, 10).optional(),
   OPENAPI_UI_ENABLED: strictBoolean().default(false),
   RATE_LIMIT_PER_MINUTE: integer(1, 1_000_000).default(120),
+  // F04: the platform database as platform_app; outside local and ci with verify-full TLS.
+  PLATFORM_DATABASE_URL: postgresUrl,
+  PLATFORM_DATABASE_POOL_MAX: integer(1, 100).default(10),
+  // F04: the practice clients and their budgets (02 §5, ADR 0005 §2.2).
+  PRACTICE_POOL_MAX: integer(1, 100).default(3),
+  PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(40),
+  PRACTICE_CLIENT_IDLE_MS: integer(1000, 86_400_000).default(60_000),
+  PUBLIC_PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(10),
+  JOB_PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(4),
+  PRACTICE_CLIENT_CREATIONS_PER_SECOND: integer(1, 1000).default(5),
+  PRACTICE_SECRET_TTL_MS: integer(0, 86_400_000).default(600_000),
+  // F04: accepted in local and ci only (refinement below); an empty map when unset.
+  DATABASE_CLUSTER_ENDPOINTS: clusterEndpoints.optional(),
+  DATABASE_TX_MAX_WAIT_MS: integer(1, 60_000).default(2000),
+  DATABASE_TX_TIMEOUT_MS: integer(1, 600_000).default(5000),
+  // F04: the development store only, in local and ci; unset elsewhere until OPS01 adds the
+  // provider, so every practice answers 503 there (fail closed).
+  SECRET_STORE: z.enum(['dev']).optional(),
+  DEV_SECRET_SEED: z.string().optional(),
+  // F04: required in staging and production (refinement below).
+  MARKETS: markets.default([]),
   // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler) and
   // by Node when a module loads, never by the API: their output goes to stderr, outside pino, with
   // request URLs and query strings. Allowed in local and ci only (refinement below); not in Env.
@@ -127,6 +233,32 @@ const envSchema = envObject
         if (isDeployed && env[key] !== undefined)
           reject(key, 'not_allowed_in_staging_and_production');
       }
+      // Outside local and ci every database connection verifies the server (ADR 0005 §4.9).
+      if (
+        isDeployed &&
+        parsed('PLATFORM_DATABASE_URL') &&
+        !verifiesServer(env.PLATFORM_DATABASE_URL)
+      ) {
+        reject('PLATFORM_DATABASE_URL', 'verify_full_required_outside_local_and_ci');
+      }
+      // The endpoint override and the development secret store exist for local and ci only.
+      if (
+        isDeployed &&
+        parsed('DATABASE_CLUSTER_ENDPOINTS') &&
+        env.DATABASE_CLUSTER_ENDPOINTS !== undefined
+      ) {
+        reject('DATABASE_CLUSTER_ENDPOINTS', 'only_in_local_and_ci');
+      }
+      if (parsed('SECRET_STORE') && env.SECRET_STORE === 'dev') {
+        if (isDeployed) reject('SECRET_STORE', 'dev_only_in_local_and_ci');
+        if (parsed('DEV_SECRET_SEED') && env.DEV_SECRET_SEED === undefined) {
+          reject('DEV_SECRET_SEED', 'required_with_secret_store_dev');
+        }
+      }
+      // A deployment serves only the markets it names (ADR 0005 §7.2).
+      if (isDeployed && parsed('MARKETS') && env.MARKETS.length === 0) {
+        reject('MARKETS', 'required_in_staging_and_production');
+      }
       if (env.APP_ENV !== 'production') return;
       if (parsed('OPENAPI_UI_ENABLED') && env.OPENAPI_UI_ENABLED) {
         reject('OPENAPI_UI_ENABLED', 'not_allowed_in_production');
@@ -142,9 +274,11 @@ const envSchema = envObject
     // every invalid key; each reads only keys that parsed.
     { when: () => true },
   )
-  .transform(({ TRUST_PROXY_HOPS, ...env }) => ({
+  .transform(({ TRUST_PROXY_HOPS, DATABASE_CLUSTER_ENDPOINTS, ...env }) => ({
     ...withoutDebugSwitches(env),
     TRUST_PROXY_HOPS: TRUST_PROXY_HOPS ?? 0,
+    DATABASE_CLUSTER_ENDPOINTS:
+      DATABASE_CLUSTER_ENDPOINTS ?? (new Map() as ReadonlyMap<string, ClusterEndpoint>),
   }));
 
 /** The validated API configuration (02 §7). */

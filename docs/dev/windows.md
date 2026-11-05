@@ -96,9 +96,13 @@ gitleaks is required (see [Install gitleaks](getting-started.md#install-gitleaks
 
 ## Docker Desktop
 
-Docker Desktop is needed from the database item on, for the local database and the integration tests. CI runs those tests on every push anyway.
+Docker Desktop is needed since F04, the data layer: for the local database (`pnpm db:up`, `pnpm db:migrate`, `pnpm db:seed`, [getting-started.md](getting-started.md#databases)) and for the integration tests (`pnpm test:integration`), whose Testcontainers start their own PostgreSQL container through Docker Desktop. Keep it running with Linux containers, its default. CI runs the integration tests on every push anyway; `pnpm test` and `pnpm verify` need no Docker.
 
-Before that, it is only needed to run actionlint and the Renovate validator locally ([getting-started.md](getting-started.md#continuous-integration)). In Git Bash, put `MSYS_NO_PATHCONV=1` in front of `docker run`. Without it, Git Bash rewrites the container paths `/repo` and `/usr/src/app` into Windows paths, and Docker stops with "the working directory 'D:/…/Git/repo' is invalid". Keep the mounted path in quotes, because it contains spaces; `"$PWD"` and its Windows form `"$(pwd -W)"` both work (checked on 2026-11-05):
+- In Git Bash, give `docker compose exec` the option `-T` (no terminal): `docker compose exec -T db psql -U postgres -lqt`. Without it, the command asks for a terminal that Git Bash's console window may not provide, and fails.
+- The compose database publishes its port on `127.0.0.1:5432` only. If another PostgreSQL already listens on port 5432 on this machine, stop it before `pnpm db:up`.
+- `docker compose down -v` removes the database container with its volume; the next `pnpm db:up` starts a new cluster with the passwords of the current `.env`.
+
+It is also needed to run actionlint and the Renovate validator locally ([getting-started.md](getting-started.md#continuous-integration)). In Git Bash, put `MSYS_NO_PATHCONV=1` in front of `docker run`. Without it, Git Bash rewrites the container paths `/repo` and `/usr/src/app` into Windows paths, and Docker stops with "the working directory 'D:/…/Git/repo' is invalid". Keep the mounted path in quotes, because it contains spaces; `"$PWD"` and its Windows form `"$(pwd -W)"` both work (checked on 2026-11-05):
 
 ```sh
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo:ro" -w /repo "$actionlint_image"

@@ -1,0 +1,28 @@
+// A practice database practice_<id32> (ADR 0005 §1.2): everything one practice owns. F04 adds its
+// identity. The schema declares no practiceId: the database is the boundary (ADR 0005 §10), and
+// practice_identity is the one table that names the practice (P01's architecture test exempts
+// it). Conventions: 02 §9; every field carries a class comment (health-data-security §1).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../../src/generated/practice"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+  previewFeatures     = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// The practice this database belongs to: a singleton row written by provisioning. The connection
+/// manager compares it with the registry before it serves a client (ADR 0005 §2.2), and the app
+/// role cannot change it (ADR 0005 §4.3).
+model PracticeIdentity {
+  /// class: public (always 1; CHECK in the migration)
+  id         Int    @id @default(1) @db.SmallInt
+  /// class: public (the practice's id in the platform registry)
+  practiceId String @unique @map("practice_id") @db.Uuid
+
+  @@map("practice_identity")
+}

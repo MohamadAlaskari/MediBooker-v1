@@ -1,5 +1,6 @@
 import { IncomingMessage, METHODS } from 'node:http';
 import { isUuid } from '../context/request-id.js';
+import { driverFailureOf, isPrismaKnownRequestError } from '../database/prisma-errors.js';
 
 /**
  * Allowlist serializers for the access log and every other log line (02 §8). pino-http hands them
@@ -23,6 +24,9 @@ export interface LoggedResponse {
 export interface LoggedError {
   type: string;
   code?: string;
+  prismaCode?: string;
+  model?: string;
+  constraint?: string;
   stack?: string;
 }
 
@@ -34,6 +38,18 @@ const CLASS_NAME = /^[A-Za-z_$][\w$]{0,63}$/;
 
 /** An error code such as `ERR_INVALID_ARG_TYPE`, `ECONNREFUSED`, `P2002` or `23505`. */
 const ERROR_CODE = /^[A-Za-z0-9_.:-]{1,64}$/;
+
+/** A Prisma error code such as `P2002`. */
+const PRISMA_CODE = /^P\d{4}$/;
+
+/** A SQLSTATE such as `23505`. */
+const SQL_STATE = /^[0-9A-Z]{5}$/;
+
+/** A Prisma model name such as `PracticeSlug`. */
+const MODEL_NAME = /^[A-Z][A-Za-z0-9_]{0,63}$/;
+
+/** A PostgreSQL identifier such as `practice_slugs_pkey`. */
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]{0,62}$/;
 
 /**
  * A stack frame as V8 writes it, ending in its location: `(file:line:column)`, `file:line:column`,
@@ -146,22 +162,47 @@ function stackFramesOf(error: Error): string[] {
     .filter((line) => STACK_FRAME.test(line));
 }
 
+function isInForm(value: unknown, form: RegExp): value is string {
+  return typeof value === 'string' && form.test(value);
+}
+
+type LoggedCodes = Pick<LoggedError, 'code' | 'prismaCode' | 'model' | 'constraint'>;
+
 /**
- * `{ type, code, stack }`: `code` only in the form of an error code, and the stack with its header
- * replaced by the class name. When reading the error fails in any way (a getter that throws), only
- * the type is logged, so the log call itself never fails. F04 adds `prismaCode`, `model` and
- * `constraint`; X01 adds `message` for the project's own `DomainException`.
+ * The codes of an error, each only in its form. A Prisma error (F04) gives its `prismaCode`, the
+ * database's SQLSTATE as `code`, its `model` and the `constraint` of a unique violation, read from
+ * the driver adapter's report; never its message, a meta value or its cause, which can carry the
+ * values of a row. Any other error gives its `code`.
+ */
+function codesOf(error: Error): LoggedCodes {
+  if (!isPrismaKnownRequestError(error)) {
+    const code: unknown = 'code' in error ? error.code : undefined;
+    return isInForm(code, ERROR_CODE) ? { code } : {};
+  }
+  const failure = driverFailureOf(error);
+  const prismaCode = error.code;
+  const sqlState = failure?.sqlState;
+  const model: unknown = error.meta?.modelName;
+  const constraint = failure?.index;
+  return {
+    ...(isInForm(sqlState, SQL_STATE) ? { code: sqlState } : {}),
+    ...(isInForm(prismaCode, PRISMA_CODE) ? { prismaCode } : {}),
+    ...(isInForm(model, MODEL_NAME) ? { model } : {}),
+    ...(isInForm(constraint, IDENTIFIER) ? { constraint } : {}),
+  };
+}
+
+/**
+ * `{ type, code, prismaCode, model, constraint, stack }`, each code only in its form, and the
+ * stack with its header replaced by the class name. When reading the error fails in any way (a
+ * getter that throws), only the type is logged, so the log call itself never fails. X01 adds
+ * `message` for the project's own `DomainException`.
  */
 export function serializeError(value: unknown): LoggedError {
   const type = errorTypeOf(value);
   if (!isError(value)) return { type };
   try {
-    const code: unknown = 'code' in value ? value.code : undefined;
-    return {
-      type,
-      ...(typeof code === 'string' && ERROR_CODE.test(code) ? { code } : {}),
-      stack: [type, ...stackFramesOf(value)].join('\n'),
-    };
+    return { type, ...codesOf(value), stack: [type, ...stackFramesOf(value)].join('\n') };
   } catch {
     return { type };
   }

@@ -47,7 +47,7 @@ jobs:
     env:
       # Pinned by tag and digest; Renovate moves them (renovate.json).
       ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
-      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.212.0@sha256:11f3f39f324d4b7a1f6e491e44224b5b61cf5506528f146cdf6c7d08c631e569
+      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.215.0@sha256:10b921ce64cac11667849e7c1c4f0c4996d641f88b949652e69a324622538f7a
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,7 +117,16 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm turbo run lint lint:root typecheck typecheck:root test test:root build
 
-      # F04 adds here: db:generate without any database variable, then pnpm check:migrations.
+      # Prisma generates both clients without a database: this job sets no database variable.
+      - name: Generate the Prisma clients without a database
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm --filter @medibooker/api db:generate
+
+      # The migration rules of ADR 0005 §6 (scripts/check-migrations.ts), as in pnpm verify.
+      - name: Check the migrations
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm check:migrations
+
       # X02 adds here: pnpm check:drift.
       # F07 adds here: expo export, expo install --check, expo-doctor and the one-React check.
 
@@ -181,7 +190,7 @@ jobs:
 
       - name: Upload the redacted SARIF of the range scan
         if: ${{ !cancelled() && hashFiles('gitleaks-range.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: gitleaks-range.sarif
           category: gitleaks-range
@@ -228,7 +237,7 @@ jobs:
 
       - name: Upload the redacted SARIF of the history scan
         if: ${{ !cancelled() && hashFiles('gitleaks-history.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: gitleaks-history.sarif
           category: gitleaks-history
@@ -286,12 +295,40 @@ jobs:
           base-ref: ${{ github.event.before }}
           head-ref: ${{ github.sha }}
 
+  # The integration tests (06 §4) against PostgreSQL in Testcontainers, whose image
+  # apps/api/test/integration/support/postgres-image.ts pins by digest. The job runs repository
+  # code, so it references no secret (ADR 0009, decision 9): Testcontainers pulls the image from
+  # Docker Hub anonymously. Should anonymous pulls hit Docker Hub's limit, a separate job without
+  # repository code pulls the image by digest and hands it over (docker save, an artifact, then
+  # docker load here).
+  integration:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Testcontainers' cleanup container (ryuk) is an unpinned Docker Hub image, so CI runs
+      # without it: the global teardown of the integration tests stops their container, and
+      # GitHub discards the runner after the job.
+      TESTCONTAINERS_RYUK_DISABLED: 'true'
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: ./.github/actions/setup
+
+      - name: Run the integration tests
+        run: pnpm test:integration
+
   # The only required status check (ADR 0009). Keep its job id and name ci-ok, and add every new
   # job to needs (scripts/ci-config.test.ts checks it).
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [config-lint, quality, security, secrets-history, sbom]
+    needs: [config-lint, quality, security, secrets-history, sbom, integration]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}

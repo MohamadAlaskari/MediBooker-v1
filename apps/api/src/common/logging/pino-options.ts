@@ -15,8 +15,8 @@ import {
   serializeResponse,
 } from './serializers.js';
 
-/** Exact paths of the health probes, which are never logged (02 §8). F04 adds `/health/ready`. */
-const UNLOGGED_PATHS: ReadonlySet<string> = new Set(['/health/live']);
+/** Exact paths of the health probes, which are never logged (02 §8). */
+const UNLOGGED_PATHS: ReadonlySet<string> = new Set(['/health/live', '/health/ready']);
 
 /** True for a health probe, compared without the query string. */
 export function isHealthProbe(req: IncomingMessage): boolean {
@@ -89,8 +89,10 @@ function prettyTransport(): NonNullable<Options['transport']> {
  * pino-http binds a child logger's fields when the request starts, before routing, so `req` is
  * added at completion instead (`quietReqLogger`, `quietResLogger` and the custom objects): only
  * then does `req.route` hold the matched pattern, also for a request that a guard rejected. Lines
- * logged during a request carry `reqId`. `destination` is for tests; without it pino writes to
- * stdout. With LOG_PRETTY the pino-pretty transport writes to stdout and `destination` is not used.
+ * logged during a request carry `reqId`. `assignResponse` lets `bindLogFields` bind a field to
+ * the access line too, such as the resolved `practiceId`. `destination` is for tests; without it
+ * pino writes to stdout. With LOG_PRETTY the pino-pretty transport writes to stdout and
+ * `destination` is not used.
  */
 export function pinoOptions(env: Env, destination?: DestinationStream): Params {
   const options: Options = {
@@ -115,6 +117,11 @@ export function pinoOptions(env: Env, destination?: DestinationStream): Params {
     redact: [...REDACTED_PATHS],
     hooks: { logMethod: keepMessageConstant },
   };
-  if (env.LOG_PRETTY) return { pinoHttp: { ...options, transport: prettyTransport() } };
-  return { pinoHttp: destination === undefined ? options : [options, destination] };
+  if (env.LOG_PRETTY) {
+    return { pinoHttp: { ...options, transport: prettyTransport() }, assignResponse: true };
+  }
+  return {
+    pinoHttp: destination === undefined ? options : [options, destination],
+    assignResponse: true,
+  };
 }

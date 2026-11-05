@@ -6,11 +6,12 @@ import type { Logger } from 'pino';
 import type { Options } from 'pino-http';
 import { describe, expect, it } from 'vitest';
 import { createCapturedLogger, type LogLine } from '../../../test/support/log-capture.js';
+import { TEST_ENV } from '../../../test/support/test-env.js';
 import { parseEnv } from '../../config/env.schema.js';
 import { isHealthProbe, pinoOptions } from './pino-options.js';
 
-const env = parseEnv({ APP_ENV: 'ci', LOG_LEVEL: 'debug' });
-const prettyEnv = parseEnv({ APP_ENV: 'local', LOG_PRETTY: 'true' });
+const env = parseEnv({ ...TEST_ENV, LOG_LEVEL: 'debug' });
+const prettyEnv = parseEnv({ ...TEST_ENV, APP_ENV: 'local', LOG_PRETTY: 'true' });
 
 /** A message with the synthetic markers of 02 §8, as a database or library error can carry. */
 const LEAKY_MESSAGE = 'duplicate key for sara@example.test (secret-value)';
@@ -58,6 +59,11 @@ describe('pinoOptions', () => {
       quietReqLogger: true,
       quietResLogger: true,
     });
+  });
+
+  it('lets bindLogFields bind fields to the access line too (assignResponse)', () => {
+    expect(pinoOptions(env)).toMatchObject({ assignResponse: true });
+    expect(pinoOptions(prettyEnv)).toMatchObject({ assignResponse: true });
   });
 
   it('writes to stdout without a destination and without pino-pretty by default', () => {
@@ -484,13 +490,19 @@ describe('REDACTED_PATHS, the second line', () => {
 });
 
 describe('isHealthProbe', () => {
-  it.each(['/health/live', '/health/live?probe=1'])('matches %s', (url) => {
-    expect(isHealthProbe(request({ url }))).toBe(true);
-  });
+  it.each(['/health/live', '/health/live?probe=1', '/health/ready', '/health/ready?probe=1'])(
+    'matches %s',
+    (url) => {
+      expect(isHealthProbe(request({ url }))).toBe(true);
+    },
+  );
 
-  it.each(['/health/livex', '/api/v1/health/live', '/health', '/'])('does not match %s', (url) => {
-    expect(isHealthProbe(request({ url }))).toBe(false);
-  });
+  it.each(['/health/livex', '/api/v1/health/live', '/health/readyx', '/health', '/'])(
+    'does not match %s',
+    (url) => {
+      expect(isHealthProbe(request({ url }))).toBe(false);
+    },
+  );
 
   it('reads the original URL when Express rewrote url for a mounted middleware', () => {
     expect(isHealthProbe(request({ url: '/', originalUrl: '/health/live' }))).toBe(true);
