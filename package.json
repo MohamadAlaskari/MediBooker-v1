@@ -14,21 +14,23 @@
     "typecheck": "turbo run typecheck typecheck:root",
     "typecheck:root": "tsc -p tsconfig.json",
     "test": "turbo run test test:root",
-    "test:root": "vitest run",
+    "test:root": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root build"
+    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && turbo run lint lint:root typecheck typecheck:root test test:root build"
   },
   "devDependencies": {
     "@medibooker/eslint-config": "workspace:*",
     "@medibooker/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "lefthook": "catalog:",
     "prettier": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "catalog:"
   }
 }

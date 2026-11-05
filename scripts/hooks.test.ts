@@ -26,10 +26,13 @@ afterAll(() => {
 
 /**
  * The current environment plus the given variables, without the LEFTHOOK switch that CI sets to 0
- * to turn lefthook off. Windows spells variable names in any case, so drop every casing.
+ * to turn lefthook off and without CI, which GitHub Actions sets to true. Windows spells variable
+ * names in any case, so drop every casing.
  */
 function testEnvironment(variables: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
-  const entries = Object.entries(process.env).filter(([name]) => name.toUpperCase() !== 'LEFTHOOK');
+  const entries = Object.entries(process.env).filter(
+    ([name]) => !['LEFTHOOK', 'CI'].includes(name.toUpperCase()),
+  );
   return { ...Object.fromEntries(entries), ...variables };
 }
 
@@ -92,18 +95,55 @@ describe('scripts/check-hooks.ts', () => {
     return spawnSync(process.execPath, [CHECK_HOOKS], { env: environment, encoding: 'utf8' });
   }
 
+  /**
+   * A config that no hooks match, so the check fails on every machine: hooks installed for
+   * lefthook.yml are out of date for it, and a checkout without hooks (CI) has none.
+   */
+  function otherConfig(): string {
+    const file = path.join(tempDir, 'lefthook.yml');
+    writeFileSync(file, 'pre-push:\n  commands:\n    noop:\n      run: node --version\n');
+    return file;
+  }
+
   it('fails with an install hint when the hooks do not match the config', () => {
-    // Hooks installed for lefthook.yml are out of date for any other config.
-    const otherConfig = path.join(tempDir, 'lefthook.yml');
-    writeFileSync(otherConfig, 'pre-push:\n  commands:\n    noop:\n      run: node --version\n');
-    const run = runCheckHooks(testEnvironment({ LEFTHOOK_CONFIG: otherConfig }));
+    const run = runCheckHooks(testEnvironment({ LEFTHOOK_CONFIG: otherConfig() }));
     expect(run.status).toBe(1);
     expect(run.stderr).toContain('Install them with: pnpm exec lefthook install');
   });
 
-  it('passes without checking when LEFTHOOK=0 (CI, which has no hooks)', () => {
-    const run = runCheckHooks(testEnvironment({ LEFTHOOK: '0' }));
-    expect(run.status).toBe(0);
-    expect(run.stderr).toBe('');
+  // lefthook turns its hooks off for exactly these two values; CI sets 0 and has no hooks.
+  it.each(['0', 'false'])(
+    'passes without checking when LEFTHOOK=%s and CI=true (CI, which has no hooks)',
+    (value) => {
+      const run = runCheckHooks(
+        testEnvironment({ CI: 'true', LEFTHOOK: value, LEFTHOOK_CONFIG: otherConfig() }),
+      );
+      expect(run.status).toBe(0);
+      expect(run.stderr).toBe('');
+    },
+  );
+
+  // A developer machine with the switch set would commit without the secret scan.
+  it.each([
+    ['0', undefined],
+    ['false', undefined],
+    ['0', 'false'],
+    ['0', '1'],
+  ])('fails when LEFTHOOK=%s outside CI (CI=%s)', (value, ci) => {
+    const run = runCheckHooks(testEnvironment({ CI: ci, LEFTHOOK: value }));
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(`LEFTHOOK=${value} switches the git hooks off`);
+    expect(run.stderr).toContain('Unset it: only CI sets it');
   });
+
+  it.each(['1', 'FALSE'])(
+    'still checks when LEFTHOOK=%s, which lefthook does not treat as off, also in CI',
+    (value) => {
+      const run = runCheckHooks(
+        testEnvironment({ CI: 'true', LEFTHOOK: value, LEFTHOOK_CONFIG: otherConfig() }),
+      );
+      expect(run.status).toBe(1);
+      expect(run.stderr).toContain('Install them with: pnpm exec lefthook install');
+    },
+  );
 });

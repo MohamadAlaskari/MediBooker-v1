@@ -1,0 +1,7 @@
+# ubuntu-26.04 is a GitHub-hosted runner label, generally available since 2026-09-17, that
+# actionlint 1.7.12 does not know yet: it reports 'label "ubuntu-26.04" is unknown'. Declaring it
+# here is actionlint's documented way to accept an extra label (ADR 0009). Remove this entry, and
+# this file, once an actionlint release knows the label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

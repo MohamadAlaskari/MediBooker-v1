@@ -41,7 +41,7 @@ medibooker-db (one-off tasks: provisioning, migration runner, backups) ──►
 | [0006](../adr/0006-toolchain-and-version-policy.md) | Toolchain and version policy | Accepted; committed with F01. Builds on the Proposed toolchain rows of `CLAUDE.md`, which the client has not confirmed (U11) |
 | [0007](../adr/0007-web-ui-shadcn.md) | Web UI components: shadcn/ui on React Aria | Accepted |
 | [0008](../adr/0008-animation-gsap.md) | Animation: GSAP on the web, Reanimated in the app | Accepted |
-| 0009 | Branch model, CI gates and supply chain | Planned in F02 |
+| [0009](../adr/0009-ci-branch-model-and-supply-chain.md) | Branch model, CI gates and supply chain | Accepted (2026-11-05, F02) |
 | 0010 | Container images, delivery and the connection budget | Planned in F05, completed in OPS01 |
 | 0011 | Error model (problem+json, codes, status policy) | Planned in X01 |
 | 0012 | Contract pipeline and committed generated code | Planned in X02 |
@@ -73,10 +73,11 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | L00 Remove the v1 apps | Committed (`6c733c1`); the user removed the v1 folders on 2026-11-02 |
 | R00 Architecture docs and decision records | Committed (`f89a019`) |
 | F01 Monorepo workspace and shared tooling | Committed (`13044c5`) |
-| F03 NestJS API skeleton | Done (the F03 commit) |
-| F02, F04 – OPS01 | Planned, in the order of [08-roadmap.md](08-roadmap.md); the API skeleton (F03) came before CI (F02), as the user decided on 2026-11-04 |
+| F03 NestJS API skeleton | Committed (`f2b699e`) |
+| F02 CI quality and security baseline | Done (the F02 commit); the API skeleton (F03) came before CI (F02), as the user decided on 2026-11-04 |
+| F04 – OPS01 | Planned, in the order of [08-roadmap.md](08-roadmap.md) |
 
-v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). F02 records its two findings in `.gitleaksignore`, so the full-history secret scan is a required check from F02 on.
+v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).
 
 ## Where to start
 
@@ -85,7 +86,7 @@ v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with i
 | `backend-engineer` | ADR 0004 and 0005, 02, 05 (errors), 06 |
 | `web-engineer` | 03, 05, 06, ADR 0003, 0007 and 0008 |
 | `mobile-engineer` | 04, 05, 06, ADR 0005 §3 (practice selection) |
-| `devops-engineer` | 01, 07, ADR 0005 (provisioning, migrations, backups) and 0006 |
+| `devops-engineer` | 01, 07, ADR 0005 (provisioning, migrations, backups), 0006 and 0009 |
 | `qa-engineer` | 06, then the testing section of the app document |
-| `security-reviewer` | ADR 0004 and 0005, 02 (data layer, logging), 07 (supply chain, secrets), 09 |
+| `security-reviewer` | ADR 0004, 0005 and 0009, 02 (data layer, logging), 07 (supply chain, secrets), 09 |
 | `ui-designer` | 05 (tokens, motion), ADR 0002, 0007 and 0008 |

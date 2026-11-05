@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "eslint --max-warnings=0 .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@eslint/js": "catalog:",
@@ -28,6 +28,7 @@
   "devDependencies": {
     "@medibooker/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

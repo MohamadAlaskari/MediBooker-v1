@@ -9,12 +9,12 @@ How to set up a development machine for the MediBooker v2 monorepo and how the r
 | Node.js | 26.13.0 | The only supported runtime for development, CI and Docker (`.node-version`, `engines.node` `^26.13.0`). fnm picks it up from `.node-version`. |
 | pnpm | 12.16.1 | Install it directly with `npm install -g pnpm@12.16.1`, not through corepack. `packageManager` in `package.json` pins it. |
 | Git | recent (tested with 2.55) | On Windows: Git for Windows, which includes Git Bash. |
-| gitleaks | 8.30.1 | **Required.** The pre-commit hook and `pnpm verify` fail without it. See [Install gitleaks](#install-gitleaks). |
-| Docker Desktop | current | Only from the database item on. |
+| gitleaks | the version of the [install lines](#install-gitleaks), which CI pins too | **Required.** The pre-commit hook and `pnpm verify` fail without it. See [Install gitleaks](#install-gitleaks). |
+| Docker Desktop | current | Required from the database item on. Before that, only to lint the workflows locally ([Continuous integration](#continuous-integration)). |
 
 ### Install gitleaks
 
-Install the release binary and check its SHA-256 checksum, or use a package manager. Afterwards, open a new terminal and run `gitleaks version`; it must print `8.30.1` (or later) in every shell you commit from, including Git Bash. If you ran `pnpm test` before, run `pnpm test --force` once: a test run without gitleaks is cached with the rule cases skipped.
+Install the release binary and check its SHA-256 checksum, or use a package manager. The version in the two install lines below is the one that CI pins in `.github/actions/gitleaks/action.yml`; Renovate moves all three together, and `scripts/ci-config.test.ts` fails when they differ. Afterwards, open a new terminal and run `gitleaks version`; it must print that version (or a later one) in every shell you commit from, including Git Bash. If you ran `pnpm test` before, run `pnpm test --force` once: a test run without gitleaks is cached with the rule cases skipped.
 
 **Windows** (PowerShell, as a normal user). Either `scoop install gitleaks` or `choco install gitleaks`, or the release zip. Paste the whole block at once: it stops at the first error, so a file with a wrong checksum is never installed.
 
@@ -104,11 +104,13 @@ Run every command from the repository root.
 | API tests with coverage | `pnpm --filter @medibooker/api test` |
 | Format all files | `pnpm format` |
 | Check formatting only | `pnpm format:check` |
-| Everything before a commit, after `git add`: hook check, secret scan of the staged changes, formatting, lint, typecheck, tests, build | `pnpm verify` |
+| Everything before a commit, after `git add`: hook check, secret scan of the staged changes, formatting, the lockfile dedupe check, lint, typecheck, tests, build | `pnpm verify` |
 | One package only | `pnpm --filter @medibooker/eslint-config test` |
 | Ignore the Turborepo cache | `pnpm lint --force` |
+| Check the `.gitleaksignore` pin | `node scripts/scan-secrets.ts pin` |
+| Scan the full git history for secrets, as CI does | `node scripts/scan-secrets.ts history` |
 
-The e2e and database commands arrive with the web and database items.
+The e2e and database commands arrive with the web and database items. Linting the workflows and validating `renovate.json` need Docker: see [Continuous integration](#continuous-integration).
 
 ## Repository layout
 
@@ -116,7 +118,8 @@ The e2e and database commands arrive with the web and database items.
 |---|---|
 | `apps/` | The applications: `api` (NestJS 12, `@medibooker/api`); web and mobile follow. |
 | `packages/` | Shared packages: `@medibooker/tsconfig`, `@medibooker/eslint-config`. |
-| `scripts/` | Repo scripts behind the git hooks, with their tests. Run by Node directly (TypeScript type stripping). |
+| `scripts/` | Repo scripts behind the git hooks and the CI secret scans (`scan-secrets.ts`), with their tests. Run by Node directly (TypeScript type stripping). |
+| `.github/` | CI: the workflows, the composite actions `setup` and `gitleaks`, the actionlint configuration and the pull request template. `renovate.json` at the root configures Renovate. |
 | `docs/` | Product docs (`docs/product`), architecture (`docs/architecture`), decision records (`docs/adr`) and these developer docs (`docs/dev`). |
 
 v1, the university project that v2 replaces, was removed on 2026-11-02 and is only in the git history. v2 shares no code with it.
@@ -153,10 +156,10 @@ lefthook installs these hooks (configuration in `lefthook.yml`):
 | Hook | Check | What to do when it fails |
 |---|---|---|
 | pre-commit | Prettier checks the staged files. It never rewrites or re-stages anything. | Run `pnpm format`, review the changes and stage them. |
-| pre-commit | gitleaks scans the staged changes for secrets (`scripts/run-gitleaks.ts`). It fails closed: without gitleaks, the commit is blocked. | See [Secret scanning](#secret-scanning). |
+| pre-commit | gitleaks scans the staged changes for secrets (`scripts/run-gitleaks.ts`), after checking that `.gitleaksignore` matches its pinned list. It fails closed: without gitleaks, or with a changed `.gitleaksignore`, the commit is blocked. | See [Secret scanning](#secret-scanning). |
 | commit-msg | The message follows the [commit convention](#commit-messages) (`scripts/check-commit-msg.ts`). | Fix the message; git keeps it in `.git/COMMIT_EDITMSG`. |
 
-Never bypass the hooks: no `git commit --no-verify` and no `LEFTHOOK=0` on a development machine. Only CI sets `LEFTHOOK=0`, because it runs the same checks itself. The hooks call `node` directly (no pnpm), so they also work in Git's `sh` on Windows.
+Never bypass the hooks: no `git commit --no-verify` and no `LEFTHOOK=0` on a development machine. Only CI sets `LEFTHOOK=0`, because it runs the same checks itself; `pnpm verify` fails while `LEFTHOOK=0` or `false` is set outside CI. The hooks call `node` directly (no pnpm), so they also work in Git's `sh` on Windows.
 
 The hooks fail closed as well:
 
@@ -184,10 +187,45 @@ Rules for the team:
 - When the scan reports a real secret, remove it from the staged changes. A secret that was ever committed or pushed must be rotated; deleting it from the history is not enough.
 - Inline `gitleaks:allow` comments are ignored: every scan runs with `--ignore-gitleaks-allow`. A false positive is fixed in `.gitleaks.toml`, together with a new case in `scripts/gitleaks-config.test.ts`, in a reviewed change.
 
-`pnpm verify` runs the same staged scan, so stage your changes first; with nothing staged it says that it checked nothing. `pnpm test` proves the rule on synthetic fixtures; without gitleaks those cases are skipped locally, and in CI they fail. After installing gitleaks, run `pnpm test --force` once, because Turborepo cached the run with the skipped cases.
+`pnpm verify` runs the same staged scan, so stage your changes first; with nothing staged it says that it checked nothing. The scan ignores the repository's `.gitattributes`, so a file marked `-diff` is scanned as text too; that needs git 2.40 or later (older versions ignore the setting, and only CI then catches such a secret, after the push). `pnpm test` proves the rule on synthetic fixtures; without gitleaks those cases are skipped locally, and in CI they fail. After installing gitleaks, run `pnpm test --force` once, because Turborepo cached the run with the skipped cases.
+
+**The one exception: `.gitleaksignore`.** The git history holds the v1 database credential in two findings of commit `0011060`. The user declined to rotate it and accepted the risk (U1 in [09](../architecture/09-risks-and-decisions.md)), so `.gitleaksignore` holds exactly the commit-qualified fingerprints (`commit:file:rule:line`) of these two findings, and nothing else:
+
+- The file is pinned to `ACCEPTED_FINGERPRINTS` in `scripts/lib/gitleaks.ts`. The pre-commit hook, `pnpm verify` and every CI scan fail when its entries differ: a third entry, a commit-less entry (`file:rule:line`, which would silence a finding in every commit) or a changed fingerprint. `node scripts/scan-secrets.ts pin` runs the check on its own.
+- Never add a live secret. Any other finding is rotated first; only if it already reached the pushed history is its commit-qualified fingerprint added, with a dated comment that names the rotation and the same change to `ACCEPTED_FINGERPRINTS`, in a commit the security-reviewer approves. A new finding in the v1 history, for example after a gitleaks upgrade, goes to the user as a follow-up of U1 ([07 §4](../architecture/07-docker-ci-cd.md#4-secret-scanning)).
+
+To scan the full history as CI does, run `node scripts/scan-secrets.ts history`: it checks the pin, then runs gitleaks with the repository policy over every branch and tag, merge commits and files marked `-diff` included, prints each finding redacted, and exits 1 on a finding or a scan error. It refuses a shallow clone, which would hide the commits it does not hold. `node scripts/scan-secrets.ts self-test` checks that gitleaks reports and redacts two secrets generated at run time. Both need gitleaks on `PATH`.
 
 ## Turborepo
 
 `pnpm lint`, `pnpm typecheck` and `pnpm test` run through Turborepo, which caches each task's result in `.turbo/` (gitignored). A second run without changes prints `FULL TURBO`. To run everything again, add `--force` (for example `pnpm test --force`).
 
 Turborepo sends anonymous usage data to Vercel unless you opt out. Set `TURBO_TELEMETRY_DISABLED=1` in your user environment; CI sets it too.
+
+## Continuous integration
+
+GitHub Actions runs `.github/workflows/ci.yml` on every push to `v2-planning` and `main`, on tags `v*`, on every pull request and on a manual run ([07 §3](../architecture/07-docker-ci-cd.md#3-github-actions), [ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)):
+
+| Job | Checks |
+|---|---|
+| `config-lint` | actionlint and the Renovate validator, each in a pinned container; the only job that can hold the optional Docker Hub token, so it runs no repository or package code |
+| `quality` | `pnpm install --frozen-lockfile`, `pnpm format:check`, `pnpm dedupe --check`, and lint, typecheck, tests with coverage and the build, as in `pnpm verify` without the hooks; the tests include `scripts/ci-config.test.ts`, which checks the rules of the workflows |
+| `security` | the `.gitleaksignore` pin, a secret scan of the pushed commits, the scanner self-test and `pnpm audit --prod --audit-level=high` |
+| `secrets-history` | a secret scan of the full history |
+| `sbom` | the SPDX snapshot of the lockfile for GitHub's dependency graph, and the dependency review, which fails on a new high or critical advisory |
+| `ci-ok` | the gate: it fails unless every job above succeeded |
+
+- `ci-ok` is the only required check. The main agent starts the next roadmap item only when the pushed commit's `ci-ok` is green and every open CodeQL alert is triaged ([08](../architecture/08-roadmap.md#rules-for-every-item)).
+- `codeql.yml` runs CodeQL on pushes, on pull requests and every Monday; `scheduled.yml` repeats the history scan and the audit every Monday and on a manual run.
+- **Reports:** every Vitest config writes a JUnit report to `reports/junit.xml` in its package, also locally (gitignored), and enforces its coverage gate. CI uploads the reports with the coverage of the root and every package as the artifact `test-reports-<attempt>`, kept for 7 days.
+- **Lint the workflows and validate `renovate.json` locally** (Docker Desktop must run), before every commit that changes `.github/` or `renovate.json`: CI runs both, and a pushed commit cannot be amended. Use the images that `ci.yml` pins in `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE`; Renovate moves them, so read them from there:
+
+  ```sh
+  actionlint_image="$(sed -n 's/^ *ACTIONLINT_IMAGE: //p' .github/workflows/ci.yml)"
+  renovate_image="$(sed -n 's/^ *RENOVATE_IMAGE: //p' .github/workflows/ci.yml)"
+  docker run --rm -v "$PWD:/repo:ro" -w /repo "$actionlint_image"
+  docker run --rm -v "$PWD:/usr/src/app:ro" -w /usr/src/app "$renovate_image" \
+    renovate-config-validator --strict --no-global renovate.json
+  ```
+
+  actionlint prints nothing when the workflows are fine; the validator prints `Config validated successfully`. In Git Bash on Windows, put `MSYS_NO_PATHCONV=1` in front of each `docker run`; `"$(pwd -W)"`, the Windows form of the path, works as the mount as well as `"$PWD"` ([windows.md](windows.md#docker-desktop)).

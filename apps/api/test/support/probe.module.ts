@@ -136,8 +136,9 @@ class ProbeController {
  */
 @Controller('probe/logs')
 class LogProbeController {
-  private readonly logger = new Logger('LogProbe');
+  private readonly logger = new Logger(LogProbeController.name);
   // Without a context of its own, nestjs-pino logs the last argument of a call as the context.
+  // eslint-disable-next-line medibooker/require-logger-class-name -- the case under test
   private readonly loggerWithoutContext = new Logger();
 
   @Public() // test-only: an interpolation value, as `logger.log('… %s', value)` passes one
@@ -150,6 +151,7 @@ class LogProbeController {
   @Public() // test-only: personal data three levels down in a logged object
   @Get('nested-object')
   nestedObject(): { isLogged: true } {
+    // eslint-disable-next-line medibooker/no-dynamic-log-message -- the case under test
     this.logger.warn({ appointment: { patient: { contact: { email: SYNTHETIC_EMAIL } } } });
     return { isLogged: true };
   }

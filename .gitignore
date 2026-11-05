@@ -10,6 +10,16 @@ coverage/
 *.tsbuildinfo
 .eslintcache
 
+# Test reports: the JUnit files of every Vitest run (CI uploads them), and Vitest's own folder for
+# a report without an output file. Anchored to the package roots where Vitest writes them, so a
+# source folder named reports (for example apps/api/src/modules/reports) is never ignored.
+/reports/
+/apps/*/reports/
+/packages/*/reports/
+/.vitest/
+/apps/*/.vitest/
+/packages/*/.vitest/
+
 # Environment files: only .env.example (placeholders) is committed
 .env
 .env.*

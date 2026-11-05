@@ -58,6 +58,8 @@ catalog:
   unplugin-swc: 2.0.0
   vite: 8.3.5
   vitest: 5.1.0
+  # The workflow checks of scripts/ci-config.test.ts parse .github with it (F02).
+  yaml: 2.9.1
   zod: 4.6.7
 
 # Install scripts run only for the packages listed here (pnpm 12 strictDepBuilds, ADR 0006).

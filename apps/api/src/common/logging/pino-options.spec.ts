@@ -340,6 +340,7 @@ describe('messages (hooks.logMethod)', () => {
     [
       'an object',
       (logger) => {
+        // eslint-disable-next-line medibooker/no-dynamic-log-message -- the case under test
         logger.info({ practiceId: PRACTICE_ID }, { email: EMAIL } as unknown as string);
       },
       'object',
@@ -349,6 +350,7 @@ describe('messages (hooks.logMethod)', () => {
       (logger) => {
         logger.error(
           { practiceId: PRACTICE_ID },
+          // eslint-disable-next-line medibooker/no-dynamic-log-message -- the case under test
           new TypeError(LEAKY_MESSAGE) as unknown as string,
         );
       },
@@ -357,6 +359,7 @@ describe('messages (hooks.logMethod)', () => {
     [
       'a number as the first argument',
       (logger) => {
+        // eslint-disable-next-line medibooker/no-dynamic-log-message -- the case under test
         logger.info(42);
       },
       'number',
@@ -394,6 +397,7 @@ describe('an error logged without a message of its own', () => {
     [
       'logger.error({ context, err }, undefined) from nestjs-pino',
       (logger, error) => {
+        // eslint-disable-next-line medibooker/no-dynamic-log-message -- the case under test
         logger.error({ context: 'ExceptionsHandler', err: error }, undefined);
       },
     ],

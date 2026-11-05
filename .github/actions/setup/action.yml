@@ -1,0 +1,36 @@
+# The toolchain of the quality job (docs/architecture/07-docker-ci-cd.md §3). The frozen install
+# also verifies the lockfile against minimumReleaseAge and trustPolicy, and unreviewed build
+# scripts fail it (pnpm-workspace.yaml, ADR 0006).
+name: Set up the toolchain
+description: pnpm from packageManager, Node.js from .node-version with the pnpm store cache, gitleaks, the Turbo cache and pnpm install --frozen-lockfile.
+
+runs:
+  using: composite
+  steps:
+    # No version input: the action reads packageManager from package.json, and setting both fails.
+    - name: Install pnpm
+      uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+    # After pnpm: the pnpm cache needs pnpm on PATH to find the store.
+    - name: Install Node.js
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+
+    # Before the tests: with CI=true, the gitleaks rule test fails without the binary.
+    - name: Install gitleaks
+      uses: ./.github/actions/gitleaks
+
+    # Restore only. The quality job saves the cache, and only on push to v2-planning, so a pull
+    # request cannot poison it.
+    - name: Restore the Turbo cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .turbo/cache
+        key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+        restore-keys: turbo-${{ runner.os }}-${{ github.job }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

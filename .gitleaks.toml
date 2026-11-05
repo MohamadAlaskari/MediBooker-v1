@@ -1,7 +1,11 @@
 # gitleaks configuration for the pre-commit hook, `pnpm verify` and CI.
 # The default rules miss plain password assignments such as DB_PASSWORD=... in an env file,
 # so this file adds one rule for them. scripts/gitleaks-config.test.ts proves what it reports.
-# Never allowlist a real secret: rotate it (docs/dev/getting-started.md).
+# Never allowlist a real secret: rotate it (docs/dev/getting-started.md). The one exception is
+# the v1 database credential that the user declined to rotate (U1): .gitleaksignore holds its
+# two commit-qualified fingerprints, pinned to ACCEPTED_FINGERPRINTS in scripts/lib/gitleaks.ts.
+# The rule for any other entry: docs/architecture/07-docker-ci-cd.md §4, ADR 0009
+# (docs/adr/0009-ci-branch-model-and-supply-chain.md) and docs/dev/getting-started.md.
 
 title = "MediBooker gitleaks config"
 

@@ -30,5 +30,25 @@ export function nest() {
       plugins: { medibooker: plugin },
       rules: { 'medibooker/no-system-clock': 'error' },
     },
+    {
+      // Constant log messages and class-name contexts (02 §8), also in tests: a test that breaks
+      // a rule on purpose says why in its disable comment. no-dynamic-log-message needs type
+      // information, which base() gives TypeScript files only.
+      name: 'medibooker/nest/logging',
+      files: TYPESCRIPT_FILES,
+      plugins: { medibooker: plugin },
+      rules: {
+        'medibooker/no-dynamic-log-message': 'error',
+        'medibooker/require-logger-class-name': 'error',
+      },
+    },
+    {
+      // Bindings skip the log-field allowlist, so only src/common/logging sets them (02 §8).
+      name: 'medibooker/nest/log-bindings',
+      files: TYPESCRIPT_FILES,
+      ignores: ['src/common/logging/**'],
+      plugins: { medibooker: plugin },
+      rules: { 'medibooker/no-log-bindings': 'error' },
+    },
   );
 }

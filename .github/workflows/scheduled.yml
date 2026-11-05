@@ -1,0 +1,66 @@
+# Weekly checks (docs/architecture/07-docker-ci-cd.md §3 and §5). GitHub runs schedule and
+# workflow_dispatch only from the default branch, v2-planning since U2 (2026-11-05). A failed run
+# notifies the repository owner; the push-time jobs of ci.yml upload the SARIF reports, so this
+# workflow uploads none and needs no write permission.
+name: Scheduled checks
+
+on:
+  schedule:
+    # Mondays at 03:41 UTC.
+    - cron: '41 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # The rules are those of the pinned gitleaks release; Renovate moves the pin
+  # (.github/actions/gitleaks/action.yml).
+  secrets:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install gitleaks
+        uses: ./.github/actions/gitleaks
+
+      - name: Scan the full history for secrets
+        run: node scripts/scan-secrets.ts history
+
+  # Reads the lockfile only, so it also reports advisories published since the last push.
+  audit:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Node.js of .node-version, as in the security job, not the one of the runner image.
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Audit the production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+  # F07 adds here a non-blocking expo-doctor job with the React Native Directory check.

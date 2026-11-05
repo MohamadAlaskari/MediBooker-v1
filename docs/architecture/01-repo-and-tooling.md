@@ -6,7 +6,7 @@ The repository root is the v2 monorepo. The F01 scaffold in the working tree is 
 
 ```text
 MediBooker-v1/                         v2 monorepo; v1, removed on 2026-11-02 (L00), is in the git history
-├─ .github/                            F02: actions/setup, workflows, pull_request_template.md (07)
+├─ .github/                            F02: actions/setup and actions/gitleaks (composite actions), workflows/ci.yml, codeql.yml and scheduled.yml, actionlint.yaml, pull_request_template.md (07 §3)
 ├─ apps/
 │  ├─ api/                             F03: @medibooker/api, NestJS 12 (02-api.md); F04: Prisma schemas of the platform and practice databases
 │  ├─ db-migrate/                      F04: @medibooker/db-migrate, the database lifecycle CLI medibooker-db (02 §6); F05: the migrate image
@@ -19,14 +19,14 @@ MediBooker-v1/                         v2 monorepo; v1, removed on 2026-11-02 (L
 │  ├─ api-client/                      X03: generated client, error mapping, query client
 │  └─ design-tokens/                   X05: design and motion tokens for web and React Native
 ├─ infra/local/                        F04: postgres/init/01-cluster.sh · F06: Caddyfile
-├─ scripts/                            F01: git-hook scripts with tests (check-commit-msg.ts, check-hooks.ts, run-gitleaks.ts, lib/) · F04: check-migrations.ts · X02: check-drift.ts
+├─ scripts/                            F01: git-hook scripts with tests (check-commit-msg.ts, check-hooks.ts, run-gitleaks.ts, lib/) · F02: scan-secrets.ts, the CI secret scans (pin, range, history, self-test), with lib/scan-range.ts · F04: check-migrations.ts · X02: check-drift.ts
 ├─ docs/                               adr/, architecture/, dev/ (F01), product/
 ├─ compose.yaml · docker-bake.hcl      F04 · F05 (07)
 ├─ package.json · pnpm-workspace.yaml · pnpm-lock.yaml · turbo.json                  F01
 ├─ eslint.config.js · tsconfig.json · vitest.config.ts                                F01: lint, typecheck and tests of the root scripts
 ├─ prettier.config.js · .prettierignore · .editorconfig · .gitattributes · .gitignore · .node-version   F01
-├─ lefthook.yml · .gitleaks.toml       F01 · .gitleaksignore: F02 (the two accepted v1 findings in the history, U1)
-├─ renovate.json                       F02
+├─ lefthook.yml · .gitleaks.toml       F01 · .gitleaksignore: F02, committed and pinned to ACCEPTED_FINGERPRINTS (the two accepted v1 findings in the history, U1)
+├─ renovate.json                       F02: Renovate configuration with its custom managers (07 §5)
 └─ CLAUDE.md · README.md · .claude/
 ```
 
@@ -43,14 +43,14 @@ v2 shares no code with v1. The workspace members are `apps/*` and `packages/*` o
   |---|---|
   | `lint` · `lint:root` | `turbo run lint lint:root` · `eslint --max-warnings=0 scripts eslint.config.js prettier.config.js vitest.config.ts` |
   | `typecheck` · `typecheck:root` | `turbo run typecheck typecheck:root` · `tsc -p tsconfig.json` |
-  | `test` · `test:root` | `turbo run test test:root` · `vitest run` (the tests of `scripts/`) |
+  | `test` · `test:root` | `turbo run test test:root` · `vitest run --coverage` (the tests of `scripts/`; the coverage gate of `scripts/lib` since F02) |
   | `format` · `format:check` | `prettier --write .` · `prettier --check .` |
-  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root build` (`build` since F03) |
+  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && pnpm dedupe --check && turbo run lint lint:root typecheck typecheck:root test test:root build` (`build` since F03, `pnpm dedupe --check` since F02) |
 
-- `verify` starts with `scripts/check-hooks.ts` (`lefthook check-install`): it fails with an install hint when the git hooks are missing or out of date, because a commit would then skip the secret scan and the commit-message check (with `LEFTHOOK=0`, which only CI sets, lefthook skips the check). The staged secret scan follows, so `verify` runs after `git add`.
+- `verify` starts with `scripts/check-hooks.ts` (`lefthook check-install`): it fails with an install hint when the git hooks are missing or out of date, because a commit would then skip the secret scan and the commit-message check. `LEFTHOOK=0` or `false` switches the hooks off; with `CI=true` as well (CI sets both and has no hooks) the script skips the check, because lefthook's own `check-install` ignores that switch and fails on a checkout without hooks. On any other machine the switch fails the check, because commits would skip the secret scan (ADR 0006, decision 9). The staged secret scan follows, so `verify` runs after `git add`. `pnpm dedupe --check` runs before Turbo, as in CI's `quality`, so a lockfile that CI would reject fails before the commit.
 - Every lint script, in the root and in each package, runs ESLint with `--max-warnings=0`: a warning fails like an error.
 - Scripts added by later items: `build` and `dev` (F03); `test:integration`, `db:up`, `db:migrate`, `db:seed`, `db:reset` and `check:migrations` (F04); `test:e2e` (F06); `generate` and `check:drift` (X02). From F03 on, `verify` also runs `build`: the tests compile through `unplugin-swc`, so only the build compiles through `nest-cli.json`, whose `ignore` entry keeps spec files out of `dist`, and catches a broken one before CI. From F04 on it runs `check:migrations`, and from X02 on `check:drift`.
-- Root `devDependencies` serve the root scripts and configs: `@medibooker/eslint-config`, `@medibooker/tsconfig` (`workspace:*`), `@types/node`, `eslint`, `lefthook`, `prettier`, `turbo`, `typescript`, `vite`, `vitest` (`catalog:`). Every package declares the tools its own scripts call (`typescript`, `vitest`, `@nestjs/cli`, …), so filtered installs in Docker work (07).
+- Root `devDependencies` serve the root scripts and configs: `@medibooker/eslint-config`, `@medibooker/tsconfig` (`workspace:*`), `@types/node`, `@vitest/coverage-v8` (F02), `eslint`, `lefthook`, `prettier`, `turbo`, `typescript`, `vite`, `vitest`, `yaml` (F02, for `scripts/ci-config.test.ts`) (`catalog:`). Every package declares the tools its own scripts call (`typescript`, `vitest`, `@nestjs/cli`, …), so filtered installs in Docker work (07).
 
 ### pnpm-workspace.yaml
 
@@ -85,10 +85,10 @@ Added by later items, each with a reason in the commit body:
 ### turbo.json
 
 - As built in F01: `globalDependencies` `.node-version` and `pnpm-workspace.yaml`; `globalEnv` `CI` and `NODE_ENV`; strict environment mode (Turborepo 2's default), so a task sees only the variables it declares.
-- Tasks `build` (`^build`, outputs `dist/**`), `lint` and `typecheck` (`^build`), `test` (`^build`, outputs `coverage/**` since F03, which turned coverage on in the API).
-- `packages/eslint-config/turbo.json` (`extends: ["//"]`) overrides the `test` outputs with `[]`: that package's tests write no coverage, and Turborepo 2.11.10 prints "no output files found" on every run of a task whose declared outputs are missing. The override goes when that package gets coverage ([06 §8](06-testing.md#8-coverage-gates)).
+- Tasks `build` (`^build`, outputs `dist/**`), `lint` and `typecheck` (`^build`), `test` (`^build`, outputs `coverage/**` since F03, which turned coverage on in the API, and `reports/**` since F02: every Vitest config writes its JUnit report to `reports/junit.xml`, so a cached run restores it for CI, [06 §9](06-testing.md#9-flaky-tests-and-silent-green)).
+- No package overrides the `test` outputs. F03 had added `packages/eslint-config/turbo.json` with `outputs: []`, because that package's tests write no coverage and Turborepo 2.11.10 prints "no output files found" for a task whose declared outputs are all missing; F02 removed it, since the package's tests now write `reports/junit.xml`, and the warning is gone.
 - `apps/api/turbo.json` (`extends: ["//"]`, F03) sets the inputs of the API's `test` task to `["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]`: `src/config/env-example.spec.ts` reads the root `.env.example`, so a change to that file alone must rerun the test instead of replaying the cache. F04 adds `db:generate` to the same file.
-- The root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` list their `inputs` explicitly (the scripts, the root configs and `pnpm-lock.yaml`; `//#lint:root` also the eslint-config sources), so they stay cacheable. `//#test:root` also reads `.gitleaks.toml` and `lefthook.yml`, which its tests use, and declares `env: ["GITLEAKS_VERSION"]`: CI exports the version of the gitleaks it installs, so a gitleaks upgrade reruns the rule test.
+- The root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` list their `inputs` explicitly (the scripts, the root configs and `pnpm-lock.yaml`; `//#lint:root` also the eslint-config sources), so they stay cacheable. `//#test:root` also reads `.gitleaks.toml`, `.gitleaksignore` (since F02), `lefthook.yml`, `.github/**`, `renovate.json` and `docs/dev/getting-started.md` (F02: `scripts/ci-config.test.ts` reads them), which its tests use, outputs `coverage/**` and `reports/**` (F02), and declares `env: ["GITLEAKS_VERSION"]`: CI's gitleaks action exports the version of the gitleaks it installs, so a gitleaks upgrade reruns the rule test.
 - Added later:
 
   | Task | Item | Rule |
@@ -124,16 +124,19 @@ Each preset is proven by a fixture project in `packages/tsconfig/fixtures`. App 
 
 Flat-config presets exported from `.`: `base({ tsconfigRootDir })`, `nest()`, `react()`, `vitest()`, plus the local `plugin`. Every package has its own `eslint.config.js`, because ESLint 10 looks up the config from each linted file's directory.
 
-The local `medibooker` plugin has three guardrail rules:
+The local `medibooker` plugin has six rules: three guardrails (F01) and three logging rules (F02):
 
 | Rule | Guards |
 |---|---|
 | `medibooker/no-hex-colors` | No hex colour literals in UI code (non-negotiable 7) |
 | `medibooker/no-physical-direction-classes` | No `ml-*`, `pr-*`, `left-*`, `text-left`, `border-l`, … in class strings and in `cn`, `clsx`, `cva`, `twMerge`, `twJoin`, `tv` arguments; names the logical replacement (RTL). The centring idiom (`left-1/2` or `right-1/2` with a horizontal translate in the same class list) stays allowed, because translate does not mirror |
 | `medibooker/no-system-clock` | No `new Date()`, `Date()`, `Date.now`, `Temporal.Now` in `src/modules/**` of the API; inject the `Clock` |
+| `medibooker/no-dynamic-log-message` | The message argument of a logger call (`log`, `info`, `warn`, `error`, `debug`, `verbose`, `fatal`, `trace`) is a string literal or a template literal without expressions, and no argument reads `.message` or `.stack` ([02 §8](02-api.md#8-logging-and-redaction)). Type information finds the message: Nest's `Logger` takes it first, pino and nestjs-pino's `PinoLogger` take an optional object first; a method without a `message` or `msg` parameter, such as `Math.log`, is no logger |
+| `medibooker/require-logger-class-name` | `new Logger(…)` from `@nestjs/common` takes `<Class>.name` of a class that the file declares or imports, never no argument or another value, and Nest's static `Logger.log(…)` methods are not used: without a context of its own, a Nest `Logger` logs its last argument as the context (02 §8) |
+| `medibooker/no-log-bindings` | No `.child(`, `.setBindings(`, logger `.assign(` (nestjs-pino's `PinoLogger.assign`; `Object.assign` stays allowed), `runInContext(` or the `msgPrefix` option: bindings skip the log-field allowlist (02 §8) |
 
 - `base` adds type-aware typescript-eslint (`strictTypeChecked`, `stylisticTypeChecked`), `consistent-type-imports`, `switch-exhaustiveness-check`, import hygiene (`no-duplicates`, `no-self-import`), `eqeqeq`, `no-console`, `reportUnusedDisableDirectives: 'error'` (an `eslint-disable` comment that suppresses nothing fails lint) and Prettier last.
-- `nest` adds `import-x/no-cycle` (an ESM cycle crashes Nest at startup), `no-extraneous-class` with `allowWithDecorator` and the clock rule outside tests.
+- `nest` adds `import-x/no-cycle` (an ESM cycle crashes Nest at startup), `no-extraneous-class` with `allowWithDecorator` and the clock rule outside tests, and since F02 the three logging rules: `no-dynamic-log-message` and `require-logger-class-name` in every TypeScript file, tests included, and `no-log-bindings` everywhere except `src/common/logging`, which passes bindings through the allowlist. A test that breaks a rule on purpose (`apps/api/test/support/probe.module.ts`, `src/common/logging/pino-options.spec.ts`) says why in its disable comment. `no-dynamic-log-message` and `no-log-bindings` use the TypeScript program of `base`'s project service and throw when a file has none, so a misconfigured rule fails lint instead of passing every file.
 - `react` adds the colour and direction guardrails, except in tests. `vitest` makes `.only` and `.skip` errors.
 - Rule tests and preset tests on real fixture files prove every guardrail fires.
 - Every Vitest config sets `passWithNoTests: false` and `allowOnly: false`: a run without tests fails, and a focused test (also a RuleTester case with `only: true`) fails every run, not only under `CI`. The root `vitest.config.ts` runs only `scripts/**/*.test.ts`; each package runs its own tests.
@@ -158,18 +161,18 @@ eslint-config-next and eslint-config-expo depend on plugins that declare ESLint 
 
 - `.gitattributes`: `* text=auto eol=lf`; `*.cmd`, `*.bat` and `*.ps1` keep CRLF, one pattern per line (gitattributes has no brace expansion); images, PDFs and fonts are `binary`; `pnpm-lock.yaml linguist-generated`. Generated folders get `linguist-generated` with the item that creates them (X02, X03, X05).
 - `.editorconfig`: UTF-8, LF, two spaces, final newline; Markdown keeps trailing whitespace; `*.cmd`, `*.bat` and `*.ps1` CRLF, matching `.gitattributes`. `.node-version`: `26.13.0`.
-- `.gitignore`: dependencies, caches and build output (`node_modules/`, `.turbo/`, `dist/`, `coverage/`, `*.tsbuildinfo`, `.eslintcache`); environment files (`.env`, `.env.*`, `*.env`) except `.env.example`; lefthook's local overrides (`lefthook-local.*`, `.lefthook-local.*`), because they can switch a hook off; logs, OS and editor files (`.vscode/` except its shared settings and extension list); keys, certificates and signing material (`*.pem`, `*.key`, `*.p8`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.mobileprovision`), which gitleaks cannot scan; Claude Code's local `.claude/data/` and `.claude/settings.local.json`.
+- `.gitignore`: dependencies, caches and build output (`node_modules/`, `.turbo/`, `dist/`, `coverage/`, `*.tsbuildinfo`, `.eslintcache`); test reports (`reports/`, and `.vitest/`, where Vitest 5 writes a file reporter without an output file; F02), each anchored to the root, `apps/*` and `packages/*`, so a source folder named `reports` is never ignored; environment files (`.env`, `.env.*`, `*.env`) except `.env.example`; lefthook's local overrides (`lefthook-local.*`, `.lefthook-local.*`), because they can switch a hook off; logs, OS and editor files (`.vscode/` except its shared settings and extension list); keys, certificates and signing material (`*.pem`, `*.key`, `*.p8`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.mobileprovision`), which gitleaks cannot scan; Claude Code's local `.claude/data/` and `.claude/settings.local.json`.
 - `lefthook.yml` (lefthook 2.2.2; every command calls `node` directly, so the hooks work in Git's `sh` on Windows; arguments are single-quoted):
   - `assert_lefthook_installed: true`: a generated hook that cannot find lefthook, for example after `node_modules` was deleted, blocks the commit instead of letting it through unchecked; `min_version: 2.2.2`: an older lefthook first on `PATH` fails instead of running the hooks;
-  - `pre-commit`, in parallel: `prettier --check --ignore-unknown` on the staged files (never rewrites or re-stages) and `node scripts/run-gitleaks.ts`, which runs `gitleaks git --pre-commit --staged` with the repository policy (`.gitleaks.toml`, `--redact`, `--ignore-gitleaks-allow`) and fails closed when gitleaks is missing, cannot start or is stopped by a signal;
+  - `pre-commit`, in parallel: `prettier --check --ignore-unknown` on the staged files (never rewrites or re-stages) and `node scripts/run-gitleaks.ts`, which first checks the `.gitleaksignore` pin (F02) and then runs `gitleaks git --pre-commit --staged` with the repository policy (`.gitleaks.toml`, `--redact`, `--ignore-gitleaks-allow`) and, since F02, `GIT_ATTR_SOURCE` set to the empty tree, so a `-diff` attribute cannot hide a staged file; it fails closed when the pin check fails, when gitleaks is missing, cannot start or is stopped by a signal, and (F02) when gitleaks logs an error;
   - `commit-msg`: `node scripts/check-commit-msg.ts` enforces Conventional Commits, `<type>(<scope>)!: <summary>` (`feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, `revert`; optional lowercase kebab-case scope; optional `!` for a breaking change), a header of at most 72 characters without a final period, and an empty second line before a body; headers that git writes itself pass.
-  - No pre-push hook: the pre-commit scan covers every commit, and CI is the hard gate (ADR 0006, decision 9). CI sets `LEFTHOOK=0`.
+  - No pre-push hook: the pre-commit scan covers every commit, and CI is the hard gate (ADR 0006, decision 9). CI sets `LEFTHOOK=0`; on a developer machine that switch fails `pnpm verify`.
 - `.gitleaks.toml` extends the default rules (`[extend] useDefault = true`) with the rule `medibooker-password-assignment`, because the defaults miss plain password assignments such as `DB_PASSWORD=…` and `password: '…'`:
   - keys ending in `password`, `passwd`, `passphrase`, `pwd` or `secret` (any case, so also `JWT_SECRET`), or `pass` on its own or after `_`, `.` or `-` (`SMTP_PASS`, `auth.pass`; not `bypass`);
   - after `=`, `:`, `:=` or `=>`, a value of at least 8 characters: quoted without whitespace (also the literal fallback in `x ?? '…'` and `x || '…'`), unquoted to the end of the line (env, YAML, ini; it may contain `,` and `;` but not end with them), or the password of a connection URL, also with an empty user name;
   - placeholders are allowed (`changeme`, values containing `example`, `<…>`, `${VAR}`, `${VAR:-}`, `${VAR:?…}`, `$VAR`, `process.env.*`); a shell default with a literal value (`${VAR:-…}`) is reported; a quoted value with spaces is not (translation labels).
-- Every gitleaks scan, local and in CI, uses one policy (`policyArguments()` in `scripts/lib/gitleaks.ts`): `.gitleaks.toml`, `--redact` and `--ignore-gitleaks-allow`, so an inline `gitleaks:allow` comment cannot silence a finding; only a reviewed change to `.gitleaks.toml` or `.gitleaksignore` can, and F02 pins `.gitleaksignore` to the two accepted fingerprints. `scripts/gitleaks-config.test.ts` writes synthetic fixtures (18 that must be reported, one of them with an inline `gitleaks:allow`, and 18 that must not) into a temporary directory at test time and runs the real binary with that policy (skipped locally without gitleaks, failing under `CI=true`), so no scan of the repository sees them and no path allowlist exists.
-- `.gitleaksignore` arrives with F02 and holds exactly the commit-qualified fingerprints of the two v1 findings in the git history, under a comment dated 2026-11-04: the user declined to rotate that credential and accepted the risk (U1 in [09](09-risks-and-decisions.md)). gitleaks reads the file from the scan root whatever `--gitleaks-ignore-path` says, and a commit-less entry would silence a finding in every commit, so F02 pins it: `scripts/run-gitleaks.ts` and the CI `security` job fail closed when it differs from `ACCEPTED_FINGERPRINTS` in `scripts/lib/gitleaks.ts` ([07 §4](07-docker-ci-cd.md#4-secret-scanning)).
+- Every gitleaks scan, local and in CI, uses one policy (`policyArguments()` in `scripts/lib/gitleaks.ts`): `.gitleaks.toml`, `--redact` and `--ignore-gitleaks-allow`, so an inline `gitleaks:allow` comment cannot silence a finding, plus `--no-banner` and `--no-color` (F02), so that the scripts can read the errors gitleaks logs without failing. Only a reviewed change to `.gitleaks.toml` or `.gitleaksignore` can silence a finding, and `.gitleaksignore` is pinned to the two accepted fingerprints. CI scans through `scripts/scan-secrets.ts` ([07 §4](07-docker-ci-cd.md#4-secret-scanning)). `scripts/gitleaks-config.test.ts` writes synthetic fixtures (18 that must be reported, one of them with an inline `gitleaks:allow`, and 18 that must not) into a temporary directory at test time and runs the real binary with that policy (skipped locally without gitleaks, failing under `CI=true`), so no scan of the repository sees them and no path allowlist exists.
+- `.gitleaksignore` (committed in F02) holds exactly the commit-qualified fingerprints of the two v1 findings in the git history, under a comment dated 2026-11-04: the user declined to rotate that credential and accepted the risk (U1 in [09](09-risks-and-decisions.md)). gitleaks reads the file from the scan root whatever `--gitleaks-ignore-path` says, and a commit-less entry would silence a finding in every commit, so the file is pinned: `scripts/run-gitleaks.ts` (pre-commit hook and `pnpm verify`) and every CI scan (`scripts/scan-secrets.ts`) fail closed when its entries differ from `ACCEPTED_FINGERPRINTS` in `scripts/lib/gitleaks.ts` ([07 §4](07-docker-ci-cd.md#4-secret-scanning)). `node scripts/scan-secrets.ts pin` runs the check on its own.
 - A live secret is never added to `.gitleaksignore`; the U1 credential is the only accepted exception. Any other finding is rotated first; if it already reached the pushed history, its commit-qualified fingerprint is then added with a dated comment that names the rotation, in a commit the security-reviewer approves, which also updates the pinned list. A new finding in the v1 history (commits before L00), for example after a gitleaks upgrade or a rule change, goes to the user as a follow-up of U1 and needs a new dated user decision; so does re-recording the two U1 findings after a rule rename.
 
 ### Windows development machine
@@ -265,7 +268,7 @@ Features import each other only through their `index.ts`.
 
 ## 5. Versions
 
-"Latest" means the newest stable release that is older than pnpm's `minimumReleaseAge` of one day at the moment a package is added (ADR 0006). Packages are added with `pnpm add <pkg>` without a version, so pnpm picks that release; Renovate later moves pins after its own three-day age. The table was checked against the npm registry, Docker Hub and GitHub releases on 2026-11-02; every deviation has its reason. ADR 0006 holds the authoritative table for the F01 catalog.
+"Latest" means the newest stable release that is older than pnpm's `minimumReleaseAge` of one day at the moment a package is added (ADR 0006). Packages are added with `pnpm add <pkg>` without a version, so pnpm picks that release; Renovate later moves pins after its own three-day age. The table was checked against the npm registry, Docker Hub and GitHub releases on 2026-11-02; every deviation has its reason. The CI rows were re-checked for F02 on 2026-11-05, and the exact pins of F02 follow in [CI pins](#ci-pins). ADR 0006 holds the authoritative table for the F01 catalog.
 
 | Package or tool | Chosen | Newest on 2026-11-02 | Deviation and reason |
 |---|---|---|---|
@@ -277,7 +280,7 @@ Features import each other only through their `index.ts`.
 | eslint-plugin-import-x · eslint-import-resolver-typescript · @vitest/eslint-plugin · globals | 4.17.1 · 4.4.5 · 1.6.28 · 17.14.0 | same | — |
 | eslint-plugin-jest (F07) | 29.17.0 | same | — |
 | prettier · prettier-plugin-tailwindcss (X07) · lefthook | 3.9.10 · 0.8.1 · 2.2.2 | same | lefthook 2.2.2 was published without provenance; checked in ADR 0006 (decision 3) |
-| gitleaks · actionlint | 8.30.1 · 1.7.12 | same | — |
+| gitleaks · actionlint | 8.30.1 · 1.7.12 | same (re-checked 2026-11-05) | — (pinned by checksum and digest, [CI pins](#ci-pins)) |
 | @nestjs/common · core · platform-express · testing | 12.3.2 | same | — |
 | @nestjs/cli · @nestjs/throttler | 12.0.11 · 6.7.1 | same | — |
 | chokidar (F03, watch mode of `nest start --watch`) | 5.0.0 | 6.0.0 | @swc/cli 0.8.2 declares it as an optional peer `^5.0.0` (checked 2026-11-04) |
@@ -309,6 +312,7 @@ Features import each other only through their `index.ts`.
 | i18next · react-i18next · i18next-icu | 26.6.0 · 17.1.10 · 2.6.1 | 26.7.1 · 17.1.11 · 2.6.1 | Option A of D1; the two newer versions were published within the last day |
 | @fontsource-variable/inter · /noto-sans-arabic | 5.3.0 | same | — |
 | vitest · @vitest/coverage-v8 · vite | 5.1.0 · 5.1.0 · 8.3.5 | same | — (5.1.0 since the F01 re-check of 2026-11-04, ADR 0006) |
+| yaml (F02, root devDependency of `scripts/ci-config.test.ts`) | 2.9.1 | same (checked 2026-11-05) | — (published 2026-09-11, no dependencies; no version has provenance, so `trustPolicy` sees no downgrade) |
 | @vitejs/plugin-react | 6.1.2 | 6.2.1 | 6.2.1 was published on 2026-11-02 |
 | @rolldown/plugin-babel · @babel/core (web tests) | 0.2.4 · 7.29.7 | 0.3.0 · 8.1.0 | plugin-react 6.1.2 accepts plugin-babel `^0.1.7 \|\| ^0.2.0`; babel-plugin-react-compiler 1.0.0 is built on Babel 7. Used only so Vitest runs the same Babel React Compiler as `next build` |
 | @testing-library/react · jest-dom · user-event · jsdom | 16.3.3 · 7.0.1 · 14.6.8 · 30.1.3 | same | — |
@@ -325,9 +329,32 @@ Features import each other only through their `index.ts`.
 | Docker images | node:26.13.0-trixie-slim · postgres:18.6-trixie · caddy:2.11.7-alpine · axllent/mailpit:v1.33.0 | same | Pinned by digest; PostgreSQL 19 is a release candidate |
 | PostgreSQL client tools (OPS02) | `postgresql-client-18` from the PGDG repository (`trixie-pgdg`) | Debian trixie ships 17 | `pg_dump` 17 refuses a PostgreSQL 18 server; the migrate image checks `pg_dump --version`, and a Renovate custom manager moves the pin ([07 §1](07-docker-ci-cd.md#1-images)) |
 | PgBouncer | not used yet | — | Chosen in OPS01 if the connection budget requires it (ADR 0005 §2.4) |
-| GitHub runner | `ubuntu-26.04` | `ubuntu-latest` is still 24.04 | Newest available image; `ubuntu-24.04` is the documented fallback if a tool breaks |
-| actions/checkout · setup-node · pnpm/action-setup · cache · upload-artifact | v7.0.1 · v7.1.0 · v6.1.0 · v6.1.0 · v7.0.2 | same | Pinned to commit SHAs |
+| GitHub runner | `ubuntu-26.04` | generally available since 2026-09-17; `ubuntu-latest` moves from 24.04 to 26.04 until 2026-11-19 | Newest available image; never `ubuntu-latest` while it moves; `ubuntu-24.04` is the documented fallback if a tool breaks. actionlint 1.7.12 needs the label declared in `.github/actionlint.yaml` |
+| actions/checkout · setup-node · pnpm/action-setup · cache · upload-artifact | v7.0.1 · v7.1.0 · v6.1.1 · v6.1.0 · v7.0.2 | same (re-checked 2026-11-05) | Pinned to commit SHAs ([CI pins](#ci-pins)) |
 | docker/setup-buildx-action · login-action · metadata-action · bake-action | v4.4.1 · v4.7.0 · v6.2.0 · v7.5.0 | same | — |
 | aquasecurity/trivy-action with Trivy | v0.36.0 with `version: v0.76.1` | Trivy v0.76.1 | The action defaults to Trivy v0.70.0, so the version is set explicitly |
-| github/codeql-action · dependency-review-action · attest-build-provenance · spdx-dependency-submission-action | v4.39.1 · v5.0.0 · v4.2.2 · v0.4.0 | same | — |
+| github/codeql-action · dependency-review-action · attest-build-provenance · spdx-dependency-submission-action | v4.39.2 · v5.0.0 · v4.2.2 · v0.4.0 | codeql-action v4.39.3 was published on 2026-11-04 at 16:49 UTC | v4.39.3 passes the one-day gate on 2026-11-05 at 16:49:20 UTC; a commit after that moment takes it. attest-build-provenance (F05) was not re-checked in F02 |
 | reactivecircus/android-emulator-runner · Maestro CLI (X10) | v2.38.0 · newest past one day | Maestro cli-2.12.1 was published on 2026-11-02 | — |
+
+### CI pins
+
+The pins of F02, checked on 2026-11-05 with `gh api` (release dates) and `git ls-remote` (the commit each tag points to; an annotated tag is peeled to its commit). Each was the newest release past the one-day gate when the workflows were written. The workflow files are the source of truth, and Renovate moves these pins after U4 ([07 §5](07-docker-ci-cd.md#5-supply-chain)).
+
+| Pin | Version | Pinned to | Published |
+|---|---|---|---|
+| `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` | 2026-07-20 |
+| `actions/setup-node` | v7.1.0 | `949feb2413d6458794dcd2491c4babbbce0c15c1` | 2026-10-08 |
+| `pnpm/action-setup` | v6.1.1 | `73e46992e05b19abd31f2f3c20e0e7370d762115` (the annotated tag `9bbca1e9…`, peeled) | 2026-11-03 |
+| `actions/cache/restore`, `actions/cache/save` | v6.1.0 | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | 2026-06-26 |
+| `actions/upload-artifact` | v7.0.2 | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | 2026-10-07 |
+| `github/codeql-action` (`init`, `analyze`, `upload-sarif`) | v4.39.2 | `1fc58d04a4d4374f921bdac573c3811c240f9c26` | 2026-11-03; v4.39.3 (`33d7b85da1a04171e211befe2c739303b9a4c066`) passes the gate on 2026-11-05 at 16:49:20 UTC |
+| `advanced-security/spdx-dependency-submission-action` | v0.4.0 | `b009efcf8b9d562a4569d2028c276522232e631f` (not the floating `v0`, which points to v0.3.2) | 2026-09-15 |
+| `actions/dependency-review-action` | v5.0.0 | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | 2026-05-08 |
+| gitleaks binary | 8.30.1 | `gitleaks_8.30.1_linux_x64.tar.gz`, SHA-256 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` (the checksums file, a local `sha256sum` and the release's asset digest agree) | 2026-03-21 |
+| actionlint image | 1.7.12 | `rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667` | 2026-03-30 |
+| Renovate image (`renovate-config-validator`) | 44.212.0 | `ghcr.io/renovatebot/renovate:44.212.0@sha256:11f3f39f324d4b7a1f6e491e44224b5b61cf5506528f146cdf6c7d08c631e569` (the OCI index; `docker buildx imagetools inspect` and the GHCR registry API agree) | npm 2026-11-04 10:57 UTC; the newest past the gate when re-checked at 11:45 UTC on 2026-11-05 (44.210.2 when `ci.yml` was first written) |
+| GitHub runner | `ubuntu-26.04` | GitHub-hosted label | generally available since 2026-09-17 |
+
+- The actionlint and Renovate images are the `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE` lines of `ci.yml`; Renovate's `*_IMAGE` manager moves them, so the developer docs read them from there instead of copying the digests.
+- Not used: `docker/login-action` v4.7.0 (`81c6f93d4bc991e510b342a00b419b3bb4efc5c6`, 2026-10-23), because `config-lint` logs in with a `docker login --password-stdin` step; the gitleaks container image, because there are no container steps ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).
+- pnpm stays 12.16.1 (`packageManager`): 12.17.0 exists only on npm's `next-12` tag, and "latest" is never above npm's `latest` dist-tag (ADR 0006).

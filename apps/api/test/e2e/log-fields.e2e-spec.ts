@@ -60,7 +60,7 @@ describe('log calls written by hand during a request (02 §8)', () => {
   it('drops the value of logger.log("booked for %s", email) and keeps the template and the context', async () => {
     const lines = await linesLoggedBy('format-argument');
     expect(lines).toEqual([
-      expect.objectContaining({ level: 30, context: 'LogProbe', msg: 'booked for %s' }),
+      expect.objectContaining({ level: 30, context: 'LogProbeController', msg: 'booked for %s' }),
     ]);
     expect(fieldsOf(lines[0])).toEqual([...LINE_FIELDS, 'context', 'msg'].sort());
   });
@@ -68,7 +68,7 @@ describe('log calls written by hand during a request (02 §8)', () => {
   it('drops an object with an e-mail address three levels down and counts it, without its name', async () => {
     const lines = await linesLoggedBy('nested-object');
     expect(lines).toEqual([
-      expect.objectContaining({ level: 40, context: 'LogProbe', droppedFields: 1 }),
+      expect.objectContaining({ level: 40, context: 'LogProbeController', droppedFields: 1 }),
     ]);
     expect(fieldsOf(lines[0])).toEqual([...LINE_FIELDS, 'context', 'droppedFields'].sort());
   });
@@ -101,7 +101,7 @@ describe('log calls written by hand during a request (02 §8)', () => {
     const lines = await linesLoggedBy('allowed-fields');
     expect(lines).toEqual([
       expect.objectContaining({ level: 30, practiceId: PRACTICE_ID, msg: 'practice resolved' }),
-      expect.objectContaining({ level: 30, context: 'LogProbe', msg: 'plain message' }),
+      expect.objectContaining({ level: 30, context: 'LogProbeController', msg: 'plain message' }),
     ]);
     expect(fieldsOf(lines[0])).toEqual([...LINE_FIELDS, 'msg', 'practiceId'].sort());
     expect(fieldsOf(lines[1])).toEqual([...LINE_FIELDS, 'context', 'msg'].sort());

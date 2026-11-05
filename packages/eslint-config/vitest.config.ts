@@ -14,5 +14,17 @@ export default defineConfig({
     // which takes several seconds on Windows.
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // A JUnit report for CI, written locally too: it is an output of the Turbo task, so a cached
+    // run restores it.
+    reporters: ['default', 'junit'],
+    outputFile: { junit: 'reports/junit.xml' },
+    // The package gate of docs/architecture/06-testing.md §8; `test` runs with --coverage.
+    // `include` makes untested files count.
+    coverage: {
+      provider: 'v8',
+      enabled: false,
+      include: ['src/**/*.js'],
+      thresholds: { lines: 90, branches: 85 },
+    },
   },
 });

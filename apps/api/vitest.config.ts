@@ -30,6 +30,10 @@ export default defineConfig({
     env: { TZ: 'Pacific/Chatham' },
     // Booting a Nest application in beforeAll is slow on Windows.
     hookTimeout: 30_000,
+    // A JUnit report for CI, written locally too: it is an output of the Turbo task, so a cached
+    // run restores it.
+    reporters: ['default', 'junit'],
+    outputFile: { junit: 'reports/junit.xml' },
     // Coverage is configured at the root so that `--project unit --coverage` applies it.
     // `include` makes untested files count; test files are excluded automatically.
     coverage: {

@@ -132,6 +132,25 @@ describe('nest preset', () => {
       errorRuleIds(await lint('src/common/clock/clock-reader.ts'), '@typescript-eslint/'),
     ).toEqual(['@typescript-eslint/consistent-type-imports']);
   });
+
+  it('nest: reports each logging rule once for its violation under src/modules', async () => {
+    expect(guardrailRuleIds(await lint('src/modules/booking/booking.notifier.ts'))).toEqual([
+      'medibooker/no-dynamic-log-message',
+      'medibooker/no-log-bindings',
+      'medibooker/require-logger-class-name',
+    ]);
+  });
+
+  it('nest: medibooker/no-dynamic-log-message and medibooker/require-logger-class-name cover spec files', async () => {
+    expect(guardrailRuleIds(await lint('src/modules/booking/booking.notifier.spec.ts'))).toEqual([
+      'medibooker/no-dynamic-log-message',
+      'medibooker/require-logger-class-name',
+    ]);
+  });
+
+  it('nest: medibooker/no-log-bindings skips src/common/logging, where bindings belong', async () => {
+    expect(await lint('src/common/logging/bind-log-fields.ts')).toEqual([]);
+  });
 });
 
 describe('vitest preset', () => {

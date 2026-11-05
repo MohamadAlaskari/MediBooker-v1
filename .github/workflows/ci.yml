@@ -1,0 +1,308 @@
+# Continuous integration (docs/architecture/07-docker-ci-cd.md §3, ADR 0009). ci-ok is the only
+# required status check, and it needs every other job. scripts/ci-config.test.ts checks the rules
+# of 07 §3 on every workflow and action of .github.
+#
+# Pull requests from forks get a read-only token, so they skip the SARIF uploads, the SBOM
+# submission and the dependency review. Every scan still runs and still fails its job. The fork
+# condition is written out in each `if:`: an environment variable could be overwritten through
+# GITHUB_ENV by repository code that ran before.
+name: CI
+
+on:
+  push:
+    branches: [v2-planning, main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  LEFTHOOK: 0
+  TURBO_TELEMETRY_DISABLED: 1
+  NEXT_TELEMETRY_DISABLED: 1
+  EXPO_NO_TELEMETRY: 1
+  CHECKPOINT_DISABLE: 1
+
+jobs:
+  # The workflows (actionlint) and renovate.json (the Renovate validator), each in a pinned
+  # container that sees only the read-only checkout. The only job that references a secret, the
+  # optional Docker Hub token (U6), so it runs no repository or package code: GitHub sends every
+  # secret a job references to the runner when the job starts, and it stays in the runner's memory
+  # until the job ends, where code of any later step could read it.
+  config-lint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # Pinned by tag and digest; Renovate moves them (renovate.json).
+      ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.212.0@sha256:11f3f39f324d4b7a1f6e491e44224b5b61cf5506528f146cdf6c7d08c631e569
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A `docker login --password-stdin` step, not docker/login-action, which keeps the token
+      # until its post step at the end of the job.
+      - name: Log in to Docker Hub when a read-only token is set (U6)
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+        run: |
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "DOCKERHUB_TOKEN is not set, so the images are pulled anonymously."
+            exit 0
+          fi
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "::error::DOCKERHUB_TOKEN is set, but the repository variable DOCKERHUB_USERNAME is not."
+            exit 1
+          fi
+          echo "DOCKERHUB_TOKEN is set: logging in to Docker Hub."
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Lint the workflows (actionlint)
+        if: ${{ !cancelled() }}
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo "$ACTIONLINT_IMAGE"
+
+      # --no-global: given a file name, the validator would otherwise check it as Renovate's global
+      # self-hosted configuration, which accepts options that a repository config must not set.
+      # --strict also fails a config that needs migration.
+      - name: Validate renovate.json
+        if: ${{ !cancelled() }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/usr/src/app:ro" -w /usr/src/app "$RENOVATE_IMAGE" \
+            renovate-config-validator --strict --no-global renovate.json
+
+      - name: Log out of Docker Hub
+        if: ${{ always() }}
+        run: docker logout
+
+  quality:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        id: setup
+        uses: ./.github/actions/setup
+
+      - name: Check formatting
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm format:check
+
+      - name: Check that the lockfile is deduplicated
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm dedupe --check
+
+      # Coverage gates, JUnit reports, and a failing run when a package has no tests.
+      - name: Lint, typecheck, test and build
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm turbo run lint lint:root typecheck typecheck:root test test:root build
+
+      # F04 adds here: db:generate without any database variable, then pnpm check:migrations.
+      # X02 adds here: pnpm check:drift.
+      # F07 adds here: expo export, expo install --check, expo-doctor and the one-React check.
+
+      # The reports hold synthetic test data only (CLAUDE.md, non-negotiable 9).
+      - name: Upload the test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports-${{ github.run_attempt }}
+          path: |
+            reports/junit.xml
+            packages/*/reports/junit.xml
+            apps/*/reports/junit.xml
+            coverage/
+            packages/*/coverage/
+            apps/*/coverage/
+          retention-days: 7
+
+      # Only a push to v2-planning saves the cache, and only when every step succeeded, so a pull
+      # request cannot poison it.
+      - name: Save the Turbo cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/v2-planning' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+
+  security:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # The full history: the range scan compares with earlier commits and origin/v2-planning.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install gitleaks
+        uses: ./.github/actions/gitleaks
+
+      - name: Check the .gitleaksignore pin
+        run: node scripts/scan-secrets.ts pin
+
+      # The commits of this push or pull request; a missing input scans the full history instead
+      # (scripts/lib/scan-range.ts).
+      - name: Scan the pushed commits for secrets
+        env:
+          SCAN_BEFORE: ${{ github.event.before }}
+          SCAN_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SCAN_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/scan-secrets.ts range --sarif gitleaks-range.sarif
+
+      - name: Upload the redacted SARIF of the range scan
+        if: ${{ !cancelled() && hashFiles('gitleaks-range.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        with:
+          sarif_file: gitleaks-range.sarif
+          category: gitleaks-range
+
+      # Two secrets generated at run time must be reported, redacted (never printed).
+      - name: Self-test of the secret scan
+        if: ${{ !cancelled() }}
+        run: node scripts/scan-secrets.ts self-test
+
+      - name: Install pnpm
+        id: pnpm
+        if: ${{ !cancelled() }}
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      # Reads the lockfile only. No --ignore-registry-errors: a registry error fails the audit.
+      - name: Audit the production dependencies
+        if: ${{ !cancelled() && steps.pnpm.outcome == 'success' }}
+        run: pnpm audit --prod --audit-level=high
+
+  secrets-history:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install gitleaks
+        uses: ./.github/actions/gitleaks
+
+      # Every branch and tag; .gitleaksignore may hold only the two accepted v1 findings (U1).
+      - name: Scan the full history for secrets
+        run: node scripts/scan-secrets.ts history --sarif gitleaks-history.sarif
+
+      - name: Upload the redacted SARIF of the history scan
+        if: ${{ !cancelled() && hashFiles('gitleaks-history.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        with:
+          sarif_file: gitleaks-history.sarif
+          category: gitleaks-history
+
+  # Feeds GitHub's dependency graph, which cannot read pnpm 12's lockfile itself. No install, no
+  # install scripts and no cache: write access to contents comes with no package code.
+  sbom:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Generate the SPDX SBOM from the lockfile
+        run: pnpm sbom --sbom-format spdx --lockfile-only --out sbom.spdx.json
+
+      # No repoSha or repoRef: v0.4.0 reads them only together with `repo` (a submission to another
+      # repository). Without them, its dependency-submission toolkit names the pushed commit, and on
+      # a pull request the pull request's head commit, which is the head that dependency review
+      # compares with the base.
+      - name: Submit the SBOM to the dependency graph
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: advanced-security/spdx-dependency-submission-action@b009efcf8b9d562a4569d2028c276522232e631f # v0.4.0
+        with:
+          filePath: .
+          filePattern: sbom.spdx.json
+
+      # On a pull request the action reads the base and the head from the event, so no refs are set.
+      - name: Review the dependency changes of the pull request
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          retry-on-snapshot-warnings: true
+
+      # A new branch or tag has no previous commit (all zeros), so it has nothing to compare.
+      - name: Review the dependency changes of the push
+        if: ${{ github.event_name == 'push' && github.event.before != '' && github.event.before != '0000000000000000000000000000000000000000' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          retry-on-snapshot-warnings: true
+          base-ref: ${{ github.event.before }}
+          head-ref: ${{ github.sha }}
+
+  # The only required status check (ADR 0009). Keep its job id and name ci-ok, and add every new
+  # job to needs (scripts/ci-config.test.ts checks it).
+  ci-ok:
+    name: ci-ok
+    if: ${{ always() }}
+    needs: [config-lint, quality, security, secrets-history, sbom]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # A failed, cancelled or skipped job fails ci-ok.
+      - name: Require every needed job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          if ! jq -e 'length > 0 and all(.[]; .result == "success")' <<< "$NEEDS" > /dev/null; then
+            echo "::error::Every needed job must succeed; a failed, cancelled or skipped job fails ci-ok."
+            exit 1
+          fi

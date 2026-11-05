@@ -1,0 +1,4 @@
+{
+  "extends": "@medibooker/tsconfig/node.json",
+  "include": ["*.ts"]
+}

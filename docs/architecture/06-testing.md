@@ -58,7 +58,7 @@ The Cairo fixture uses a Friday/Saturday weekend and Arabic-Indic digits. Elapse
 ### Environment and network
 
 - `createTestApp` passes an explicit environment (a platform database port that refuses connections, the development secret store with a synthetic seed, high rate limits); tests never read the ambient environment.
-- The Testcontainers image is pinned by digest in one Renovate-annotated constant. Jobs that pull images log in to Docker Hub with a read-only token when one is configured (U6).
+- The Testcontainers image is pinned by digest in one Renovate-annotated constant. The Docker Hub token (U6) reaches only a job that runs no repository or package code ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md) decision 9), so Testcontainers, which pulls inside test code, pulls anonymously unless F04 pre-pulls the pinned image in such a job.
 - Required jobs make no calls to services unrelated to the code: the `expo-doctor` directory check runs only in the weekly workflow.
 
 ### Databases in tests
@@ -148,9 +148,13 @@ V8 coverage, enforced in each Vitest config:
 
 | Scope | Lines | Branches |
 |---|---|---|
-| `packages/*/src`, excluding `generated` | 90 % | 85 % |
+| `packages/*/src`, excluding `generated` (today `@medibooker/eslint-config`, since F02) | 90 % | 85 % |
 | API unit project over `src`, excluding `generated` and `main.ts` | 80 % | 70 % |
 | `src/**/*.rules.ts` | 100 % | 100 % (functions and statements too) |
+| The repo scripts' `scripts/lib` (root config, since F02) | 90 % | 85 % |
+| `scripts/lib/scan-range.ts` and `scripts/lib/shallow-clone.ts`, the pure decisions of the secret scans | 100 % | 100 % (functions and statements too) |
+
+- Every package's and the root's `test` script runs with `--coverage` (`test:root` at the root), and each config sets `enabled: false` with an `include`, so untested files count. The scripts' command-line tools run in child processes, which V8 coverage does not see, so the root gate counts `scripts/lib` only; the CLIs are proven by their tests' exit codes and output.
 
 - The API config sets coverage at the root level: `{ provider: 'v8', enabled: false, include: ['src/**/*.ts'], exclude: ['src/generated/**', 'src/main.ts', '**/*.d.ts'], thresholds: { lines: 80, branches: 70, 'src/**/*.rules.ts': { lines: 100, branches: 100, functions: 100, statements: 100 } } }`. `include` is required: without it Vitest 5 counts only files that some test imports.
 - `test` runs `vitest run --project unit --coverage`; `test:integration` runs without coverage, so its partial branch coverage never fails the gates and never overwrites `coverage/`. The tenancy code in `src/common/tenancy` is covered mainly by the integration specs of §4; its pure parts (LRU bookkeeping and budgets, route parsing, version comparison, cache keys) have unit tests.
@@ -161,7 +165,7 @@ V8 coverage, enforced in each Vitest config:
 - A flaky test is a bug. Playwright retries 0 times locally and once in CI with `failOnFlakyTests`: the retry records a trace, and the job still fails. `forbidOnly` is on in CI.
 - `.only` and `.skip` are lint errors (Vitest preset from F01, Jest preset from F07). Allowed are `it.todo()` for a planned test, conditional skips (`it.skipIf(…)`) for tests that depend on the environment, such as the gitleaks rule cases without the binary, and `quarantine(issueUrl, name, fn)` from `test/support/quarantine.ts`, added with the first quarantined test, which requires a GitHub issue URL (ADR 0006, decision 8). Playwright quarantine uses the tag `@quarantine` with an issue annotation: the required job runs `--grep-invert @quarantine`, a non-blocking job runs `--grep @quarantine`.
 - `passWithNoTests: false` in every Vitest and Jest config: a package that collects no test fails.
-- Machine-readable results: Vitest `--reporter=default --reporter=junit`, Jest `--json`, Playwright `html` and `junit`; uploaded with `if: always()`.
+- Machine-readable results: each Vitest config sets `reporters: ['default', 'junit']` with `outputFile: { junit: 'reports/junit.xml' }` (F02), also locally, because the report is an output of the Turbo test tasks and a cached run restores it; `reports/` is gitignored, and the `quality` job uploads every `reports/junit.xml` with the API's coverage (`if: always()`, 7 days; [07 §3](07-docker-ci-cd.md#3-github-actions)). Jest `--json` (F07) and Playwright `html` and `junit` (F06) are uploaded the same way, with `if: always()`.
 - Visual baselines are never written in CI (`updateSnapshots: 'none'`). They come from the Playwright Linux container (`visual-baselines` workflow or `test:e2e:update-snapshots`), and the ui-designer approves the first baseline against the Figma frame in the handoff.
 - A bug fix names the test that failed before the fix (pull request template).
 

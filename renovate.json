@@ -1,0 +1,123 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", ":semanticCommits", "customManagers:githubActionsVersions"],
+  "minimumReleaseAge": "3 days",
+  "schedule": ["before 6am on monday"],
+  "lockFileMaintenance": { "enabled": true },
+  "osvVulnerabilityAlerts": true,
+  "postUpdateOptions": ["pnpmDedupe"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "gitleaks in CI: the release tag and the SHA-256 of its linux_x64 archive, moved together",
+      "managerFilePatterns": [".github/actions/gitleaks/action.yml"],
+      "matchStrings": [
+        "GITLEAKS_VERSION: (?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s+GITLEAKS_SHA256: (?<currentDigest>[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "depNameTemplate": "gitleaks/gitleaks"
+    },
+    {
+      "customType": "regex",
+      "description": "Images that CI runs with docker run (*_IMAGE lines), pinned by tag and digest",
+      "managerFilePatterns": [".github/workflows/*.yml"],
+      "matchStrings": [
+        "[A-Z][A-Z0-9_]*_IMAGE: (?<depName>[a-z0-9][a-z0-9./_-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The developer install of gitleaks follows the version CI uses",
+      "managerFilePatterns": ["docs/dev/getting-started.md"],
+      "matchStrings": [
+        "\\nversion=(?<currentValue>\\d+\\.\\d+\\.\\d+)\\n",
+        "\\$version = '(?<currentValue>\\d+\\.\\d+\\.\\d+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "gitleaks/gitleaks",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Moved with the Expo SDK (npx expo install --fix); vulnerability PRs still open at once",
+      "matchFileNames": ["apps/mobile/package.json"],
+      "matchPackageNames": [
+        "expo",
+        "expo-*",
+        "@expo/*",
+        "react-native",
+        "react-native-*",
+        "@react-native/*",
+        "@react-native-community/*",
+        "@react-native-async-storage/*",
+        "jest-expo",
+        "eslint-config-expo",
+        "test-renderer"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pinned to the Expo SDK's React through pnpm overrides",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "typescript-eslint 8.72 peer",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.1.0"
+    },
+    {
+      "description": "@swc/cli 0.8.2 accepts chokidar ^5.0.0 only (ADR 0006 version table)",
+      "matchPackageNames": ["chokidar"],
+      "allowedVersions": "<6"
+    },
+    { "matchDepNames": ["node", "@types/node"], "groupName": "node runtime" },
+    { "matchPackageNames": ["@types/node"], "allowedVersions": "<27" },
+    {
+      "description": "Rebuilt Docker images carry security patches, so their digest updates need no release age",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "A new digest for an unchanged version of an action or a release asset means a moved tag or a replaced asset: investigate before approving",
+      "matchDatasources": ["github-tags", "github-release-attachments"],
+      "matchUpdateTypes": ["digest"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchPackageNames": ["prisma", "@prisma/client", "@prisma/adapter-pg"],
+      "groupName": "prisma"
+    },
+    { "matchPackageNames": ["@nestjs/*"], "groupName": "nestjs" },
+    { "matchPackageNames": ["next", "eslint-config-next"], "groupName": "next" },
+    {
+      "description": "eslint-config-next moves with next, eslint-config-expo with the Expo SDK",
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/*",
+        "typescript-eslint",
+        "eslint-*",
+        "!eslint-config-next",
+        "!eslint-config-expo"
+      ],
+      "groupName": "eslint"
+    },
+    { "matchPackageNames": ["vitest", "@vitest/*", "vite"], "groupName": "vitest" },
+    { "matchManagers": ["github-actions"], "groupName": "github-actions" },
+    {
+      "description": "CI's gitleaks and the developer install in getting-started.md move in one pull request",
+      "matchDepNames": ["gitleaks/gitleaks"],
+      "groupName": "gitleaks"
+    },
+    {
+      "description": "A PostgreSQL major upgrade needs a pg_upgrade plan for every cluster",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}

@@ -98,6 +98,14 @@ gitleaks is required (see [Install gitleaks](getting-started.md#install-gitleaks
 
 Docker Desktop is needed from the database item on, for the local database and the integration tests. CI runs those tests on every push anyway.
 
+Before that, it is only needed to run actionlint and the Renovate validator locally ([getting-started.md](getting-started.md#continuous-integration)). In Git Bash, put `MSYS_NO_PATHCONV=1` in front of `docker run`. Without it, Git Bash rewrites the container paths `/repo` and `/usr/src/app` into Windows paths, and Docker stops with "the working directory 'D:/…/Git/repo' is invalid". Keep the mounted path in quotes, because it contains spaces; `"$PWD"` and its Windows form `"$(pwd -W)"` both work (checked on 2026-11-05):
+
+```sh
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo:ro" -w /repo "$actionlint_image"
+```
+
+PowerShell needs no such setting: `docker run --rm -v "${PWD}:/repo:ro" -w /repo <image>`.
+
 ## Optional: faster installs
 
 Microsoft Defender scans every file that pnpm and the build tools write, which slows them down. To make this faster, put the repository and its pnpm store on a Dev Drive (Windows 11). There Defender runs in performance mode: it scans files after they are opened instead of before, which is faster and still scans every file.

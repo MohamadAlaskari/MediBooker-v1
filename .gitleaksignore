@@ -1,0 +1,23 @@
+# Findings that gitleaks does not report. Read the rule below before you change this file.
+#
+# 2026-11-04: the two entries below are the commit-qualified fingerprints of the two findings of
+# the v1 database credential, which commit 0011060 (2024-07-13) added in MediBooker-ApI/dev.env
+# and MediBooker-ApI/config/dbConfig.js. The credential was never rotated: it stays valid and
+# public in the git history. The user declined to rotate it (U1) and accepted that risk
+# (docs/architecture/09-risks-and-decisions.md). A redacted full-history scan confirmed both
+# entries on 2026-11-05.
+#
+# This file is pinned to ACCEPTED_FINGERPRINTS in scripts/lib/gitleaks.ts: the pre-commit hook,
+# pnpm verify and every CI scan fail when its entries differ from that list.
+#
+# The rule for later entries (docs/architecture/07-docker-ci-cd.md §4, ADR 0009):
+# - A live secret is never added here; the U1 credential is the only accepted exception.
+# - Any other finding is rotated first. If it already reached the pushed history, its
+#   commit-qualified fingerprint (commit:file:rule:line, never file:rule:line) is then added
+#   with a dated comment that names the rotation, in a commit the security-reviewer approves,
+#   which also updates ACCEPTED_FINGERPRINTS.
+# - A new finding in the v1 history (the commits before L00), for example after a gitleaks
+#   upgrade or a rule change, goes to the user as a follow-up of U1 and needs a new dated user
+#   decision; so does re-recording the two U1 findings after a rule rename.
+001106047c044bbb4a21394a90a66023ce013c1a:MediBooker-ApI/config/dbConfig.js:medibooker-password-assignment:8
+001106047c044bbb4a21394a90a66023ce013c1a:MediBooker-ApI/dev.env:medibooker-password-assignment:5
