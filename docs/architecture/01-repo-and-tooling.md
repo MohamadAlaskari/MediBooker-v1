@@ -45,16 +45,16 @@ v2 shares no code with v1. The workspace members are `apps/*` and `packages/*` o
   | `typecheck` · `typecheck:root` | `turbo run typecheck typecheck:root` · `tsc -p tsconfig.json` |
   | `test` · `test:root` | `turbo run test test:root` · `vitest run` (the tests of `scripts/`) |
   | `format` · `format:check` | `prettier --write .` · `prettier --check .` |
-  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root` |
+  | `verify` | `node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root build` (`build` since F03) |
 
 - `verify` starts with `scripts/check-hooks.ts` (`lefthook check-install`): it fails with an install hint when the git hooks are missing or out of date, because a commit would then skip the secret scan and the commit-message check (with `LEFTHOOK=0`, which only CI sets, lefthook skips the check). The staged secret scan follows, so `verify` runs after `git add`.
 - Every lint script, in the root and in each package, runs ESLint with `--max-warnings=0`: a warning fails like an error.
-- Scripts added by later items: `build` and `dev` (F03); `test:integration`, `db:up`, `db:migrate`, `db:seed`, `db:reset` and `check:migrations` (F04); `test:e2e` (F06); `generate` and `check:drift` (X02). From F04 on, `verify` also runs `check:migrations`, and from X02 on `build` and `check:drift`.
+- Scripts added by later items: `build` and `dev` (F03); `test:integration`, `db:up`, `db:migrate`, `db:seed`, `db:reset` and `check:migrations` (F04); `test:e2e` (F06); `generate` and `check:drift` (X02). From F03 on, `verify` also runs `build`: the tests compile through `unplugin-swc`, so only the build compiles through `nest-cli.json`, whose `ignore` entry keeps spec files out of `dist`, and catches a broken one before CI. From F04 on it runs `check:migrations`, and from X02 on `check:drift`.
 - Root `devDependencies` serve the root scripts and configs: `@medibooker/eslint-config`, `@medibooker/tsconfig` (`workspace:*`), `@types/node`, `eslint`, `lefthook`, `prettier`, `turbo`, `typescript`, `vite`, `vitest` (`catalog:`). Every package declares the tools its own scripts call (`typescript`, `vitest`, `@nestjs/cli`, …), so filtered installs in Docker work (07).
 
 ### pnpm-workspace.yaml
 
-As built in F01:
+As built in F01, with the `allowBuilds` entry of F03:
 
 ```yaml
 packages:
@@ -69,13 +69,14 @@ trustPolicyExclude:
 catalog: { … }             # one exact version per shared dependency
 allowBuilds:
   lefthook: true
+  '@swc/core': false       # F03, with a dated comment: denied on purpose
 ```
 
 Added by later items, each with a reason in the commit body:
 
 | Setting | Item | Content |
 |---|---|---|
-| `allowBuilds` entries | per item | `@swc/core` (F03), `prisma` and `@prisma/engines` (F04), `argon2` (A01); others only after review of the install report |
+| `allowBuilds` entries | per item | `'@swc/core': false` (F03: denied, because the optional platform package carries the native binary and SWC works without the script, which would only check the binding and fall back to downloading `@swc/wasm`; without any entry pnpm 12 fails with `ERR_PNPM_IGNORED_BUILDS`, ADR 0006 decision 3), `prisma` and `@prisma/engines` (F04), `argon2` (A01); others only after review of the install report |
 | `packageExtensions` | F05 | Marks the `prisma` peer of `@nestjs-cls/transactional-adapter-prisma` as optional, so `pnpm deploy --prod` leaves the Prisma CLI out of the API image |
 | `overrides` | F07 | Pins `react`, `react-dom`, `@types/react`, `@types/react-dom` to the catalog version, so no package can install a second React |
 
@@ -84,13 +85,15 @@ Added by later items, each with a reason in the commit body:
 ### turbo.json
 
 - As built in F01: `globalDependencies` `.node-version` and `pnpm-workspace.yaml`; `globalEnv` `CI` and `NODE_ENV`; strict environment mode (Turborepo 2's default), so a task sees only the variables it declares.
-- Tasks `build` (`^build`, outputs `dist/**`), `lint` and `typecheck` (`^build`), `test` (`^build`, no outputs: an empty `coverage/**` made Turborepo warn on every run, so F03 adds `coverage/**` back when it turns coverage on).
+- Tasks `build` (`^build`, outputs `dist/**`), `lint` and `typecheck` (`^build`), `test` (`^build`, outputs `coverage/**` since F03, which turned coverage on in the API).
+- `packages/eslint-config/turbo.json` (`extends: ["//"]`) overrides the `test` outputs with `[]`: that package's tests write no coverage, and Turborepo 2.11.10 prints "no output files found" on every run of a task whose declared outputs are missing. The override goes when that package gets coverage ([06 §8](06-testing.md#8-coverage-gates)).
+- `apps/api/turbo.json` (`extends: ["//"]`, F03) sets the inputs of the API's `test` task to `["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]`: `src/config/env-example.spec.ts` reads the root `.env.example`, so a change to that file alone must rerun the test instead of replaying the cache. F04 adds `db:generate` to the same file.
 - The root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` list their `inputs` explicitly (the scripts, the root configs and `pnpm-lock.yaml`; `//#lint:root` also the eslint-config sources), so they stay cacheable. `//#test:root` also reads `.gitleaks.toml` and `lefthook.yml`, which its tests use, and declares `env: ["GITLEAKS_VERSION"]`: CI exports the version of the gitleaks it installs, so a gitleaks upgrade reruns the rule test.
 - Added later:
 
   | Task | Item | Rule |
   |---|---|---|
-  | `dev` | F03 | persistent, no cache; i18n and design-tokens run `tsc -b -w` next to the apps (X04, X05) |
+  | `dev` | F03 (built) | `persistent: true`, `cache: false`; the API reads the root `.env` itself, so no pass-through: under `pnpm dev` only the root `.env`, `CI` and `NODE_ENV` reach the API, and a shell override needs a direct run (`pnpm --filter @medibooker/api dev`); i18n and design-tokens run `tsc -b -w` next to the apps (X04, X05) |
   | `db:generate` | F04 | `apps/api/turbo.json` makes `build`, `lint`, `typecheck`, `test` and `dev` depend on it; declares no environment variables |
   | `test:integration` | F04 | no cache; passes through `DOCKER_HOST` and `TESTCONTAINERS_*` |
   | `db:migrate`, `db:seed`, `db:reset` | F04 | no cache; `passThroughEnv: ["PLATFORM_DATABASE_URL", "PLATFORM_MIGRATION_URL", "PRACTICE_MIGRATION_URL", "SHADOW_DATABASE_URL", "PROVISIONER_DATABASE_URL", "DATABASE_CLUSTER_ENDPOINTS", "SECRET_STORE", "DEV_SECRET_SEED", "APP_ENV"]` for values set in the shell; locally the tools read the root `.env` themselves ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)); `db:seed` depends on `db:generate` |
@@ -277,6 +280,7 @@ Features import each other only through their `index.ts`.
 | gitleaks · actionlint | 8.30.1 · 1.7.12 | same | — |
 | @nestjs/common · core · platform-express · testing | 12.3.2 | same | — |
 | @nestjs/cli · @nestjs/throttler | 12.0.11 · 6.7.1 | same | — |
+| chokidar (F03, watch mode of `nest start --watch`) | 5.0.0 | 6.0.0 | @swc/cli 0.8.2 declares it as an optional peer `^5.0.0` (checked 2026-11-04) |
 | @nestjs/swagger | 12.0.5 | 12.1.0 | 12.1.0 was published on 2026-11-02, inside the one-day gate; X02 takes the newest version past the gate |
 | @nestjs/event-emitter · @nestjs/schedule (P04) | 12.0.1 · 12.0.2 | same | — |
 | @nestjs/config | not used | 12.0.1 | The environment is parsed once and passed to `AppModule.forRoot(env)`, so tests can pass their own ([02](02-api.md)) |

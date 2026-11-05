@@ -32,7 +32,7 @@ Tests prove the business rules (BR-xx), the security baseline and the isolation 
 
 - No sleeps. API tests use `FixedClock` or Vitest fake timers (Vitest 5 also fakes `Temporal`); Playwright uses `page.clock`. Caches and evictions with a lifetime (`PUBLIC_ROUTE_CACHE_MS`, `evictIdle()`) read the `Clock`, so their tests step time and call them directly instead of waiting.
 - Waiting is tested with fake timers, never with the `FixedClock`: a fan-out branch whose reader never resolves times out after `vi.advanceTimersByTimeAsync(ME_FANOUT_TIMEOUT_MS)`. An outage is tested separately, with a practice routed to a closed port, which fails at once.
-- Every Vitest config sets `test.env: { TZ: 'Pacific/Chatham' }` and Jest's `globalSetup` sets the same zone. Chatham is UTC+12:45 with DST, so the local date differs from the UTC date for half of every day: code that uses the host's zone fails on every machine.
+- Every Vitest config sets `test.env: { TZ: 'Pacific/Chatham' }` and Jest's `globalSetup` sets the same zone. Chatham is UTC+12:45 with DST, so the local date differs from the UTC date for half of every day: code that uses the host's zone fails on every machine. A guard spec per test setup fails when the zone is missing or misspelled (the API's `src/test-environment.spec.ts`, F03), because until time code exists no other test would notice.
 - Playwright projects pin `timezoneId` and `locale` (`ar-SA`/`Asia/Riyadh`, `en-GB`/`Europe/Berlin`).
 - In e2e runs the API starts with `CLOCK_FIXED_AT=2026-11-16T05:00:00Z` (Monday 08:00 in Riyadh) and every test calls `page.clock.setFixedTime(new Date('2026-11-16T05:00:00Z'))`. The e2e seed creates slots relative to that instant, so seed dates never expire. Polling tests use `page.clock.fastForward('00:46')`.
 - The Next server never reads the real date while rendering (lint on `src/app/**`); time-derived fields such as `openNow`, `nextChangeAt` and the practice-local "today" come from the API.
@@ -136,7 +136,7 @@ Every assertion checks the `code`, not only the status. The concurrency app sets
 | `pnpm test` | nothing (no Docker, no browser); gitleaks for the rule cases, which skip locally without it and fail in CI | `quality` |
 | `pnpm test:integration` | Docker Desktop | `integration` |
 | `pnpm test:e2e` | Playwright browsers; from P03 the compose databases (`pnpm db:up && pnpm db:migrate && pnpm db:seed`); run through `pnpm turbo run test:e2e` | `e2e-web` |
-| `pnpm verify` | as `pnpm test`, plus the hook check, the staged gitleaks scan and, from F04, `pnpm check:migrations`; runs before every commit | `quality` runs the same steps |
+| `pnpm verify` | as `pnpm test`, plus the hook check, the staged gitleaks scan, the build (F03) and, from F04, `pnpm check:migrations`; runs before every commit | `quality` runs the same steps |
 | images smoke | Docker and the built images | `images` |
 | Android emulator flows | Linux runner with KVM | `mobile-device` (nightly, not required) |
 

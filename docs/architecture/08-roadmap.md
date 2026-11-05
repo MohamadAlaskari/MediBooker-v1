@@ -9,16 +9,16 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 - **Before the commit:** `pnpm verify` is green (on this Windows machine `npx --yes pnpm@12.16.1 verify`); from F04 also `pnpm test:integration` when database code changed; from X02 on, `pnpm generate` has run when DTOs, tokens or messages changed.
 - **Definition of Done** from the `feature-delivery` skill: tests, the 401/403/404/200 matrix for every new endpoint (from A01), the cross-practice 404 for every practice-scoped endpoint (from P02), the security review where the skill requires it, docs and ADRs updated.
 - **Skills and agent files** that describe the touched area are updated in the same commit, so the next agent does not build what this plan rejected. Items name the check where a convention changes.
-- **Scope discipline:** an item does not repeat work of an earlier item; F01 is the scaffold being built now and is the base for everything else.
+- **Scope discipline:** an item does not repeat work of an earlier item; F01 is the committed scaffold (`13044c5`) and the base for everything else.
 
 ## Overview
 
 | # | ID | Title | Commit header | Depends on | Status |
 |---|---|---|---|---|---|
-| 1 | L00 | Remove the v1 apps | `chore(repo): remove the v1 apps` | - | removed in the working tree, commit pending |
-| 2 | R00 | Architecture docs and decision records | `docs: add architecture docs and record tenancy and UI decisions` | - | written, commit pending |
-| 3 | F01 | Monorepo workspace and shared tooling | `chore(repo): scaffold pnpm workspace, Turborepo and shared tooling` | - | in progress |
-| 4 | F03 | NestJS API skeleton | `feat(api): add NestJS 12 skeleton with config, logging and context` | - | planned |
+| 1 | L00 | Remove the v1 apps | `chore(repo): remove the v1 apps` | - | committed (`6c733c1`) |
+| 2 | R00 | Architecture docs and decision records | `docs: add architecture docs and record tenancy and UI decisions` | - | committed (`f89a019`) |
+| 3 | F01 | Monorepo workspace and shared tooling | `chore(repo): scaffold pnpm workspace, Turborepo and shared tooling` | - | committed (`13044c5`) |
+| 4 | F03 | NestJS API skeleton | `feat(api): add NestJS 12 skeleton with config, logging and context` | - | done (this commit) |
 | 5 | F02 | CI quality and security baseline | `ci: add quality and security workflows, CodeQL and Renovate` | U2, U3 | planned |
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
 | 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | planned |
@@ -177,11 +177,11 @@ Acceptance:
   grep -oE '`(feat|fix|refactor|perf|test|docs|build|ci|chore|revert)(\([a-z0-9-]+\))?: [^`]+`' docs/architecture/08-roadmap.md | tr -d '`' | awk 'length > 72'
   ```
 
-### F01 — Monorepo workspace and shared tooling (in progress)
+### F01 — Monorepo workspace and shared tooling
 
 **Commit:** `chore(repo): scaffold pnpm workspace, Turborepo and shared tooling` (66 characters) · **Depends on:** - · **Owner:** devops-engineer; architect and security-reviewer review
 
-Scope, as built in the working tree ([01 §2](01-repo-and-tooling.md#2-root-tooling-f01), ADR 0006):
+Scope, as committed in `13044c5` ([01 §2](01-repo-and-tooling.md#2-root-tooling-f01), ADR 0006):
 
 - Root `@medibooker/root`: `engines.node` `^26.13.0`, `.node-version` 26.13.0; scripts `lint`, `lint:root`, `typecheck`, `typecheck:root`, `test`, `test:root`, `format`, `format:check`, `verify` (`scripts/check-hooks.ts`, the staged gitleaks scan, the Prettier check, then Turbo); every lint script with `--max-warnings=0`; root `eslint.config.js`, `tsconfig.json` and `vitest.config.ts` for the repo scripts.
 - `pnpm-workspace.yaml` with the catalog, `catalogMode: prefer`, `savePrefix: ''`, `minimumReleaseAge: 1440`, `trustPolicy: no-downgrade` with the dated `trustPolicyExclude: [lefthook@2.2.2]`, `allowBuilds: { lefthook: true }`; `pnpm-lock.yaml`; `turbo.json` with `build`, `lint`, `typecheck`, `test` (no outputs until coverage is turned on) and the root tasks `lint:root`, `typecheck:root`, `test:root` (`env: ["GITLEAKS_VERSION"]`).
@@ -226,7 +226,7 @@ Scope ([02](02-api.md)):
 - `apps/api` as an ESM package with `"files": ["dist"]`: `nest-cli.json` (SWC builder), `.swcrc`, tsconfig (`nest.json`, `lib: ["es2025", "esnext.temporal"]`, `useDefineForClassFields: false`), `vitest.config.ts` (SWC from `.swcrc`, `TZ=Pacific/Chatham`, coverage configuration with `@vitest/coverage-v8`), `eslint.config.js`; the API variables in the root `.env.example` (no `.env.example` in `apps/api`, [07 §2](07-docker-ci-cd.md#2-compose-for-local-development)).
 - Coverage turned on: `@vitest/coverage-v8` in the catalog at Vitest's version (5.1.0 today), the thresholds in the API's `vitest.config.ts`, and `coverage/**` back as the output of the `test` task in `turbo.json` ([01 §2](01-repo-and-tooling.md#turbojson), ADR 0006 decision 4); CI enforces the thresholds from F02.
 - `src/main.ts`, `config/load-env.ts` (the root `.env`, found through `pnpm-workspace.yaml`), `config/env.schema.ts` with `parseEnv`, `app.setup.ts` (`APP_OPTIONS`, `configureApp`), `app.module.ts` (`AppModule.forRoot(env)`, `EnvModule`).
-- `common/logging` (allowlist serializers with the route pattern, the error serializer, redaction), `common/context` (`RequestContext` with `requestId` and the empty slots `practice` and `actor`), `common/security` (`@Public()`, deny-by-default `AuthenticationGuard`), named throttlers.
+- `common/logging` (the field allowlist, allowlist serializers with the route pattern, the error serializer, redaction, the `keepMessageConstant` hook and the `UnknownExceptionFilter`, so pino copies no error message and no interpolation value into `msg`, and the process handlers; [02 §8](02-api.md#8-logging-and-redaction)), `common/context` (`RequestContext` with the empty slots `practice` and `actor`; the request id is the CLS id), `common/security` (`@Public()` per handler, kept in a module-private set instead of metadata, deny-by-default `AuthenticationGuard`, and the route inventory test `public-routes.spec.ts`), named throttlers.
 - `health/` with `GET /health/live` (version-neutral, outside `/api`, excluded from OpenAPI).
 - `test/support/create-test-app.ts`, the AppModule smoke spec; root scripts `build` and `dev`, Turbo task `dev`.
 - `nestjs-feature` skill: the layout of [02 §2](02-api.md#2-structure) (no repository files), rule 1 (`AuthenticationGuard` denies by default; `@Public()` only where 02 §4 allows it) and rule 9 (`parseEnv` once in `main.ts`, `AppModule.forRoot(env)`, no `@nestjs/config`). Rule 4 (`DomainException`) changes with X01.
@@ -235,9 +235,12 @@ Acceptance:
 
 - `pnpm --filter @medibooker/api dev` serves on port 3001; `curl -s localhost:3001/health/live` returns `{"status":"ok"}`; `/v1/health/live` and `/api/v1/health/live` return 404; the boot log contains no "Unsupported route path".
 - HTTP tests without Docker: a UUID `X-Request-Id` is echoed and an invalid one replaced; an unknown route returns 404; a test-only route without `@Public()` returns 401; helmet headers are present and `X-Powered-By` is absent; there is no `Access-Control-Allow-Origin` unless `CORS_ORIGINS` is set; with a limit of 3 the fourth request returns 429 with `Retry-After`.
-- `parseEnv` tests: an invalid environment exits non-zero and names keys only; production rejects `OPENAPI_UI_ENABLED=true`, `LOG_PRETTY=true` and a missing `TRUST_PROXY_HOPS`.
+- `parseEnv` tests: an invalid environment exits non-zero and names keys only; production rejects `OPENAPI_UI_ENABLED=true`, `LOG_PRETTY=true` and a missing `TRUST_PROXY_HOPS`; staging and production reject `LOG_LEVEL` `fatal` and `silent` and `RATE_LIMIT_PER_MINUTE` above 1000.
 - Captured logs of `GET /nope?email=sara@example.test` with `Authorization` and `Cookie` headers contain the request id and no header value, path or query.
-- The smoke spec compiles `AppModule.forRoot(TEST_ENV)` and resolves one provider.
+- The probe routes that log by hand (an interpolation value, an object three levels down, an error under another key than `err`, fields outside the allowlist, a Nest `Logger` without a context) leave no synthetic value in the captured logs; a reviewed field keeps only the form of its value; the error serializer logs no message, cause or detail and no line of a stack header in either of Node's forms, also for getters that throw; each unknown exception gives exactly one `unknown exception` line.
+- An uncaught exception or an unhandled rejection writes one fatal pino line, nothing to stderr, and exits 1 (child-process tests of the handlers); `src/main.ts` itself on a taken port writes Nest's listen error line with the bind address, then one fatal line, nothing to stderr, and exits 1 (a child-process test of the entry point, which fails when the handlers are registered after `listen`).
+- The route inventory test lists exactly `GET /health/live` as public; a handler with all metadata of a public one stays closed, and `@Public()` on a class throws.
+- The smoke spec compiles `AppModule.forRoot(parseEnv(TEST_ENV))` and resolves `AuthenticationGuard` ([02 §12](02-api.md#12-testing-specifics)).
 - `pnpm --filter @medibooker/api test` passes with coverage thresholds active; no authentication or database code exists yet.
 - `grep -nE 'JwtAuthGuard|typed config service|repository\.ts' .claude/skills/nestjs-feature/SKILL.md` finds nothing.
 
@@ -263,6 +266,7 @@ Scope:
 - The header of `.gitleaks.toml` ("Never allowlist a real secret") and the secret-scanning rules of `docs/dev/getting-started.md` name this one exception and point to the rule.
 - `renovate.json` ([07 §5](07-docker-ci-cd.md#5-supply-chain)), including the custom manager for the gitleaks version and checksum, checked by a pinned `renovate-config-validator` in `quality`.
 - `pnpm dedupe --check` in `quality` (`trustPolicy` is already part of F01).
+- Three logging rules in the `nest` preset of `@medibooker/eslint-config`, from the F03 security review ([02 §8](02-api.md#8-logging-and-redaction)), so they hold before F04 writes the first catch blocks: the message argument of a logger call (`log`, `info`, `warn`, `error`, `debug`, `verbose`, `fatal`, `trace`) is a string literal or a template literal without expressions, never an identifier, a member expression such as `err.message`, a concatenation or a call, and no argument of a logger call reads `.message` or `.stack`; `new Logger(…)` takes `<Class>.name`, never no argument; and `.child(`, `.setBindings(`, a logger's `.assign(` (nestjs-pino's `PinoLogger.assign`; `Object.assign` stays allowed), `runInContext(` and the `msgPrefix` option appear only in `apps/api/src/common/logging`. Test-only probes that make the forbidden calls on purpose (`test/support/probe.module.ts`) carry a disable comment with the reason; F03's own logging code already passes the rules (the process handlers log with a literal at each call).
 - `docs/adr/0009-ci-branch-model-and-supply-chain.md`: default branch `v2-planning` and why (RT-27), triggers (push to `v2-planning` and `main`, pull requests, tags, dispatch), `ci-ok` as the only required check, the secret-scanning layers, the accepted v1 fingerprints (U1, declined 2026-11-04), the `.gitleaksignore` pin and the rule for later entries, Renovate rules, the SPDX dependency submission, repository visibility (D4: public for now, option A, decided 2026-11-04) and GitHub, Renovate and their data as processors without patient data.
 
 Acceptance:
@@ -283,6 +287,7 @@ Acceptance:
 - The CI self-test step fails as intended for both runtime-generated secrets; in a throw-away local clone, a commit with a runtime-generated `password = "…"` line makes the pushed-range scan command of `security` exit 1 (nothing is pushed).
 - `renovate.json` passes the pinned `renovate-config-validator`.
 - The `quality` job runs `pnpm dedupe --check` and the gitleaks rule test without skips (JUnit report shows the gitleaks cases as passed).
+- RuleTester cases of the three logging rules reject the probe calls of the F03 security review (`` req.log.info(`booked for ${email}`) ``, `new Logger('Probe').warn(err.message)`, `new Logger().error(err.message, err.stack)`, `new Logger(Probe.name).error('Failed to book', err.stack)`, `new Logger()`, `req.log.child({ … })` outside `common/logging`) and accept constant messages; `pnpm lint` passes on the API.
 - The `sbom` job's snapshot appears under Insights → Dependency graph with the npm packages of `pnpm-lock.yaml`.
 
 ### F08 — Full-history secret scan as a required check (merged into F02)
@@ -304,6 +309,7 @@ Scope ([ADR 0005](../adr/0005-multi-tenancy.md), [02 §5–§6](02-api.md#5-data
 - API: `PlatformPrismaService`, `PracticeConnectionManager` (purposes and budgets, `evictIdle()`, the secret cache, TLS options, the identity and ACL check), `PracticeContext`, `PracticeTransactionalAdapter` next to the platform `TransactionalAdapterPrisma` (two `ClsPluginTransactional` connections), `PracticeContextInterceptor` and `@PracticeScoped()` (mechanism and a test-only route; slugs in P02, ids in A01) with the status table and the market check, `runInPractice()`, `forEachPractice()`, `PracticeCache`, `PracticeUnavailableError` (as a 503 `ServiceUnavailableException` with `Retry-After` until X01 catalogues it), the schema guard, `GET /health/ready` (platform database, platform schema version, `MARKETS` set, draining), `MARKETS`, `DATABASE_TX_*`, the pool, client and budget limits; `parseEnv` rejects a `PLATFORM_DATABASE_URL` without `sslmode=verify-full` outside `local` and `ci`.
 - Seed: `al-noor` (Asia/Riyadh) and `lindenhof` (Europe/Berlin) with fixed UUIDs, provisioned through `provisionPractice()` as `medibooker_provisioner`, plus the migrated `practice_template` with its migration recorded as the database comment.
 - Integration harness: Testcontainers global setup with the production log settings, `log_statement=all` and durability off, the cluster roles as `01-cluster.sh` creates them, templates that accept no connections after the drift copies, per-file databases through `createPracticeDatabase()`, `test/support/practices.ts`; the drift specs for both schemas; the tenancy specs `provisioning`, `credentials`, `tls`, `connection-manager`, `status`, `context` and `migration-runner` ([06 §4](06-testing.md#4-authorization-and-tenant-isolation)); CI `integration` job; the `quality` steps `db:generate` without database variables and `check:migrations`. The API's test tsconfig sets `allowImportingTsExtensions`.
+- Logging of the data layer ([02 §8](02-api.md#8-logging-and-redaction)): `bindLogFields(logger, fields)` in `common/logging`, which passes bindings through the field allowlist before `child`, `assign` or `runInContext`, with the first binding (`practiceId`). Provider factories do no I/O: the database clients connect in `onModuleInit`, which runs during `listen`, after `registerProcessHandlers`, so a failed connect is logged through pino and not by Nest's console logger.
 - `nestjs-feature` skill: rule 5 and the booking example (`@InjectTransactionHost('practice')` and `@Transactional('practice')` instead of `PrismaService` and `this.prisma.$transaction`, the two schemas, row locks without a `userId` filter on a shared table); `.claude/agents/architect.md`: the schema paths `apps/api/prisma/platform/schema.prisma` and `apps/api/prisma/practice/schema.prisma`.
 - `docs/dev/getting-started.md`: Docker Desktop as the prerequisite for database work, the one root `.env`, the database commands, how to author a migration; no `prisma dev` fallback.
 
@@ -323,6 +329,7 @@ Acceptance (integration tests in CI unless stated):
 - `pnpm check:migrations` fails for a fixture without the transaction header, for a `DROP` without `-- contract` and for a grant naming a role literally.
 - A practice whose `schema_version` is older than `PRACTICE_SCHEMA_REQUIRED` answers 503 with `Retry-After`; `medibooker-db verify` exits 2 after the test alters a practice table by hand.
 - `/health/ready` returns 200 with the platform database and 503 without it.
+- A child-process test of `src/main.ts` (as `src/main.spec.ts` runs it) whose platform database refuses the connection at boot writes one fatal pino line without host, user or password, nothing to stderr, and exits 1; `bindLogFields` drops a binding outside the allowlist.
 - The slug `Al Noor` is rejected by the CHECK and `al-noor` accepted; a second current slug for one practice is rejected; a retired slug of A cannot be inserted for B.
 - Running the seed twice leaves all row counts unchanged.
 - `pnpm --filter @medibooker/api db:generate` succeeds without any database variable; `pnpm test` still needs no Docker; `pnpm --filter @medibooker/api typecheck` covers `prisma/seed.ts` and `test/**`, which import `@medibooker/db-migrate/testing`.
@@ -376,6 +383,7 @@ Acceptance:
 - Unit tests: `buildCsp`; `negotiateLocale('en-US,en;q=0.9,ar;q=0.8')` is `en` and an unknown language gives `ar`; `headers()` output is identical for `APP_ENV=local` and `APP_ENV=production`.
 - `git clean -xfd apps/web && pnpm --filter @medibooker/web typecheck` passes after `pnpm install --frozen-lockfile`.
 - The web image runs as `node`, becomes healthy, and is at most 150 MB compressed; `docker compose --profile app up` serves port 8080 with `/api/*` proxied, and the `@smoke` project passes there.
+- The proxy chooses the request id: a request to port 8080 with a client `X-Request-Id` (a valid UUID) is answered with a different id ([02 §4](02-api.md#4-request-pipeline-and-core-abstractions)).
 - `grep -rn "middleware.ts" .claude/skills/react-web-feature/SKILL.md` finds nothing.
 
 ### F07 — Expo SDK 58 mobile skeleton
@@ -408,7 +416,7 @@ Acceptance:
 
 **Commit:** `feat(api): add problem+json error system and field validation` · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews
 
-Scope ([05 §1](05-errors-i18n-tokens.md#1-error-system)): `common/errors` (catalogue, field codes, `DomainException`, `ProblemDetailsFilter` with status-only mapping and `detail` = title, the `PracticeUnavailableError` and `PracticeContextMissingError` rows, validation exception factory, Prisma error mapper, `@ApiErrors`, `ProblemDetails` DTO); `common/validation` field decorators; `JsonOnlyMiddleware`; 401, 413, 415, 429 and 503 as problem+json; `docs/adr/0011-error-model.md`; `api-contract` skill (generic codes, status policy, URN type, `requestId` and `params`); `nestjs-feature` skill (`DomainException` signature, field decorators, `@PracticeScoped`).
+Scope ([05 §1](05-errors-i18n-tokens.md#1-error-system)): `common/errors` (catalogue, field codes, `DomainException`, `ProblemDetailsFilter` with status-only mapping and `detail` = title, replacing F03's `UnknownExceptionFilter` and keeping its logging rule of [02 §8](02-api.md#8-logging-and-redaction), the `PracticeUnavailableError` and `PracticeContextMissingError` rows, validation exception factory, Prisma error mapper, `@ApiErrors`, `ProblemDetails` DTO); `common/validation` field decorators; `JsonOnlyMiddleware`; 401, 413, 415, 429 and 503 as problem+json; `docs/adr/0011-error-model.md`; `api-contract` skill (generic codes, status policy, URN type, `requestId` and `params`); `nestjs-feature` skill (`DomainException` signature, field decorators, `@PracticeScoped`).
 
 Acceptance (HTTP tests without a database):
 
@@ -426,9 +434,9 @@ Acceptance (HTTP tests without a database):
 
 Scope:
 
-- `src/openapi/document.ts` and `generate.ts` (explicit placeholder env), Swagger UI behind `OPENAPI_UI_ENABLED`, committed `apps/api/openapi.json`; root scripts `generate` and `check:drift` (`scripts/check-drift.ts` regenerates and fails on any change or untracked generated file); `verify` gains `build` and `check:drift`.
+- `src/openapi/document.ts` and `generate.ts` (explicit placeholder env), Swagger UI behind `OPENAPI_UI_ENABLED`, committed `apps/api/openapi.json`; root scripts `generate` and `check:drift` (`scripts/check-drift.ts` regenerates and fails on any change or untracked generated file); `verify` gains `check:drift` (it runs `build` since F03).
 - `modules/app-config`: `GET /api/v1/public/app-config` → `{ minimumSupportedVersion: { ios, android }, supportedLocales, defaultLocale }` with `@PublicCache(300)`.
-- `NoStoreInterceptor` with the `@PublicCache` guardrail; architecture tests ([02 §11](02-api.md#11-openapi-generation-x02)), including the `@PracticeScoped` placement; `test/integration/authz/matrix.ts` with `PUBLIC_OPERATIONS` and the registry architecture test.
+- `NoStoreInterceptor` with the `@PublicCache` guardrail; architecture tests ([02 §11](02-api.md#11-openapi-generation-x02)), including the `@PracticeScoped` placement and the `@Public()` path allowlist, which extends the route inventory test of F03 (`common/security/public-routes.spec.ts`: every route Nest maps, read at runtime through `DiscoveryService` and `isPublicHandler`, so a marker applied through `applyDecorators` counts too) with the allowed path prefixes; `test/integration/authz/matrix.ts` with `PUBLIC_OPERATIONS` and the registry architecture test.
 - `docs/adr/0012-contract-pipeline.md` (Orval, committed generated code, drift checks).
 - `api-contract` skill: public endpoints under `/public/practices/{slug}/…`, practice-scoped paths under `/practices/{practiceId}/…`, account-level ones under `/me` (ADR 0005 §3); tokens never in paths (`POST /practices/{practiceId}/staff-invitations/accept`, `POST /practices/{practiceId}/family-invitations/accept` and the E10 revoke-all token in the body); cache rules (practice page `no-store`, free times `max-age=30`, app config `max-age=300`, no ETag until a consumer needs one).
 
@@ -1000,7 +1008,7 @@ Scope:
 - The connection budget per cluster (ADR 0005 §2.3) with `PRACTICE_APP_CONNECTION_LIMIT` and `PRACTICE_OWNER_CONNECTION_LIMIT` per environment, recorded in ADR 0010 and applied with `roles reconcile`; the migrate task's size from F05's measurement. PgBouncer only if the budget requires it, with the authentication and pool settings of ADR 0005 §2.4, after rerunning `connection-manager.int-spec.ts` through it.
 - Deploy order in `deploy.yml` (OIDC, the task identity recorded as operator principal): `migrate platform`, then the practice runner as a one-off task in the region, then API and web by digest, then `verify` and the smoke test; no task log is streamed into Actions. The provisioning job wired to `practice:create`; the daily per-practice backup with OPS02's tooling; a monthly restore of a rotating sample of production backups into an isolated restore cluster in the region, and a quarterly PITR drill per cluster that records the measured RTO (ADR 0005 §8).
 - `medibooker-db break-glass open|close` (ADR 0005 §9.4): a `SELECT`-only login role with `VALID UNTIL`, statement logging for that role (where the provider needs `pgaudit` or a parameter grant, a D9 criterion), audit rows in both logs, a scheduled `close --expired` sweep that terminates sessions at expiry; the statement log stored as health data.
-- An edge proxy with TLS 1.2+, HSTS (`includeSubDomains`, `preload` decided here), per-IP rate limits and bot rules for the public page; its access log records the route template or drops the path segments after `/practices/`, truncates client addresses, and holds no query strings or cookies; API and web reachable only through it.
+- An edge proxy with TLS 1.2+, HSTS (`includeSubDomains`, `preload` decided here), per-IP rate limits and bot rules for the public page; its access log records the route template or drops the path segments after `/practices/`, truncates client addresses, and holds no query strings or cookies; it sets `X-Request-Id` itself, replacing any client value ([02 §4](02-api.md#4-request-pipeline-and-core-abstractions)); API and web reachable only through it.
 - The e-mail provider's bounce callback through the `provider_messages` mechanism of N03; the runbooks for `MIGRATION_STATE_UNKNOWN` (decided with `verify`), break-glass and the PITR restore; the Socket.IO adapter if more than one API instance runs, with TLS to its store.
 - Monitoring and alerts: runner failures and `verify` drift; practices behind `PRACTICE_SCHEMA_REQUIRED` or outside `MARKETS`; a database ACL other than owner and app role; backup age per practice and restore-drill results; connections against `max_connections` and per role against `CONNECTION LIMIT`; transaction-ID age (`age(datfrozenxid)`) per database; size per practice database and cluster disk; long-running and idle-in-transaction sessions; WAL archiving failures; relay lag and the oldest due outbox row; stuck saga steps; client creations, evictions and `acquire()` waits per instance; 503 rate per practice; 5xx spikes; latency (p95 per route template); uptime checks of the public page, the API and the web; failed logins; refresh-token reuse. The practice id is a label only on per-practice alerts; the others use top-k, so the number of series stays bounded.
 

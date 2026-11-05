@@ -68,6 +68,28 @@ The git hooks call `node` directly, so commits work either way.
 
 **Store location:** pnpm keeps its package store on the same drive as the project so that it can hard-link files into `node_modules` (a `.pnpm-store` folder at the root of that drive when the project is not on the system drive). `pnpm store path` shows the location and `pnpm store prune` removes packages that no project uses any more.
 
+## Stop a dev server started in the background
+
+In a terminal, Ctrl+C stops `pnpm dev` and everything it started. A dev server started in the background (by a script, an agent or a closed terminal) is different: `nest start --watch` runs the API in a child process, and the watcher and the API can outlive the `pnpm` and `cmd.exe` processes above them. Stop it by process id, never by a name pattern, which could hit other Node processes:
+
+1. List the processes, without stopping anything (PowerShell):
+
+   ```powershell
+   Get-CimInstance Win32_Process |
+     Where-Object { $_.CommandLine -match 'nest(\.js"?)? start|dist\\main|turbo(\.exe"?)? run dev' } |
+     Select-Object ProcessId, ParentProcessId, CommandLine
+   ```
+
+2. Stop each tree you started by its exact id. Start with the topmost process of your command (for example the `npx` or `pnpm` process), then the watcher (`nest.js start --watch`) and the API (`node --enable-source-maps dist\main`) if they are still listed:
+
+   ```powershell
+   taskkill /PID <pid> /T /F
+   ```
+
+   In Git Bash, write the options with two slashes (`taskkill //PID <pid> //T //F`), because Git Bash would turn `/PID` into a path.
+
+3. Check that the port is free: `curl.exe -s -o NUL -w '%{http_code}' http://127.0.0.1:3001/health/live` in PowerShell (where `curl` is an alias of `Invoke-WebRequest`), or `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/health/live` in Git Bash, prints `000`.
+
 ## gitleaks
 
 gitleaks is required (see [Install gitleaks](getting-started.md#install-gitleaks)). The hooks run in Git's `sh`, which uses the Windows `Path`, so after installing check `gitleaks version` in Git Bash as well as in PowerShell.

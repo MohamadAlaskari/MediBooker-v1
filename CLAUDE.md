@@ -15,7 +15,7 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 | `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
 | `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules) | Active |
 | `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check | Active |
-| `apps/` | `api` (NestJS), `web` (Next.js), `mobile` (Expo) | Built feature by feature along `docs/architecture/08-roadmap.md` |
+| `apps/` | `api` (NestJS 12, since F03); `web` (Next.js) and `mobile` (Expo) follow | Built feature by feature along `docs/architecture/08-roadmap.md` |
 
 When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 
@@ -109,9 +109,13 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks 8.30.1
 | Typecheck | `pnpm typecheck` |
 | Unit tests (Vitest) | `pnpm test` (run `pnpm test --force` once after installing gitleaks) |
 | Format / check formatting | `pnpm format` / `pnpm format:check` |
-| All checks before a commit, after `git add`: hook check, staged secret scan, formatting, lint, typecheck, tests | `pnpm verify` |
+| All checks before a commit, after `git add`: hook check, staged secret scan, formatting, lint, typecheck, tests, build | `pnpm verify` |
+| Create the local environment file (once; `.env` is gitignored) | `cp .env.example .env` |
+| Dev server (API on http://localhost:3001; values come from the root `.env`) | `pnpm dev` |
+| Build | `pnpm build` |
+| API tests with coverage | `pnpm --filter @medibooker/api test` |
 | One package only | `pnpm --filter @medibooker/eslint-config test` |
 | Ignore the Turborepo cache | `pnpm lint --force` |
 | Reinstall missing or stale git hooks | `pnpm exec lefthook install` |
 
-Commits follow Conventional Commits with a header of at most 72 characters; the `commit-msg` hook enforces it. Never use `--no-verify` or `LEFTHOOK=0` locally; inline `gitleaks:allow` comments are ignored. Setup details: `docs/dev/getting-started.md`. Dev server, build, e2e and database commands are added with the apps.
+Commits follow Conventional Commits with a header of at most 72 characters; the `commit-msg` hook enforces it. Never use `--no-verify` or `LEFTHOOK=0` locally; inline `gitleaks:allow` comments are ignored. Setup details: `docs/dev/getting-started.md`. E2e and database commands are added with the web app and the data layer.

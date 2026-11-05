@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "builder": {
+      "type": "swc",
+      "options": { "swcrcPath": ".swcrc", "ignore": ["**/*.spec.ts"] }
+    },
+    "typeCheck": false,
+    "deleteOutDir": true
+  }
+}

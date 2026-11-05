@@ -1,7 +1,7 @@
 # 0006. Toolchain and version policy
 Status: Accepted — 2026-11-01 (stack chosen by the user; the monorepo, database, mobile and data-fetching tools are the Proposed defaults of CLAUDE.md; tool-level choices by the architect)
 
-History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooling) · 2026-11-01 amended after the red-team review of the scaffold: Node 26 only, "latest" defined by pnpm's one-day release-age gate, secret scanning that fails closed with a custom gitleaks rule, focused and disabled tests as lint errors · 2026-11-02 all versions re-checked against the gate; `trustPolicy` probed (decision 3) · 2026-11-04 amended after the F01 reviews (security, architecture, tests, DevOps): `trustPolicy: no-downgrade`, git hooks that fail closed without lefthook, a wider gitleaks rule, inline `gitleaks:allow` comments ignored, lint failing on warnings, focused tests failing every run, the centring exception of the direction guardrail, an accepted audit advisory; Vitest 5.1.0 · 2026-11-04 amended for the v1 removal (L00) and the user's decisions: the guardrail `no-legacy-imports` and the v1 entries of `.gitattributes` and `.prettierignore` removed; U1 declined, so F02 records the two v1 findings as an accepted risk; U3 before F02; U11 resolved, so the Context no longer claims client confirmation for the Proposed toolchain choices · 2026-11-04 amended after the review of the clean-up: `.gitleaksignore` named as the second way to allow a finding, pinned to the two accepted fingerprints from F02; one v1 credential with two findings; the coverage follow-up moved to F03.
+History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooling) · 2026-11-01 amended after the red-team review of the scaffold: Node 26 only, "latest" defined by pnpm's one-day release-age gate, secret scanning that fails closed with a custom gitleaks rule, focused and disabled tests as lint errors · 2026-11-02 all versions re-checked against the gate; `trustPolicy` probed (decision 3) · 2026-11-04 amended after the F01 reviews (security, architecture, tests, DevOps): `trustPolicy: no-downgrade`, git hooks that fail closed without lefthook, a wider gitleaks rule, inline `gitleaks:allow` comments ignored, lint failing on warnings, focused tests failing every run, the centring exception of the direction guardrail, an accepted audit advisory; Vitest 5.1.0 · 2026-11-04 amended for the v1 removal (L00) and the user's decisions: the guardrail `no-legacy-imports` and the v1 entries of `.gitattributes` and `.prettierignore` removed; U1 declined, so F02 records the two v1 findings as an accepted risk; U3 before F02; U11 resolved, so the Context no longer claims client confirmation for the Proposed toolchain choices · 2026-11-04 amended after the review of the clean-up: `.gitleaksignore` named as the second way to allow a finding, pinned to the two accepted fingerprints from F02; one v1 credential with two findings; the coverage follow-up moved to F03 · 2026-11-04 amended for F03 (the API skeleton): the API's packages in the catalog, `'@swc/core': false` in `allowBuilds`, `coverage/**` as the output of `test` with an override for the eslint-config package, the Turbo `dev` task, the Vitest module cache keyed on the API's `.swcrc`, two build-tool paths of the accepted minimatch advisory · 2026-11-04 amended after the F03 reviews: `pnpm verify` also runs `build`, `apps/api/turbo.json` adds the root `.env.example` to the API's test inputs, chokidar 5.0.0 declared for watch mode (a deviation), and `pnpm dev` documented as reading the root `.env` only.
 
 ## Context
 
@@ -39,7 +39,9 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
 ### 3. Workspace (pnpm 12)
 
 - **Members:** `apps/*` and `packages/*` only. The root package is `@medibooker/root`, because pnpm 12 lists the root in `pnpm -r ls` and every listed name must start with `@medibooker/`.
-- **pnpm 12 defaults kept:** the isolated `node_modules` layout (a package can only use what it declares) and `strictDepBuilds`. Install scripts run only for packages listed in `allowBuilds`. The list has one entry, `lefthook: true`: its postinstall installs the git hooks and skips when `CI` is set. A new entry needs a reason, and it is `true` only when the package must download or build a native binary. `dangerouslyAllowAllBuilds` is never used.
+- **pnpm 12 defaults kept:** the isolated `node_modules` layout (a package can only use what it declares) and `strictDepBuilds`. Install scripts run only for packages listed in `allowBuilds`. A new entry needs a reason, and it is `true` only when the package must download or build a native binary. `dangerouslyAllowAllBuilds` is never used. The list has two entries:
+  - `lefthook: true`: its postinstall installs the git hooks and skips when `CI` is set.
+  - `'@swc/core': false` (F03, 2026-11-04): an explicit denial. Without an entry, `strictDepBuilds` fails the install with `ERR_PNPM_IGNORED_BUILDS`. The script only checks the native binding and would otherwise download `@swc/wasm`; the binding comes from the optional platform package (`@swc/core-win32-x64-msvc`, `@swc/core-linux-x64-gnu`, …), and with the script denied SWC still compiles and emits decorator metadata (the API's smoke spec proves it). `@nestjs/core` 12.3.2 has no install script and is never listed. The F03 install report showed no other unreviewed script.
 - **Also not set:** `engineStrict`, `pmOnFail` and `nodeLinker`. The defaults are enough; CI enforces the runtime (F02).
 - **`trustPolicy: no-downgrade`** (RT-21, turned on after the security review): pnpm refuses a version that was published with less trust than an earlier release of the same package, for example without the provenance its predecessors had. That is a typical sign of a package takeover, and F02 to F05 will add hundreds of packages.
   - One exclusion, `trustPolicyExclude: [lefthook@2.2.2]`, with a dated comment. The earlier releases we checked (2.1.4 to 2.2.1) were published by GitHub Actions through npm trusted publishing, with SLSA provenance. 2.2.2 was published from the maintainer's own npm account, without provenance.
@@ -49,12 +51,15 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
 
 ### 4. Turborepo 2.11.10
 
-- Tasks `build`, `lint`, `typecheck` and `test` depend on `^build`. `build` outputs `dist/**`. `test` declares no outputs until a package writes coverage: an empty `coverage/**` made Turborepo warn on every run. F03, the item that turns coverage on (RT-58), adds `coverage/**` back.
+- Tasks `build`, `lint`, `typecheck` and `test` depend on `^build`. `build` outputs `dist/**`.
+- `test` outputs `coverage/**` since F03, which turned coverage on in the API (RT-58), so a cached run restores the coverage report. `packages/eslint-config/turbo.json` (`extends: ["//"]`) overrides it with `outputs: []`: that package's tests write no coverage, and Turborepo 2.11.10 then prints "WARNING no output files found for task @medibooker/eslint-config#test" on every run (measured on 2026-11-04; F01 had removed the outputs for the same reason). The override goes when the item that turns on the 90/85 gate for `packages/*/src` ([06 §8](../architecture/06-testing.md#8-coverage-gates)) adds coverage to that package.
+- `dev` (F03): `persistent: true`, `cache: false`. The root script `pnpm dev` runs it; today only the API has a `dev` script (`nest start --watch`). The API reads the root `.env` itself, so the task needs no environment pass-through. In strict mode, though, only `CI` and `NODE_ENV` reach it from the shell: under `pnpm dev` the root `.env` is the only source of the API's values, and a shell override needs a direct run (`pnpm --filter @medibooker/api dev`). The developer docs say so.
+- `apps/api/turbo.json` (F03, `extends: ["//"]`) sets the inputs of the API's `test` task to `$TURBO_DEFAULT$` plus `$TURBO_ROOT$/.env.example`: a test reads that root file, which is outside the package and would otherwise not be hashed.
 - Root tasks `//#lint:root`, `//#typecheck:root` and `//#test:root` check the repo scripts and the root config files. They list their inputs explicitly: by default a root task depends on every file outside the packages (docs, agents and skills), so it would never be cached.
   - All three include `pnpm-lock.yaml`. The root's dependency hash does not cover the dependencies of `@medibooker/eslint-config`, which the root lint loads, so a lockfile-only update would otherwise replay a stale result.
   - `//#test:root` also includes `.gitleaks.toml` and `lefthook.yml`, which its tests read. It declares `env: ["GITLEAKS_VERSION"]`: CI exports the version of the gitleaks it installs, so a gitleaks upgrade re-runs the rule test (F02). Locally, a run without gitleaks is cached with the rule cases skipped; after installing gitleaks, run `pnpm test --force` once (docs/dev/getting-started.md).
 - `globalDependencies` are `.node-version` and `pnpm-workspace.yaml`; `globalEnv` is `CI` and `NODE_ENV`. Strict env mode, Turborepo 2's default, works on Windows without `globalPassThroughEnv`.
-- Local cache only (`.turbo/`, gitignored). No remote cache, TUI, `dev` or `generate` task, or boundaries until something needs them.
+- Local cache only (`.turbo/`, gitignored). No remote cache, TUI, `generate` task or boundaries until something needs them.
 - Verified: Turborepo reads the pnpm 12 lockfile (`lockfileVersion: '9.0'`); a second run is `FULL TURBO`; changing a rule message re-runs `//#lint:root` and `@medibooker/eslint-config#lint`.
 - Turborepo sends anonymous usage data unless `TURBO_TELEMETRY_DISABLED=1` is set. The developer docs explain the opt-out, and CI sets it (F02).
 
@@ -70,7 +75,7 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
   | `nest.json` | `node.json` + `experimentalDecorators` and `emitDecoratorMetadata` |
   | `nextjs.json` | `strict.json` + DOM libs, bundler resolution, `jsx: preserve` and the `next` plugin |
 
-- `exactOptionalPropertyTypes` stays off. The target stays es2024: SWC, which the API's tests will use, rejects es2025 (RT-47).
+- `exactOptionalPropertyTypes` stays off. The target stays es2024: @swc/core 1.16.21 rejects es2025 (RT-47). The API's `.swcrc` keeps target es2024, and its tsconfig adds `lib: ["es2025", "esnext.temporal"]` (both exist in TypeScript 6.0.3) and `useDefineForClassFields: false` (F03).
 - Each preset is proven by a fixture that TypeScript 6.0.3 compiles; the `node` fixture fails when `noUncheckedIndexedAccess` is turned off. Each preset has a `$schema` key for editors.
 - `react-library` and `react-native` presets come with their first consumer. Mobile will extend `strict.json` before `expo/tsconfig.base`, so that Expo's DOM lib wins (RT-75).
 
@@ -110,7 +115,9 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
   - `allowOnly: false` in every Vitest config: a focused test fails every run, including a RuleTester case with `only: true` (it runs through Vitest's `it.only`). Vitest's default fails only when `CI` is set, so a local `pnpm verify` would pass while it silently skipped the other cases.
   - `vitest/no-focused-tests` and `vitest/no-disabled-tests` are errors. A fixture test proves both; with Vitest's recommended config alone, `no-disabled-tests` is only a warning.
   - Allowed: `it.todo()` for a planned test, and conditional skips (`it.skipIf(...)`, `describe.skipIf(...)`, `context.skip(condition, note)`) for tests that depend on the environment.
-- Longer timeouts on Windows: 60 seconds where ESLint starts a TypeScript project service, 30 seconds for script tests that start processes.
+- Longer timeouts on Windows: 60 seconds where ESLint starts a TypeScript project service, 30 seconds for script tests that start processes and for the API's `beforeAll` hooks that boot an app.
+- **Module cache (F03):** Vitest 5 caches compiled modules on disk by default (`fsModuleCache`, in `node_modules/.vitest-cache`). Its key covers plugin names and the config file's own text, but not plugin options or files the config reads. The API's config reads `.swcrc` and therefore adds its text to the key with `defineCacheKeyGenerator` (a small plugin in `apps/api/vitest.config.ts`): without it, a changed `.swcrc` kept serving modules compiled with the old settings, and the smoke spec passed with decorator metadata turned off (verified on 2026-11-04). A config that reads another file does the same.
+- **Coverage (F03, RT-58):** `@vitest/coverage-v8` at Vitest's version; the API's thresholds of [06 §8](../architecture/06-testing.md#8-coverage-gates) fail `pnpm --filter @medibooker/api test` locally, and CI enforces them from F02.
 
 ### 9. Git hooks: lefthook 2.2.2
 
@@ -128,7 +135,7 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
   - headers that git writes itself (`Merge`, `Revert "`, `fixup!`, `squash!`, `amend!`) pass; comment lines and everything below the scissors line are ignored.
 - **pre-commit**, in parallel: Prettier checks the staged files, and gitleaks scans the staged changes (decision 10). Known limit: Prettier reads the working-tree copy of the staged files, so a partly staged file can pass; CI's `pnpm format:check` is the gate.
 - No pre-push hook: the pre-commit scan already covers every commit, and CI is the hard gate (F02). Hooks are never bypassed; `--no-verify` is not allowed.
-- `pnpm verify` runs the hook check, the staged secret scan, `prettier --check .`, and then lint, typecheck and tests through Turborepo. Run it after `git add`.
+- `pnpm verify` runs the hook check, the staged secret scan, `prettier --check .`, and then lint, typecheck, tests and, since F03, the build through Turborepo. The API's tests compile through `unplugin-swc`, so only the build compiles through `nest-cli.json`, whose `ignore` entry keeps spec files out of `dist`. Run it after `git add`.
 - **Proven by tests:** `scripts/hooks.test.ts` runs lefthook itself. `lefthook validate` passes; `lefthook dump` shows `assert_lefthook_installed` and the unskipped `secrets` command of the pre-commit hook; `lefthook run commit-msg` rejects "update stuff" and accepts "chore(repo): add tooling", with the message file in a path with a space. It also tests `scripts/check-hooks.ts` both ways. Nothing is installed or staged.
 
 ### 10. Secret scanning: gitleaks 8.30.1, failing closed
@@ -153,27 +160,46 @@ History: 2026-11-01 accepted with the F01 plan (monorepo skeleton and root tooli
 
 ## Version table
 
-Checked on 2026-11-04 at 13:42 UTC with `npm view <pkg> time dist-tags`; the gate then accepted versions published before 2026-11-03 13:42 UTC. A row without a deviation is updated when a newer version passes the gate.
+Checked on 2026-11-04 at 13:42 UTC with `npm view <pkg> time dist-tags`; the gate then accepted versions published before 2026-11-03 13:42 UTC. The rows added by F03 (the API's packages) were checked on 2026-11-04 at 18:44 UTC, when the gate accepted versions published before 2026-11-03 18:44 UTC; one from-scratch resolution under `minimumReleaseAge` and `trustPolicy: no-downgrade` installed exactly these versions without a refusal. A row without a deviation is updated when a newer version passes the gate.
 
 | Tool | Version | Published | Deviation and reason | Revisit when |
 |---|---|---|---|---|
 | Node.js | 26.13.0 | 2026-10-28 | None. The first 26.x LTS release; set in `.node-version` and `engines` | — |
 | pnpm | 12.16.1 | 2026-10-27 | None. 12.17.0 exists only on the `next-12` tag | — |
 | `@eslint/js` | 10.0.1 | 2026-02-06 | None | — |
+| `@nestjs/cli` | 12.0.11 | 2026-10-27 | None | — |
+| `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express`, `@nestjs/testing` | 12.3.2 | 2026-10-27 | None. 12.3.3 was published on 2026-11-04 at 09:36 UTC and was still inside the gate; the four always move together | 12.3.3 has passed the gate (2026-11-05 09:36 UTC) |
+| `@nestjs/throttler` | 6.7.1 | 2026-09-24 | None. Peer range accepts Nest 12 | — |
+| `@swc/cli` | 0.8.2 | 2026-10-28 | None | — |
+| `@swc/core` | 1.16.21 | 2026-10-31 | None. Install script denied in `allowBuilds` (decision 3) | — |
 | `@types/node` | 26.6.6 | 2026-10-28 | None. Follows the Node major version | The Node major changes |
+| `@types/supertest` | 7.2.1 | 2026-07-14 | None | — |
+| `@vitest/coverage-v8` | 5.1.0 | 2026-11-02 | None. Always Vitest's version | — |
 | `@vitest/eslint-plugin` | 1.6.28 | 2026-10-22 | None | — |
+| `chokidar` | **5.0.0** | 2025-11-25 | **Yes.** `latest` is 6.0.0 (2026-10-19). `nest start --watch` runs @swc/cli in watch mode, which loads chokidar, an optional peer that @swc/cli 0.8.2 accepts only as `^5.0.0`. Before F03's review it was linked only because @nestjs/cli 12.0.11 pins 5.0.0; a devDependency of the API now declares it, so a @nestjs/cli update cannot silently break `pnpm dev`. Renovate (F02) holds it below 6 | @swc/cli accepts chokidar 6 |
 | `eslint` | 10.14.0 | 2026-10-30 | None. Framework plugins lag behind (decision 6) | — |
 | `eslint-config-prettier` | 10.1.8 | 2025-07-18 | None | — |
 | `eslint-import-resolver-typescript` | 4.4.5 | 2026-06-01 | None | — |
 | `eslint-plugin-import-x` | 4.17.1 | 2026-06-28 | None | — |
 | `globals` | 17.14.0 | 2026-11-01 | None. Pinned once it had passed the gate, without an exception | — |
+| `helmet` | 8.3.0 | 2026-07-12 | None | — |
 | `lefthook` | 2.2.2 | 2026-10-13 | None. The npm package was published without provenance; accepted by the security review, with a dated `trustPolicyExclude` entry (decision 3) | The next release: check that it has provenance again, then remove the exclusion |
+| `nestjs-cls` | 7.0.2 | 2026-10-27 | None | — |
+| `nestjs-pino` | 5.3.1 | 2026-10-02 | None | — |
+| `pino` | 10.4.0 | 2026-10-02 | None | — |
+| `pino-http` | 11.0.0 | 2025-10-04 | None | — |
+| `pino-pretty` | 13.2.0 | 2026-10-04 | None. A devDependency of the API, used only with `LOG_PRETTY` | — |
 | `prettier` | 3.9.10 | 2026-10-10 | None. 4.0 is an alpha | — |
+| `reflect-metadata` | 0.2.2 | 2024-03-29 | None | — |
+| `rxjs` | 7.8.2 | 2025-02-22 | None. A later major exists only as a prerelease (`next` is 9.0.0-beta.1) | — |
+| `supertest` | 7.3.1 | 2026-10-02 | None | — |
 | `turbo` | 2.11.10 | 2026-10-20 | None | — |
 | `typescript` | **6.0.3** | 2026-04-16 | **Yes.** `latest` is 7.0.2 (2026-07-08). typescript-eslint 8.72.1 requires `>=4.8.4 <6.1.0`, @nestjs/cli 12.0.11 ships TypeScript `~6.0.2`, and @nestjs/swagger 12.1.0 requires `^5.5.0 \|\| ^6.0.0`. 6.0.3 is the newest 6.x | typescript-eslint, @nestjs/cli and @nestjs/swagger support TypeScript 7 |
 | `typescript-eslint` | 8.72.1 | 2026-10-26 | None | — |
+| `unplugin-swc` | 2.0.0 | 2026-09-21 | None | — |
 | `vite` | 8.3.5 | 2026-10-21 | None. A required peer of Vitest | — |
 | `vitest` | 5.1.0 | 2026-11-02 | None. Updated from 5.0.5 once 5.1.0 had passed the gate | — |
+| `zod` | 4.6.7 | 2026-10-12 | None | — |
 | gitleaks | 8.30.1 | 2026-03-21 | None. A binary installed on each machine, not an npm package | A new release (Renovate custom manager, RT-38) |
 
 Recorded for later items (not in the catalog yet):
@@ -184,7 +210,7 @@ Recorded for later items (not in the catalog yet):
 | Expo SDK | 58 (`expo` 58.0.22) | The newest SDK. Expo is the Proposed mobile toolchain of CLAUDE.md, not a client decision (U11) | The next SDK |
 | React, React DOM | 19.3.0 | Expo SDK 58 bundles 19.3.0; npm's `latest` is 19.3.1. Recommendation: one React version in the whole workspace, enforced with pnpm `overrides`, because the shared source package `@medibooker/api-client` must not see two React copies (RT-78). The web app may use 19.3.1 only if the isolated linker keeps web and mobile apart; the web and mobile items decide and record it | The next Expo SDK |
 | React Native | 0.88.1 | The Expo SDK 58 pin, also npm's `latest` | The next Expo SDK |
-| NestJS, Next.js | 12, 16 | The API and web items choose the exact versions under this policy | — |
+| Next.js | 16 | The web item chooses the exact version under this policy (NestJS is in the version table since F03) | — |
 
 ## Accepted risks
 
@@ -192,7 +218,7 @@ Recorded for later items (not in the catalog yet):
 
 | Advisory | Package | Where | Why accepted | Revisit when |
 |---|---|---|---|---|
-| GHSA-g3hv-75wg-m249, moderate (CWE-405): denial of service through glob-pattern amplification | `minimatch` 10.2.6; fixed in 11.0.1 | Lint tooling only: `eslint`, `@eslint/config-array`, typescript-eslint and `eslint-plugin-import-x`. `pnpm audit --prod` lists it too, because `@medibooker/eslint-config` declares its plugins as `dependencies` | Only lint-time glob patterns from the repository's own config reach it, never user input. All dependents accept only minimatch 9 or 10, so a pnpm override would force an untested major version under ESLint | eslint, typescript-eslint and eslint-plugin-import-x accept minimatch 11.0.1 or later |
+| GHSA-g3hv-75wg-m249, moderate (CWE-405): denial of service through glob-pattern amplification | `minimatch` 10.2.6 and, since F03, 9.0.9; fixed in 11.0.1 | Lint tooling: `eslint`, `@eslint/config-array`, typescript-eslint and `eslint-plugin-import-x`. Since F03 also the API's build tools, both devDependencies: `@nestjs/cli` 12.0.11 (pins 10.2.6) and `@swc/cli` 0.8.2 (`^9.0.3`). `pnpm audit --prod` lists it too, because `@medibooker/eslint-config` declares its plugins as `dependencies`; `pnpm audit --prod --filter @medibooker/api` finds nothing (2026-11-04) | Only lint-time and build-time glob patterns from the repository's own config reach it, never user input, and none of it is in the API's runtime. All dependents accept only minimatch 9 or 10, so a pnpm override would force an untested major version under ESLint and the build tools | eslint, typescript-eslint, eslint-plugin-import-x, @nestjs/cli and @swc/cli accept minimatch 11.0.1 or later |
 
 ## Consequences
 
@@ -220,9 +246,11 @@ Recorded for later items (not in the catalog yet):
 - **Before the F01 commit (main agent):**
   - Stage by explicit paths, never `git add -A`. L00 (the v1 removal) and R00 are committed before F01.
   - A security re-check of the review fixes listed in the history line.
-- **F03 (API, before F02 since 2026-11-04):**
-  - One SWC configuration for `nest build` and Vitest, with target es2024 (RT-47); `lib` es2025 and Temporal types if the API uses them; the `nest()` preset in use.
-  - Coverage (RT-58): `@vitest/coverage-v8` in the catalog at Vitest's version and coverage thresholds in the API's Vitest config; the `test` task gets `coverage/**` as its output again (decision 4). CI enforces the thresholds from F02.
+- **F03 (API, before F02 since 2026-11-04): done (2026-11-04).**
+  - One SWC configuration, `apps/api/.swcrc` with target es2024, read by `nest build` (SWC builder in object form, spec files left out of `dist`) and by Vitest through `unplugin-swc` (RT-47). Its text is part of Vitest's module-cache key (decision 8). The API's tsconfig sets `lib` es2025 and `esnext.temporal`; the `base`, `nest()` and `vitest()` presets lint it.
+  - Coverage (RT-58): `@vitest/coverage-v8` 5.1.0 in the catalog; the thresholds of 06 §8 at the root of the API's Vitest config (80 % lines, 70 % branches, 100 % for `*.rules.ts`, untested files counted through `include`); `pnpm --filter @medibooker/api test` runs `vitest run --project unit --coverage` and fails below them. The `test` task outputs `coverage/**` again, with the eslint-config override (decision 4). CI enforces the thresholds from F02.
+  - `'@swc/core': false` in `allowBuilds` (decision 3); the root scripts `build` and `dev` and the Turbo `dev` task (decision 4).
+  - After the F03 reviews: `build` in `pnpm verify` (decision 9), `apps/api/turbo.json` with the root `.env.example` as a test input (decision 4), and chokidar 5.0.0 as a declared devDependency (version table).
 - **User action U3, before F02 (the user's order of 2026-11-04):** turn on GitHub secret scanning with push protection for the public repository. It is the server-side backstop for a machine without hooks, and it does not wait for CI (RT-02).
 - **F02 (CI and Renovate):**
   - CI on Node 26.13.0 only, read from `.node-version`; pnpm from `packageManager`; `LEFTHOOK=0` and `TURBO_TELEMETRY_DISABLED=1`.
@@ -230,7 +258,7 @@ Recorded for later items (not in the catalog yet):
   - Install gitleaks 8.30.1 with a checksum check before `pnpm test`, which fails under `CI=true` without it, and export its version as `GITLEAKS_VERSION` (part of the `//#test:root` hash). CI's own scans: the full history, `fetch-depth: 0`, the options of `policyArguments()` (`--redact`, `--ignore-gitleaks-allow`), and only redacted SARIF uploaded (RT-32).
   - Validate every commit message of the pushed range: write `git log -1 --format=%B <sha>` to a temporary file and run `node scripts/check-commit-msg.ts <file>`. The hooks are local only, and agents push directly.
   - The `.gitleaksignore` baseline for the two v1 findings, with a dated comment that records the risk the user accepted (U1 declined on 2026-11-04, RT-01), and its pin: the two commit-qualified fingerprints as `ACCEPTED_FINGERPRINTS` in `scripts/lib/gitleaks.ts`; `scripts/run-gitleaks.ts` and the CI `security` job fail closed when `.gitleaksignore` differs from them.
-  - Renovate: `minimumReleaseAge` of 3 days; TypeScript held below 7; Expo-managed packages behind dashboard approval instead of `enabled: false`, so that security fixes still arrive (RT-06); `packageManager` and the lockfile updated together; the gitleaks version and checksum through a custom manager (RT-38).
+  - Renovate: `minimumReleaseAge` of 3 days; TypeScript held below 7; chokidar held below 6 (version table); Expo-managed packages behind dashboard approval instead of `enabled: false`, so that security fixes still arrive (RT-06); `packageManager` and the lockfile updated together; the gitleaks version and checksum through a custom manager (RT-38).
   - `pnpm dedupe --check`, and a weekly `pnpm audit --prod` (RT-06): scoped to the deployable apps (for example `--filter @medibooker/api...`) instead of a lower `--audit-level`, and ignoring exactly the accepted minimatch advisory through `auditConfig.ignoreGhsas`, with a dated comment.
   - Test reports, and a failing check when a package reports 0 tests (RT-62).
 - **Later items:**
@@ -266,7 +294,7 @@ The red-team review of 2026-11-01 raised 25 issues that touch the root tooling. 
 |---|---|---|---|
 | RT-01 v1 credential in the public history | Blocker | Risk accepted by the user: U1 declined on 2026-11-04; baseline in F02 | The user declined to rotate the credential or decommission the database, so it stays valid in the public history. F01's rule finds both findings in the history; F02 records their commit-qualified fingerprints in `.gitleaksignore` as the accepted risk, with a dated comment, and pins the file (decision 10). The acceptance covers the credential only. Not verified: whether real people's data ever reached the v1 database (it had a public sign-up and stored contact, insurance and booking data; the seed data came from Faker). If real data is ever confirmed there, its controller assesses a breach under GDPR Art. 33/34 (notification within 72 hours of awareness); this decision does not replace that |
 | RT-02 Scanning only after a secret is public | Major | Applied, with two exceptions | The pre-commit scan and `pnpm verify` fail closed, also when lefthook is missing (decision 9), inline `gitleaks:allow` comments are ignored, and gitleaks is a required tool. Rejected: a pre-push hook (see Alternatives). User action U3, before F02: secret scanning and push protection in the GitHub settings |
-| RT-05 Secrets and health-related IDs in logged URLs | Major | Deferred: API (F03), API contract, proxy (F05) | — |
+| RT-05 Secrets and health-related IDs in logged URLs | Major | Applied for the API's logs (F03); the rest deferred: API contract, proxy (F05) | The access log carries the matched route pattern, never the path or the query string; an unmatched request is logged with `route: null`. HTTP tests send `secret-value` and `sara@example.test` in the path, the query, `Authorization` and `Cookie` and find none of them in the captured logs |
 | RT-06 Security updates suppressed or blocked | Major | Partly applied | Applied: "latest" means past the gate, and the gate is never 0; exceptions only for security fixes; there is no exception today. Deferred to F02: Renovate approval rules, the weekly `pnpm audit --prod` with the accepted minimatch advisory ignored by its ID (Accepted risks) |
 | RT-07 CI/CD gating | Major | Deferred: F02, F05 | — |
 | RT-21 Lockfile resolved before the policies | Minor | Applied | `trustPolicy: no-downgrade` with a dated exclusion for lefthook@2.2.2 (decision 3). A from-scratch resolution with the final `pnpm-workspace.yaml` gives the committed lockfile, without release-age or trust blocks (2026-11-04). Staging by explicit paths is part of the main agent's commits |
@@ -279,8 +307,8 @@ The red-team review of 2026-11-01 raised 25 issues that touch the root tooling. 
 | RT-38 `renovate.json` | Minor | Deferred: F02 | The rule "an urgent exception goes into the same change as the fix" is part of decision 1 |
 | RT-40 CI cache and triggers | Minor | Deferred: F02 | `//#test:root` already hashes `GITLEAKS_VERSION` and `pnpm-lock.yaml`; CI exports the variable (decision 4) |
 | RT-44 CRLF for `*.ps1` | Minor | Applied | `.gitattributes` and `.editorconfig` keep CRLF for `*.cmd`, `*.bat` and `*.ps1` |
-| RT-47 SWC and the es2025 target | Blocker | Applied for F01; the rest in F03 | The presets keep target es2024; the SWC alignment comes with the API |
-| RT-58 Coverage gates | Major | Deferred: F03, enforced in CI from F02 | The `test` task declares no outputs until coverage is turned on (decision 4) |
+| RT-47 SWC and the es2025 target | Blocker | Applied (F01, F03) | The presets keep target es2024. F03: `apps/api/.swcrc` (target es2024) is the single SWC configuration of `nest build` and Vitest, the API's tsconfig adds `lib` es2025 and `esnext.temporal`, and the smoke spec `src/app.module.spec.ts` fails when decorator metadata is missing (verified by turning it off) |
+| RT-58 Coverage gates | Major | Applied for the API (F03); enforced in CI from F02 | Root-level coverage in the API's Vitest config with `include`, 80/70 and 100 % for `*.rules.ts`; `test` runs with `--coverage` and outputs `coverage/**` (decision 4). The 90/85 gate for `packages/*/src` follows with the item that adds coverage to a package |
 | RT-62 Silent green tests | Major | Applied for lint, focused tests and empty runs; the rest deferred | `allowOnly: false` and `passWithNoTests: false` in every Vitest config (decision 8). Deferred: the quarantine helper (first app test suite), Jest rules (mobile), test reports and the 0-test check (F02) |
 | RT-65 i18n catalogue tests | Minor | Deferred: i18n item | — |
 | RT-67 Release-age gate and exact pins | Blocker | Applied | Decision 1 |

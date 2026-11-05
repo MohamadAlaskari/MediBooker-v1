@@ -7,6 +7,8 @@
     "node": "^26.13.0"
   },
   "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
     "lint": "turbo run lint lint:root",
     "lint:root": "eslint --max-warnings=0 scripts eslint.config.js prettier.config.js vitest.config.ts",
     "typecheck": "turbo run typecheck typecheck:root",
@@ -15,7 +17,7 @@
     "test:root": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root"
+    "verify": "node scripts/check-hooks.ts && node scripts/run-gitleaks.ts && prettier --check . && turbo run lint lint:root typecheck typecheck:root test test:root build"
   },
   "devDependencies": {
     "@medibooker/eslint-config": "workspace:*",

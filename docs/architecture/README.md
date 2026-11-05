@@ -70,10 +70,11 @@ Each file covers one area and links to the others instead of repeating them. Pro
 
 | Item | Status |
 |---|---|
-| L00 Remove the v1 apps | Removed from the working tree by the user on 2026-11-02; committed first by the main agent |
-| R00 Architecture docs and decision records | Written; committed second by the main agent |
-| F01 Monorepo workspace and shared tooling | In progress (scaffold in the working tree) |
-| F03, F02, F04 – OPS01 | Planned, in the order of [08-roadmap.md](08-roadmap.md): the API skeleton (F03) before CI (F02), as the user decided on 2026-11-04 |
+| L00 Remove the v1 apps | Committed (`6c733c1`); the user removed the v1 folders on 2026-11-02 |
+| R00 Architecture docs and decision records | Committed (`f89a019`) |
+| F01 Monorepo workspace and shared tooling | Committed (`13044c5`) |
+| F03 NestJS API skeleton | Done (the F03 commit) |
+| F02, F04 – OPS01 | Planned, in the order of [08-roadmap.md](08-roadmap.md); the API skeleton (F03) came before CI (F02), as the user decided on 2026-11-04 |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). F02 records its two findings in `.gitleaksignore`, so the full-history secret scan is a required check from F02 on.
 
