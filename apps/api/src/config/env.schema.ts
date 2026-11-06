@@ -129,6 +129,28 @@ function isEncryptedSmtp(value: string): boolean {
   return encrypted && [...url.searchParams.keys()].every((key) => key === 'requireTLS');
 }
 
+/** Where a mail catcher runs: in a Docker stack or on this machine. Nothing leaves it. */
+const LOCAL_CATCHER_HOSTS: ReadonlySet<string> = new Set(['mailpit', 'localhost', '127.0.0.1']);
+
+/**
+ * Mailpit and the like: no login and no option. Everything else is a real mail server, also in a
+ * Docker stack, which runs as `local`.
+ */
+function isLocalCatcher(value: string): boolean {
+  const { hostname, username, password, search } = new URL(value);
+  return LOCAL_CATCHER_HOSTS.has(hostname) && username === '' && password === '' && search === '';
+}
+
+/** A comma-separated list of e-mail addresses in lower case, as `users.email` stores them. */
+const mailAddresses = z.string().transform((value, ctx): readonly string[] => {
+  const addresses = listOf(value).map((address) => address.toLowerCase());
+  if (addresses.length === 0 || !addresses.every((item) => z.email().safeParse(item).success)) {
+    ctx.addIssue({ code: 'custom', params: { reason: 'not_an_address_list' } });
+    return z.NEVER;
+  }
+  return addresses;
+});
+
 /** A reference only the development store resolves: refused where that store is. */
 function isDevReference(reference: string): boolean {
   return reference.startsWith('dev:');
@@ -193,9 +215,14 @@ const envObject = z.object({
   // A02: the address every link in an e-mail is built from, never a request's Host. Required in
   // staging and production (refinement below).
   PUBLIC_WEB_URL: webOrigin.optional(),
-  // A02: smtp://host:port. Unset: e-mails wait and retry instead of being lost.
-  SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
+  // A02: smtp://host:port. Unset: e-mails wait and retry instead of being lost. Everything but a local
+  // catcher needs TLS in every environment (refinement below). The host is required and plain:
+  // without `//` the URL has none here, while nodemailer adds the slashes and logs in unencrypted.
+  SMTP_URL: z.url({ protocol: /^smtps?$/, hostname: /^[A-Za-z0-9.-]+$/ }).optional(),
   MAIL_FROM: z.string().min(1).default('MediBooker <no-reply@medibooker.invalid>'),
+  // RT-91: who a real mail server may reach. Required with one in local and ci, refused in production
+  // (refinement below), and the sender refuses everyone else.
+  MAIL_ALLOWED_RECIPIENTS: mailAddresses.optional(),
   // A02: how often the outbox looks for due e-mails; 0 turns the timer off (tests).
   OUTBOX_POLL_SECONDS: integer(0, 3600).default(5),
   // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler) and
@@ -303,13 +330,22 @@ const envSchema = envObject
           reject('PUBLIC_WEB_URL', 'https_required_in_staging_and_production');
         }
       }
-      if (
-        isDeployed &&
-        parsed('SMTP_URL') &&
-        env.SMTP_URL !== undefined &&
-        !isEncryptedSmtp(env.SMTP_URL)
-      ) {
-        reject('SMTP_URL', 'tls_required_in_staging_and_production');
+      if (parsed('SMTP_URL') && env.SMTP_URL !== undefined) {
+        const isCatcher = !isDeployed && isLocalCatcher(env.SMTP_URL);
+        if (isDeployed && !isEncryptedSmtp(env.SMTP_URL)) {
+          reject('SMTP_URL', 'tls_required_in_staging_and_production');
+        } else if (!isDeployed && !isCatcher && !isEncryptedSmtp(env.SMTP_URL)) {
+          reject('SMTP_URL', 'tls_required_for_a_real_mail_server');
+        }
+        // From a machine of the team a real server reaches only the team (RT-91).
+        if (
+          !isDeployed &&
+          !isCatcher &&
+          parsed('MAIL_ALLOWED_RECIPIENTS') &&
+          env.MAIL_ALLOWED_RECIPIENTS === undefined
+        ) {
+          reject('MAIL_ALLOWED_RECIPIENTS', 'required_with_a_real_mail_server_in_local_and_ci');
+        }
       }
       if (
         isDeployed &&
@@ -331,6 +367,10 @@ const envSchema = envObject
       if (env.APP_ENV !== 'production') return;
       if (parsed('OPENAPI_UI_ENABLED') && env.OPENAPI_UI_ENABLED) {
         reject('OPENAPI_UI_ENABLED', 'not_allowed_in_production');
+      }
+      // A list left over from testing would silently keep the e-mails of real people back.
+      if (parsed('MAIL_ALLOWED_RECIPIENTS') && env.MAIL_ALLOWED_RECIPIENTS !== undefined) {
+        reject('MAIL_ALLOWED_RECIPIENTS', 'not_allowed_in_production');
       }
       if (
         parsed('CORS_ORIGINS') &&

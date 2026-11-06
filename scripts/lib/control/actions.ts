@@ -9,10 +9,19 @@ export type Step =
       readonly profiles?: readonly string[];
       /** Appends a service the user chooses to the arguments. */
       readonly service?: 'optional' | 'required';
+      /** Appends the address the user names to the arguments. */
+      readonly recipient?: true;
     }
   | { readonly kind: 'docker'; readonly args: readonly string[] }
   | {
-      readonly kind: 'links' | 'health' | 'smoke' | 'clean-caches' | 'clean-node-modules';
+      readonly kind:
+        | 'links'
+        | 'health'
+        | 'smoke'
+        | 'mail-setup'
+        | 'mail-off'
+        | 'clean-caches'
+        | 'clean-node-modules';
     };
 
 export interface Action {
@@ -21,12 +30,15 @@ export interface Action {
   readonly label: string;
   /** Asked before a step that deletes something. */
   readonly confirm?: string;
+  /** What a failure means, if there is more to say than the exit code. */
+  readonly failureHint?: string;
   readonly steps: readonly Step[];
 }
 
 const GROUP_RUN = 'Aufbauen und ausführen';
 const GROUP_WATCH = 'Überwachen';
 const GROUP_DATABASE = 'Datenbank';
+const GROUP_MAIL = 'E-Mail';
 const GROUP_TESTS = 'Tests';
 const GROUP_CLEAN = 'Aufräumen';
 
@@ -187,6 +199,42 @@ function databaseActions(stack: Stack): readonly Action[] {
   ];
 }
 
+/**
+ * A real mail server instead of the stack's Mailpit. The environment reaches a container when it is
+ * created, so both changes end in `up`, which creates the API anew; "Neu starten" would keep the old.
+ */
+function mailActions(stack: Stack): readonly Action[] {
+  return [
+    {
+      id: 'mail-setup',
+      group: GROUP_MAIL,
+      label: 'Mailserver eintragen (Postfach und Passwort), dann neu starten',
+      steps: [{ kind: 'mail-setup' }, ...upSteps(stack), { kind: 'links' }],
+    },
+    {
+      id: 'mail-test',
+      group: GROUP_MAIL,
+      label: 'Test-E-Mail senden',
+      failureHint:
+        'EAUTH: Adresse oder Passwort falsch. ETIMEDOUT, ESOCKET, ECONNECTION, EDNS: Server nicht erreichbar. EENVELOPE: Empfänger abgelehnt. RECIPIENT_NOT_ALLOWED: nicht freigegeben, "Mailserver eintragen" setzt die Liste.',
+      steps: [
+        {
+          kind: 'compose',
+          profiles: profilesOf(stack),
+          args: ['exec', 'api', 'node', 'dist/cli/send-test-mail.js'],
+          recipient: true,
+        },
+      ],
+    },
+    {
+      id: 'mail-off',
+      group: GROUP_MAIL,
+      label: 'Mailserver austragen: zurück zu Mailpit, dann neu starten',
+      steps: [{ kind: 'mail-off' }, ...upSteps(stack), { kind: 'links' }],
+    },
+  ];
+}
+
 function testActions(stack: Stack): readonly Action[] {
   const smoke: Action = {
     id: 'smoke',
@@ -265,6 +313,7 @@ export function actionsOf(stack: Stack): readonly Action[] {
     ...runActions(stack),
     ...watchActions(stack),
     ...databaseActions(stack),
+    ...mailActions(stack),
     ...testActions(stack),
     ...cleanActions(stack),
   ];

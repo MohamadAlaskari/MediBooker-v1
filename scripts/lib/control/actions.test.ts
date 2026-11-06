@@ -117,6 +117,27 @@ describe('the commands', () => {
     ]);
   });
 
+  it('send a test e-mail through the running API, on both stacks', () => {
+    expect(composeCommands('dev', 'mail-test')).toEqual([
+      'compose --env-file .env -f compose.dev.yaml --profile app exec api node dist/cli/send-test-mail.js',
+    ]);
+    expect(composeCommands('prod', 'mail-test')).toEqual([
+      'compose --env-file .env.prod -f compose.prod.yaml exec api node dist/cli/send-test-mail.js',
+    ]);
+  });
+
+  it.each(['mail-setup', 'mail-off'])(
+    '%s writes first and then creates the API anew, which a restart would not',
+    (id) => {
+      for (const mode of ['dev', 'prod'] as const) {
+        const { steps } = action(mode, id);
+        expect(steps[0]?.kind).toBe(id);
+        expect(composeCommands(mode, id).at(-1)).toContain(' up -d --wait');
+        expect(composeCommands(mode, id).join(' ')).not.toContain(' restart');
+      }
+    },
+  );
+
   it('restart only the services that keep running', () => {
     expect(composeCommands('dev', 'restart')[0]).toMatch(/restart api web mailpit$/);
     expect(composeCommands('prod', 'restart')[0]).toMatch(/restart api web proxy mailpit$/);

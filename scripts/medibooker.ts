@@ -6,7 +6,6 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { createInterface } from 'node:readline';
 import { actionsOf, composeArguments, type Action, type Step } from './lib/control/actions.ts';
 import {
   allPassed,
@@ -16,7 +15,16 @@ import {
   type Check,
 } from './lib/control/checks.ts';
 import { cachePaths, nodeModulesPaths, removeFolders } from './lib/control/clean.ts';
-import { ensureEnvFile, isSwaggerEnabled } from './lib/control/env-files.ts';
+import {
+  DEFAULT_MAIL_HOST,
+  ensureEnvFile,
+  isHostName,
+  isMailAddress,
+  isSwaggerEnabled,
+  mailServerOf,
+  writeMailServer,
+} from './lib/control/env-files.ts';
+import { lineReader, type LineReader } from './lib/control/lines.ts';
 import { isMode, linksOf, STACKS, type Mode, type Stack } from './lib/control/stacks.ts';
 import {
   actionOfAnswer,
@@ -34,67 +42,34 @@ const style = styleOf(process.stdout.isTTY && process.env.NO_COLOR === undefined
 
 const NO_DOCKER = 'Docker läuft nicht: bitte Docker Desktop starten.';
 const KNOWN_OPTIONS: readonly string[] = ['--yes', '--dry-run'];
+/** What a step returns when the user took it back: no failure, and the action ends. */
+const CANCELLED = -1;
 
 const USAGE = `Aufruf:
   medibooker                     Menü: erst der Betrieb, dann die Liste
-  medibooker <dev|prod> <aktion> [dienst]   Eine Aktion direkt ausführen
+  medibooker <dev|prod> <aktion> [dienst|adresse]   Eine Aktion direkt ausführen
 
 Optionen:
   --yes       Rückfragen vor dem Löschen beantworten
   --dry-run   Nur zeigen, welche Befehle laufen würden`;
 
-/** Lines from stdin, also from a pipe; a child process gets the terminal while it runs. */
-function lineReader() {
-  const rl = createInterface({ input: process.stdin, terminal: false });
-  const lines: string[] = [];
-  let closed = false;
-  let waiting: ((line: string | undefined) => void) | undefined;
-  rl.on('line', (line) => {
-    if (waiting === undefined) {
-      lines.push(line);
-    } else {
-      const resume = waiting;
-      waiting = undefined;
-      resume(line);
-    }
-  });
-  rl.on('close', () => {
-    closed = true;
-    waiting?.(undefined);
-    waiting = undefined;
-  });
-  return {
-    /** The next answer; undefined when the input has ended. */
-    ask(prompt: string): Promise<string | undefined> {
-      process.stdout.write(prompt);
-      const line = lines.shift();
-      if (line !== undefined) return Promise.resolve(line);
-      if (closed) return Promise.resolve(undefined);
-      rl.resume();
-      return new Promise((resolve) => {
-        waiting = resolve;
-      });
-    },
-    get isWaiting(): boolean {
-      return waiting !== undefined;
-    },
-    pause(): void {
-      rl.pause();
-    },
-    close(): void {
-      rl.close();
-    },
-  };
-}
-
-type LineReader = ReturnType<typeof lineReader>;
-
 interface Session {
   readonly dryRun: boolean;
   readonly assumeYes: boolean;
   readonly lines: LineReader | undefined;
-  /** The service given on the command line. */
+  /** The service, or the address of a test e-mail, given on the command line. */
   readonly service: string | undefined;
+}
+
+/** The session's lines, or for a direct call lines of its own for this one question. */
+async function withLines<T>(session: Session, use: (lines: LineReader) => Promise<T>): Promise<T> {
+  if (session.lines !== undefined) return use(session.lines);
+  const lines = lineReader();
+  try {
+    return await use(lines);
+  } finally {
+    lines.close();
+  }
 }
 
 function runDocker(args: readonly string[], session: Session): Promise<number> {
@@ -149,9 +124,86 @@ function clean(folders: readonly string[], session: Session): number {
   return 0;
 }
 
+/** Who a test e-mail goes to; undefined when the user took it back or typed no address. */
+async function recipientOf(session: Session): Promise<string | undefined> {
+  const answer =
+    session.service ??
+    (await withLines(session, (lines) => lines.ask('Test-E-Mail an (Enter = abbrechen): ')));
+  const address = answer?.trim() ?? '';
+  if (address === '') return undefined;
+  if (isMailAddress(address)) return address;
+  console.error(style.red('Das ist keine E-Mail-Adresse.'));
+  return undefined;
+}
+
+/** Writes a mailbox into the stack's environment file. Its password is never shown. */
+function setUpMailServer(stack: Stack, session: Session): Promise<number> {
+  const isTerminal = process.stdin.isTTY;
+  // Git Bash's own terminal hands a program a pipe, and itself shows what is typed.
+  if (!isTerminal && process.env.MSYSTEM !== undefined) {
+    console.error(
+      style.red(
+        'Hier wäre das Passwort sichtbar: bitte medibooker.cmd in PowerShell oder cmd starten.',
+      ),
+    );
+    return Promise.resolve(CANCELLED);
+  }
+  return withLines(session, async (lines) => {
+    console.log(`Adresse und Passwort kommen nur in ${stack.envFile}, die Git nicht kennt.`);
+    const address = (await lines.ask('Adresse des Postfachs (Enter = abbrechen): '))?.trim() ?? '';
+    if (address === '') return CANCELLED;
+    const server = (await lines.ask(`Server [${DEFAULT_MAIL_HOST}]: `))?.trim() ?? '';
+    const host = server === '' ? DEFAULT_MAIL_HOST : server;
+    const others =
+      (
+        await lines.ask(
+          `Wer darf echte E-Mails bekommen? Weitere Adressen mit Komma (Enter = nur ${address}): `,
+        )
+      )?.trim() ?? '';
+    const allowed = others === '' ? [] : others.split(',').map((other) => other.trim());
+    if (!isMailAddress(address) || !isHostName(host) || !allowed.every(isMailAddress)) {
+      console.error(style.red('Eine Adresse oder der Server sehen nicht richtig aus.'));
+      return CANCELLED;
+    }
+    const password = await lines.askHidden(
+      isTerminal
+        ? 'Passwort (wird nicht angezeigt, Enter = abbrechen): '
+        : 'Passwort (Enter = abbrechen): ',
+    );
+    if (password === undefined || password === '') return CANCELLED;
+    if (session.dryRun) {
+      console.log(
+        style.dim(`${stack.envFile}: SMTP_URL, MAIL_FROM, MAIL_ALLOWED_RECIPIENTS setzen`),
+      );
+    } else {
+      writeMailServer(stack, ROOT, { address, host, password, allowed });
+      console.log(`${stack.envFile}: Mailserver ${host} eingetragen.`);
+      console.log(`Echte E-Mails gehen nur an: ${[address, ...allowed].join(', ')}`);
+    }
+    return 0;
+  });
+}
+
+function removeMailServer(stack: Stack, session: Session): number {
+  if (session.dryRun) {
+    console.log(
+      style.dim(`${stack.envFile}: SMTP_URL, MAIL_FROM, MAIL_ALLOWED_RECIPIENTS entfernen`),
+    );
+  } else {
+    writeMailServer(stack, ROOT, undefined);
+    console.log(`${stack.envFile}: Mailserver entfernt, die E-Mails gehen wieder an Mailpit.`);
+  }
+  return 0;
+}
+
 async function runStep(step: Step, stack: Stack, session: Session): Promise<number> {
   switch (step.kind) {
     case 'compose': {
+      if (step.recipient === true) {
+        const recipient = await recipientOf(session);
+        if (recipient === undefined) return CANCELLED;
+        return runDocker(composeArguments(stack, step, recipient), session);
+      }
       const service =
         step.service === undefined ? undefined : await chooseService(step, stack, session);
       return runDocker(composeArguments(stack, step, service), session);
@@ -159,16 +211,38 @@ async function runStep(step: Step, stack: Stack, session: Session): Promise<numb
     case 'docker':
       return runDocker(step.args, session);
     case 'links':
-      console.log(renderLinks(stack, linksOf(stack, isSwaggerEnabled(stack, ROOT)), style));
+      console.log(
+        renderLinks(
+          stack,
+          linksOf(stack, isSwaggerEnabled(stack, ROOT), mailServerOf(stack, ROOT)),
+          style,
+        ),
+      );
       return 0;
     case 'health':
       return runCheckStep(`Health (${stack.mode})`, healthChecks(stack), session);
-    case 'smoke':
+    case 'smoke': {
+      const mailServer = mailServerOf(stack, ROOT);
+      if (mailServer !== undefined) {
+        console.log(
+          style.yellow(
+            `Ohne Test-Registrierung: sie würde eine echte E-Mail über ${mailServer} schicken. Den Mailserver prüft "Test-E-Mail senden".`,
+          ),
+        );
+      }
       return runCheckStep(
         `Smoke-Test (${stack.mode})`,
-        smokeChecks(stack, isSwaggerEnabled(stack, ROOT)),
+        smokeChecks(stack, {
+          swaggerEnabled: isSwaggerEnabled(stack, ROOT),
+          catchesMail: mailServer === undefined,
+        }),
         session,
       );
+    }
+    case 'mail-setup':
+      return setUpMailServer(stack, session);
+    case 'mail-off':
+      return removeMailServer(stack, session);
     case 'clean-caches':
       return clean(cachePaths(ROOT), session);
     case 'clean-node-modules':
@@ -203,9 +277,14 @@ async function runAction(action: Action, stack: Stack, session: Session): Promis
   }
   for (const step of action.steps) {
     const code = await runStep(step, stack, session);
+    if (code === CANCELLED) {
+      console.log('Abgebrochen.');
+      return 1;
+    }
     // The health check reports and goes on: the links stay useful while a service starts.
     if (code !== 0 && step.kind !== 'health') {
       console.error(style.red(`Fehlgeschlagen (Code ${String(code)}).`));
+      if (action.failureHint !== undefined) console.error(action.failureHint);
       return code;
     }
   }

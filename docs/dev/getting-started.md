@@ -20,13 +20,14 @@ It first asks for the mode, then shows the list: build, start, stop, restart, li
 | Backend | <http://localhost:3001/api/v1/public/practices/al-noor> | <http://localhost:8080/api/v1/public/practices/al-noor> |
 | Swagger | <http://localhost:3001/api/docs> | Off; on with `OPENAPI_UI_ENABLED=true` in `.env.prod`: <http://localhost:8081/api/docs> |
 | Health | <http://localhost:3001/health/live>, <http://localhost:3001/health/ready>, <http://localhost:3000/healthz> | <http://localhost:8081/health/live>, <http://localhost:8081/health/ready>, <http://localhost:8082/healthz> |
-| E-mails (Mailpit: nothing leaves this machine) | <http://localhost:8025> | <http://localhost:8083> |
+| E-mails (Mailpit: nothing leaves this machine until a mail server is entered) | <http://localhost:8025> | <http://localhost:8083> |
 | Database | `localhost:5432` | Only inside its Docker network |
 
 The two stacks share nothing and publish different ports, so both can run at once. Prod is the production build on this machine, not a deployment: hosting is still open ([ADR 0010](../adr/0010-container-images-and-delivery.md)).
 
 - **Live reload in dev:** "Starten mit Live-Reload" stays in the foreground and syncs every change into the containers; the web page updates at once, the API restarts in about five seconds. Strg+C ends only the watching: the containers keep running. A change of `pnpm-lock.yaml` or of a shared package rebuilds the image.
 - **Demo practices in prod:** a fresh prod database is empty, so the backend link answers 404 until "Demo-Praxen einspielen" has run. Dev fills them on every start.
+- **Real e-mails:** "Mailserver eintragen" asks for the mailbox, who may receive real e-mails and the password, which it does not show. It writes `SMTP_URL`, `MAIL_FROM` and `MAIL_ALLOWED_RECIPIENTS` into the stack's gitignored environment file and creates the API anew; `.env` also drives `pnpm dev`. Only the listed addresses get anything: only the team's own until the processor contract exists (RT-91). "Test-E-Mail senden" then proves it at once, and "Mailserver austragen" goes back to Mailpit. With a real server the smoke test leaves out its test sign-ups. Links in the e-mails still lead to this machine until a deployment sets `PUBLIC_WEB_URL`. Enter the password in PowerShell or cmd: Git Bash's own terminal would show it, so the menu refuses there.
 - **Clean-up:** "Cache des Projekts leeren" deletes `.turbo`, `.next`, `dist`, `coverage` and `reports`. The menu can also delete `node_modules`: Docker does not need it, but the git hooks, the editor and every `pnpm` command do, so `pnpm install` brings it back.
 
 The rest of this page sets up the toolchain on the host, which commits and `pnpm verify` need.

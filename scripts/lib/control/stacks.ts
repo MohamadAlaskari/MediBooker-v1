@@ -22,7 +22,7 @@ export interface Stack {
   readonly webProbeUrl: string;
   /** The compose profile of the running application; undefined when it needs none. */
   readonly appProfile: string | undefined;
-  /** Where the e-mails of this stack end up: nothing leaves the machine. */
+  /** The Mailpit of this stack: its e-mails end up here unless its environment file names a server. */
   readonly mailUrl: string;
   /** The services that keep running and can be restarted. */
   readonly runningServices: readonly string[];
@@ -72,11 +72,22 @@ export interface Link {
   readonly target: string;
 }
 
-/** Swagger is off in the production stack unless `.env.prod` turns it on. */
-export function linksOf(stack: Stack, swaggerEnabled: boolean): readonly Link[] {
+/**
+ * Swagger is off in the production stack unless `.env.prod` turns it on. `mailServer` is the host of
+ * a real mail server: then nobody should look for the e-mails in the Mailpit.
+ */
+export function linksOf(
+  stack: Stack,
+  swaggerEnabled: boolean,
+  mailServer?: string,
+): readonly Link[] {
   const swagger: Link = swaggerEnabled
     ? { label: 'Swagger', target: `${stack.apiProbeUrl}/api/docs` }
     : { label: 'Swagger', target: `aus (in ${stack.envFile}: OPENAPI_UI_ENABLED=true)` };
+  const mail: Link =
+    mailServer === undefined
+      ? { label: 'E-Mails (Mailpit)', target: stack.mailUrl }
+      : { label: 'E-Mails', target: `echt über ${mailServer}, nicht im Mailpit` };
   return [
     { label: 'Praxisseite (Arabisch)', target: `${stack.webUrl}/ar/${DEMO_PRACTICE}` },
     { label: 'Praxisseite (Englisch)', target: `${stack.webUrl}/en/${DEMO_PRACTICE}` },
@@ -86,7 +97,7 @@ export function linksOf(stack: Stack, swaggerEnabled: boolean): readonly Link[] 
       target: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`,
     },
     swagger,
-    { label: 'E-Mails (Mailpit)', target: stack.mailUrl },
+    mail,
     { label: 'Health API, lebt', target: `${stack.apiProbeUrl}/health/live` },
     { label: 'Health API, bereit', target: `${stack.apiProbeUrl}/health/ready` },
     { label: 'Health Web', target: `${stack.webProbeUrl}/healthz` },

@@ -29,6 +29,8 @@ function answering(routes: Routes): typeof fetch {
 /** The name of a smoke run in these tests, which is part of the address it signs up with. */
 const RUN_ID = 'test';
 const mailAddress = (locale: string): string => `smoke-${RUN_ID}-${locale}@example.test`;
+const WITH_MAILPIT = { swaggerEnabled: false, catchesMail: true };
+
 const mailSearchUrl = (mailUrl: string, locale: string): string =>
   `${mailUrl}/api/v1/search?query=${encodeURIComponent(`to:${mailAddress(locale)}`)}`;
 const mailFound = (locale: string) => ({
@@ -175,7 +177,10 @@ describe('a fresh database without demo practices', () => {
   });
 
   it('fails the smoke test, which needs the data', async () => {
-    const results = await runChecks(smokeChecks(STACKS.prod, false, RUN_ID), answering(routes));
+    const results = await runChecks(
+      smokeChecks(STACKS.prod, WITH_MAILPIT, RUN_ID),
+      answering(routes),
+    );
     expect(allPassed(results)).toBe(false);
   });
 });
@@ -183,9 +188,17 @@ describe('a fresh database without demo practices', () => {
 describe('the checks of a healthy stack', () => {
   it.each(['dev', 'prod'] as const)('%s passes the smoke test', async (mode) => {
     const results = await runChecks(
-      smokeChecks(STACKS[mode], false, RUN_ID),
+      smokeChecks(STACKS[mode], WITH_MAILPIT, RUN_ID),
       answering(healthyRoutes(mode)),
     );
+    expect(results.filter(({ ok }) => !ok)).toEqual([]);
+  });
+
+  it('sends no test sign-up through a real mail server, which would send real e-mails', async () => {
+    const checks = smokeChecks(STACKS.dev, { swaggerEnabled: false, catchesMail: false }, RUN_ID);
+    expect(checks.filter(({ method }) => method === 'POST')).toEqual([]);
+    expect(checks.map(({ url }) => url).join(' ')).not.toContain('/api/v1/search');
+    const results = await runChecks(checks, answering(healthyRoutes('dev')));
     expect(results.filter(({ ok }) => !ok)).toEqual([]);
   });
 
@@ -197,7 +210,10 @@ describe('the checks of a healthy stack', () => {
   });
 
   it('expects the Swagger UI only where it is on', () => {
-    const names = (enabled: boolean) => smokeChecks(STACKS.prod, enabled).map(({ name }) => name);
+    const names = (enabled: boolean) =>
+      smokeChecks(STACKS.prod, { ...WITH_MAILPIT, swaggerEnabled: enabled }).map(
+        ({ name }) => name,
+      );
     expect(names(false)).toContain('Swagger ist aus');
     expect(names(true)).not.toContain('Swagger ist aus');
   });
@@ -206,7 +222,11 @@ describe('the checks of a healthy stack', () => {
 describe('what the smoke test catches', () => {
   async function failuresWith(mode: 'dev' | 'prod', overrides: Routes): Promise<readonly string[]> {
     const routes = { ...healthyRoutes(mode), ...overrides };
-    const results = await runChecks(smokeChecks(STACKS[mode], false, RUN_ID), answering(routes), 0);
+    const results = await runChecks(
+      smokeChecks(STACKS[mode], WITH_MAILPIT, RUN_ID),
+      answering(routes),
+      0,
+    );
     return results.filter(({ ok }) => !ok).map(({ problem }) => problem);
   }
 
@@ -402,7 +422,7 @@ describe('what the smoke test catches', () => {
 
   it('a practice that is missing, with what to do', async () => {
     const results = await runChecks(
-      smokeChecks(STACKS.dev, false, RUN_ID),
+      smokeChecks(STACKS.dev, WITH_MAILPIT, RUN_ID),
       answering({
         ...healthyRoutes('dev'),
         'http://localhost:3001/api/v1/public/practices/al-noor': { status: 404 },

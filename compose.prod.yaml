@@ -85,7 +85,10 @@ services:
       PORT: 3001
       TRUST_PROXY_HOPS: 1
       PUBLIC_WEB_URL: http://localhost:8080
-      SMTP_URL: smtp://mailpit:1025
+      # Mailpit, unless .env.prod names a real mail server (menu: "Mailserver eintragen").
+      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
+      MAIL_FROM: ${MAIL_FROM:-MediBooker <no-reply@medibooker.invalid>}
+      MAIL_ALLOWED_RECIPIENTS: ${MAIL_ALLOWED_RECIPIENTS:-}
       OPENAPI_UI_ENABLED: ${OPENAPI_UI_ENABLED:-false}
       PLATFORM_DATABASE_URL: postgresql://platform_app:${PLATFORM_APP_PASSWORD}@db:5432/medibooker_platform
     # Past the proxy, for the health links and Swagger: only from this machine. Removed in OPS01.
@@ -95,7 +98,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # Catches every e-mail of this stack: nothing leaves this machine. Replaced by the provider of D10.
+  # Catches the e-mails of this stack, unless .env.prod names a real mail server.
   mailpit:
     <<: *hardening
     image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231

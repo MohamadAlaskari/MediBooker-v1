@@ -13,7 +13,9 @@ import { SlotGenerationJob } from '../modules/scheduling/slot-generation.job.js'
 
 loadWorkspaceEnv(import.meta.dirname, process.env.NODE_ENV);
 
-const app = await NestFactory.createApplicationContext(AppModule.forRoot(parseEnv(process.env)), {
+// This one run is no instance of the outbox: its timer would send e-mails and leave with them unsent.
+const env = parseEnv({ ...process.env, OUTBOX_POLL_SECONDS: '0' });
+const app = await NestFactory.createApplicationContext(AppModule.forRoot(env), {
   logger: false,
 });
 // As in main.ts: a crash is logged through pino, never by Node to stderr (02 §8).

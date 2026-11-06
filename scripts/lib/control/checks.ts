@@ -296,10 +296,16 @@ function behindProxyChecks(stack: Stack, swaggerEnabled: boolean): readonly Chec
   ];
 }
 
+export interface SmokeOptions {
+  readonly swaggerEnabled: boolean;
+  /** Mailpit takes the e-mails. With a real mail server a test sign-up would send a real one. */
+  readonly catchesMail: boolean;
+}
+
 /** The smoke test: what a visitor and a client depend on, against the running containers. */
 export function smokeChecks(
   stack: Stack,
-  swaggerEnabled: boolean,
+  { swaggerEnabled, catchesMail }: SmokeOptions,
   runId = String(Date.now()),
 ): readonly Check[] {
   return [
@@ -312,8 +318,9 @@ export function smokeChecks(
     sitemapCheck(stack),
     pageCheck(stack, 'en', 'ltr'),
     problemCheck(stack),
-    ...accountEmailChecks(stack, runId, 'ar'),
-    ...accountEmailChecks(stack, runId, 'en'),
+    ...(catchesMail
+      ? [...accountEmailChecks(stack, runId, 'ar'), ...accountEmailChecks(stack, runId, 'en')]
+      : []),
     ...(stack.mode === 'dev'
       ? [
           {

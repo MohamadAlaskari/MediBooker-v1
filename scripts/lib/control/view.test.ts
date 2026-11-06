@@ -86,6 +86,12 @@ describe('the links', () => {
     expect(text).not.toContain('/api/docs');
   });
 
+  it('says where the e-mails go when a real mail server takes them', () => {
+    const text = renderLinks(STACKS.dev, linksOf(STACKS.dev, true, 'smtp.example.test'));
+    expect(text).toContain('echt über smtp.example.test');
+    expect(text).not.toContain('http://localhost:8025');
+  });
+
   it('production shows the Swagger link once it is on', () => {
     expect(renderLinks(STACKS.prod, linksOf(STACKS.prod, true))).toContain(
       'http://localhost:8081/api/docs',

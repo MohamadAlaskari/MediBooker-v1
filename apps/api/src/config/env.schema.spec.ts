@@ -660,6 +660,77 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
       );
     });
 
+    it('takes a mail catcher on this machine without a list of recipients', () => {
+      for (const url of ['smtp://localhost:1025', 'smtp://127.0.0.1:1025']) {
+        expect(parseEnv({ ...LOCAL, SMTP_URL: url }).SMTP_URL).toBe(url);
+      }
+    });
+
+    it('sends to a real mail server only encrypted and checked, also in local', () => {
+      for (const url of [
+        'smtp://box:x@mail.example.test:587',
+        'smtp://box@mail.example.test:587',
+        'smtp://box:x@mail.example.test:587?requireTLS=false',
+        'smtps://box:x@mail.example.test:465?tls.rejectUnauthorized=false',
+        'smtp://mail.example.test:25',
+        'smtp://mail.example.test:25?ignoreTLS=true&logger=true',
+        'smtps://mail.example.test:465?service=gmail',
+        'smtps://box:1?x@mail.example.test',
+        'smtp://box:x@mailpit:1025',
+        'smtp://mailpit:1025?logger=true',
+      ]) {
+        expect(parseInvalid({ ...LOCAL, SMTP_URL: url }).stderr).toContain(
+          'SMTP_URL (custom: tls_required_for_a_real_mail_server)',
+        );
+      }
+      for (const url of [
+        'smtps://box%40example.test:x@mail.example.test:465',
+        'smtp://box:x@mail.example.test:587?requireTLS=true',
+      ]) {
+        const env = { ...LOCAL, SMTP_URL: url, MAIL_ALLOWED_RECIPIENTS: 'box@example.test' };
+        expect(parseEnv(env).SMTP_URL).toBe(url);
+      }
+    });
+
+    it('refuses a URL without a plain host, which nodemailer would read differently', () => {
+      for (const url of [
+        'smtp:box:hidden@mail.example.test:587',
+        'smtp:box:hidden@mail.example.test:587?tls.rejectUnauthorized=false',
+        'smtps://box:hidden@ho%2Fst:465',
+      ]) {
+        const { stderr } = parseInvalid({ ...LOCAL, SMTP_URL: url });
+        expect(stderr).toContain('SMTP_URL');
+        expect(stderr).not.toContain('hidden');
+      }
+    });
+
+    it('requires a list of recipients with a real mail server in local and ci', () => {
+      expect(
+        parseInvalid({ ...LOCAL, SMTP_URL: 'smtps://mail.example.test:465' }).stderr,
+      ).toContain(
+        'MAIL_ALLOWED_RECIPIENTS (custom: required_with_a_real_mail_server_in_local_and_ci)',
+      );
+    });
+
+    it('reads the list of recipients in lower case and shows no value of a wrong one', () => {
+      expect(
+        parseEnv({ ...LOCAL, MAIL_ALLOWED_RECIPIENTS: 'Box@Example.test, two@example.test' })
+          .MAIL_ALLOWED_RECIPIENTS,
+      ).toEqual(['box@example.test', 'two@example.test']);
+      const { stderr } = parseInvalid({ ...LOCAL, MAIL_ALLOWED_RECIPIENTS: 'no-address' });
+      expect(stderr).toContain('MAIL_ALLOWED_RECIPIENTS (custom: not_an_address_list)');
+      expect(stderr).not.toContain('no-address');
+    });
+
+    it('needs no list in staging, and refuses one in production', () => {
+      expect(
+        parseEnv({ ...STAGING, SMTP_URL: 'smtps://mail.example.test:465' }).MAIL_ALLOWED_RECIPIENTS,
+      ).toBeUndefined();
+      expect(
+        parseInvalid({ ...PRODUCTION, MAIL_ALLOWED_RECIPIENTS: 'box@example.test' }).stderr,
+      ).toContain('MAIL_ALLOWED_RECIPIENTS (custom: not_allowed_in_production)');
+    });
+
     it('turns the timer of the outbox off with 0', () => {
       expect(parseEnv({ ...LOCAL, OUTBOX_POLL_SECONDS: '0' }).OUTBOX_POLL_SECONDS).toBe(0);
     });

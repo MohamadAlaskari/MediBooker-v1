@@ -327,7 +327,8 @@ Rules:
 | `APP_MIN_VERSION_IOS` · `APP_MIN_VERSION_ANDROID` | `0.0.0` | X02 |
 | `PUBLIC_WEB_URL` | the origin of every link in e-mails, never request headers; required and https in staging and production; `http://localhost:3000` otherwise | A02 |
 | `AUTH_SIGNING_KEY_REFS` · `AUTH_SECRET_REF` | references into the secret store: of 32-byte seeds, the first signs and all verify · of the secret behind the CSRF and account tokens; defaults `dev:auth-signing-key` · `dev:auth-secret`, which staging and production refuse | A01 |
-| `SMTP_URL` · `MAIL_FROM` | unset: e-mails wait and retry; an `smtp` or `smtps` URL; staging and production need `smtps://` or `requireTLS=true`, and no other option, so the certificate is checked · `MediBooker <no-reply@medibooker.invalid>` | A02 |
+| `SMTP_URL` · `MAIL_FROM` | unset: e-mails wait and retry; an `smtp` or `smtps` URL with a plain host; `smtps://` or `requireTLS=true` and no other option, so the certificate is checked, except in local and ci for a catcher on the machine (`mailpit`, `localhost`, `127.0.0.1`, no login, no option) · `MediBooker <no-reply@medibooker.invalid>` | A02 |
+| `MAIL_ALLOWED_RECIPIENTS` | unset; comma-separated addresses, the only ones the sender reaches; required with a real mail server in local and ci, refused in production | RT-91 |
 | `OUTBOX_POLL_SECONDS` | `5`; `0` turns the timer of the account e-mails off | A02 |
 | `FIELD_ENCRYPTION_KEY_REFS` · `BLIND_INDEX_KEY` | references into the secret store for platform fields only (the insurance number of an account profile, later MFA secrets and device tokens): the first encrypts and all decrypt; default `dev:field-encryption-key`, which staging and production refuse · the deployment key from which the per-practice blind-index and `ip_hash` keys are derived with HKDF; practice fields use the practice's field key (ADR 0005 §4.8) | A01 · B01 |
 

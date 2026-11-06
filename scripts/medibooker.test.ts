@@ -11,15 +11,16 @@ const SCRIPT = fileURLToPath(new URL('./medibooker.ts', import.meta.url));
 /** An empty PATH: whatever these tests do, this program can never reach the real Docker. */
 const NO_DOCKER_PATH = mkdtempSync(path.join(tmpdir(), 'medibooker-no-docker-'));
 const ENV_WITHOUT_PATH = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'),
+  // MSYSTEM: these tests also run from Git Bash, whose terminal the menu treats differently.
+  Object.entries(process.env).filter(([key]) => !['PATH', 'MSYSTEM'].includes(key.toUpperCase())),
 );
 
 /** The real program. --dry-run only prints the commands. */
-function run(args: readonly string[], input = '') {
+function run(args: readonly string[], input = '', env: Readonly<Record<string, string>> = {}) {
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     input,
     encoding: 'utf8',
-    env: { ...ENV_WITHOUT_PATH, PATH: NO_DOCKER_PATH, NO_COLOR: '1' },
+    env: { ...ENV_WITHOUT_PATH, PATH: NO_DOCKER_PATH, NO_COLOR: '1', ...env },
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
@@ -98,6 +99,86 @@ describe('medibooker', () => {
     expect(chosen.out).toContain('logs -f --tail 100 web');
     const shell = run(['--dry-run'], '1\nshell\n\nq\n');
     expect(shell.out).toContain('exec api sh');
+  });
+
+  describe('the mail server', () => {
+    const TYPED = 'not-to-be-seen';
+
+    it('is entered without showing the password and without writing in a dry run', () => {
+      const { code, out, err } = run(
+        ['dev', 'mail-setup', '--dry-run'],
+        `box@example.test\n\ntwo@example.test\n${TYPED}\n`,
+      );
+      expect(code).toBe(0);
+      expect(out).toContain('.env: SMTP_URL, MAIL_FROM, MAIL_ALLOWED_RECIPIENTS setzen');
+      expect(out.indexOf('RECIPIENTS setzen')).toBeLessThan(out.indexOf(' up -d --wait'));
+      expect(out).toContain('Wer darf echte E-Mails bekommen?');
+      expect(`${out}${err}`).not.toContain(TYPED);
+    });
+
+    it('can be taken back at every question, and nothing starts then', () => {
+      for (const input of ['\n', 'box@example.test\n\n\n\n', 'box@example.test\n\n\n']) {
+        const { code, out } = run(['dev', 'mail-setup', '--dry-run'], input);
+        expect(code).toBe(1);
+        expect(out).toContain('Abgebrochen.');
+        expect(out).not.toContain(' up -d');
+      }
+    });
+
+    it('refuses what is no address and no host before it asks for a password', () => {
+      for (const input of [
+        'no-address\n\n\n',
+        'box@example.test\nuser@host\n\n',
+        'box@example.test\n\nno-address\n',
+      ]) {
+        const { code, out, err } = run(['dev', 'mail-setup', '--dry-run'], input);
+        expect(code).toBe(1);
+        expect(err).toContain('sehen nicht richtig aus');
+        expect(out).not.toContain('Passwort (');
+      }
+    });
+
+    it('promises no hidden password where it cannot keep that promise', () => {
+      const { out } = run(['dev', 'mail-setup', '--dry-run'], 'box@example.test\n\n\n\n');
+      expect(out).toContain('Passwort (Enter = abbrechen)');
+      expect(out).not.toContain('wird nicht angezeigt');
+    });
+
+    it('refuses Git Bash, whose own terminal would show the password', () => {
+      const { code, out, err } = run(
+        ['dev', 'mail-setup', '--dry-run'],
+        `box@example.test\n\n\n${TYPED}\n`,
+        { MSYSTEM: 'MINGW64' },
+      );
+      expect(code).toBe(1);
+      expect(err).toContain('medibooker.cmd');
+      expect(out).not.toContain('Passwort (');
+    });
+
+    it('sends a test e-mail to the address on the command line', () => {
+      const { code, out } = run(['prod', 'mail-test', 'box@example.test', '--dry-run']);
+      expect(code).toBe(0);
+      expect(out).toContain('exec api node dist/cli/send-test-mail.js box@example.test');
+    });
+
+    it('asks for the address of a test e-mail in the menu', () => {
+      const { out } = run(['--dry-run'], '1\nmail-test\nbox@example.test\nq\n');
+      expect(out).toContain('Test-E-Mail an');
+      expect(out).toContain('send-test-mail.js box@example.test');
+    });
+
+    it('sends no test e-mail to what is no address', () => {
+      const { code, out, err } = run(['dev', 'mail-test', 'no-address', '--dry-run']);
+      expect(code).toBe(1);
+      expect(err).toContain('keine E-Mail-Adresse');
+      expect(out).not.toContain('send-test-mail.js');
+    });
+
+    it('goes back to Mailpit', () => {
+      const { code, out } = run(['dev', 'mail-off', '--dry-run']);
+      expect(code).toBe(0);
+      expect(out).toContain('.env: SMTP_URL, MAIL_FROM, MAIL_ALLOWED_RECIPIENTS entfernen');
+    });
   });
 
   it('stops before anything else when Docker cannot be reached', () => {
