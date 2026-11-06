@@ -41,10 +41,15 @@ export interface DeploymentScope {
   readonly practiceSchemaRequired: string;
 }
 
-/** Staging and production serve only the markets in MARKETS; local and ci are exempt. */
+/** Staging and production serve only the markets in MARKETS; undefined: local and ci serve all. */
+export function servedMarkets(
+  scope: Pick<DeploymentScope, 'appEnv' | 'markets'>,
+): readonly string[] | undefined {
+  return scope.appEnv === 'local' || scope.appEnv === 'ci' ? undefined : scope.markets;
+}
+
 export function isMarketServed(market: string, scope: DeploymentScope): boolean {
-  if (scope.appEnv === 'local' || scope.appEnv === 'ci') return true;
-  return scope.markets.includes(market);
+  return servedMarkets(scope)?.includes(market) ?? true;
 }
 
 /**

@@ -58,6 +58,10 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
       status: 200,
       body: '<h1>Al Noor</h1><script type="application/ld+json">{}</script>',
     },
+    [`${webUrl}/sitemap.xml`]: {
+      status: 200,
+      body: `<url><loc>${webUrl}/en/al-noor</loc></url>`,
+    },
     [`${apiUrl}/api/v1/public/practices/al-noor`]: limitCountingDown(),
     [`${apiUrl}/api/v1/public/practices/gibt-es-nicht`]: {
       status: 404,
@@ -227,6 +231,18 @@ describe('what the smoke test catches', () => {
     expect(await failuresWith('prod', { [url]: { status: 200, body: '<h1>x</h1>' } })).toEqual([
       'Keine Suchdaten',
     ]);
+  });
+
+  it('a sitemap that fails, or names the address of the container', async () => {
+    const url = 'http://localhost:8080/sitemap.xml';
+    expect(await failuresWith('prod', { [url]: { status: 500 } })).toEqual([
+      'Status 500 statt 200',
+    ]);
+    expect(
+      await failuresWith('prod', {
+        [url]: { status: 200, body: '<loc>http://web:3000/en/al-noor</loc>' },
+      }),
+    ).toEqual(['http://localhost:8080/en/al-noor fehlt']);
   });
 
   it('a redirect to the address of the container', async () => {

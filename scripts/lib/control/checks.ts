@@ -116,6 +116,21 @@ function practicePageCheck(stack: Stack): Check {
   };
 }
 
+/** From the registry, with the address of the site: an image knows it only at run time (RT-30). */
+function sitemapCheck(stack: Stack): Check {
+  const address = `${stack.webUrl}/en/${DEMO_PRACTICE}`;
+  return {
+    name: 'Sitemap nennt die Praxis unter der Adresse der Seite',
+    url: `${stack.webUrl}/sitemap.xml`,
+    hint: SEED_HINT,
+    verify: (answer) => {
+      const problem = hasStatus(200)(answer);
+      if (problem !== undefined) return problem;
+      return answer.text.includes(`<loc>${address}</loc>`) ? undefined : `${address} fehlt`;
+    },
+  };
+}
+
 /** Behind a proxy a redirect easily names the container's own address instead of the site. */
 function rootRedirectCheck(stack: Stack): Check {
   return {
@@ -228,6 +243,7 @@ export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Che
     rootRedirectCheck(stack),
     pageCheck(stack, 'ar', 'rtl'),
     practicePageCheck(stack),
+    sitemapCheck(stack),
     pageCheck(stack, 'en', 'ltr'),
     problemCheck(stack),
     ...(stack.mode === 'dev'

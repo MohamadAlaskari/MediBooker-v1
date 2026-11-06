@@ -6,8 +6,12 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fillPractice, SEED_PRACTICES } from '../../prisma/seed-practices.js';
+import { PlatformPrismaService } from '../../src/common/database/platform-prisma.service.js';
 import { PracticeConnectionManager } from '../../src/common/tenancy/practice-connection-manager.js';
+import { PublishedPractices } from '../../src/common/tenancy/published-practices.js';
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
+import { ENV } from '../../src/config/env.module.js';
+import type { Env } from '../../src/config/env.schema.js';
 import { createTestApp } from '../support/create-test-app.js';
 import { usePracticeDatabases } from '../support/practices.js';
 import { problemWithoutRequestId } from '../support/problem.js';
@@ -197,5 +201,61 @@ describe('GET /api/v1/public/practices/:slug on real databases (08 P02)', () => 
     });
     const response = (await get(AL_NOOR.slug).expect(200)).body as PracticeBody;
     expect(response.team).toEqual([]);
+  });
+
+  describe('GET /api/v1/public/practices', () => {
+    const list = (query = ''): request.Test => request(app.getHttpServer()).get(`${PATH}${query}`);
+
+    it('names the current slugs of what the public can reach, and nothing else', async () => {
+      // By now the registry also holds an unpublished, a provisioning and a retired slug.
+      const response = await list().expect(200);
+      expect(response.body).toEqual({
+        items: [{ slug: AL_NOOR.slug }, { slug: LINDENHOF.slug }],
+        nextCursor: null,
+      });
+      expect(response.headers['cache-control']).toBe('no-store');
+    });
+
+    it('leaves out a practice while it is suspended or unpublished', async () => {
+      await inRegistry(`UPDATE practices SET status = 'SUSPENDED' WHERE id = $1`, [alNoorId]);
+      expect((await list().expect(200)).body).toMatchObject({ items: [{ slug: LINDENHOF.slug }] });
+      await inRegistry(`UPDATE practices SET status = 'ACTIVE' WHERE id = $1`, [alNoorId]);
+
+      await inRegistry('UPDATE practices SET published_at = NULL WHERE id = $1', [alNoorId]);
+      expect((await list().expect(200)).body).toMatchObject({ items: [{ slug: LINDENHOF.slug }] });
+      await inRegistry('UPDATE practices SET published_at = now() WHERE id = $1', [alNoorId]);
+    });
+
+    it('walks all pages with the cursor', async () => {
+      const first = (await list('?limit=1').expect(200)).body as {
+        items: { slug: string }[];
+        nextCursor: string;
+      };
+      expect(first.items).toEqual([{ slug: AL_NOOR.slug }]);
+      const second = await list(`?limit=1&cursor=${first.nextCursor}`).expect(200);
+      expect(second.body).toEqual({ items: [{ slug: LINDENHOF.slug }], nextCursor: null });
+    });
+
+    it('opens no practice database', async () => {
+      const connections = app.get(PracticeConnectionManager);
+      const creationsBefore = connections.stats().creations;
+      await list().expect(200);
+      expect(connections.stats().creations).toBe(creationsBefore);
+    });
+
+    it('lists only the markets a deployment serves', async () => {
+      // This class alone: parseEnv rightly refuses this test's databases for a whole staging app.
+      const staging = new PublishedPractices(app.get(PlatformPrismaService), {
+        ...app.get<Env>(ENV),
+        APP_ENV: 'staging',
+        MARKETS: [AL_NOOR.market],
+      });
+      expect(await staging.slugs(undefined, 10)).toEqual([AL_NOOR.slug]);
+    });
+
+    it('answers 400, not a database error, for a cursor that decodes to a NUL byte', async () => {
+      const response = await list('?cursor=AA').expect(400);
+      expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+    });
   });
 });

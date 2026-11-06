@@ -5,4 +5,4 @@
  */
 
 /** The operationIds that answer without sign-in. */
-export const PUBLIC_OPERATIONS: readonly string[] = ['getPublicPractice'];
+export const PUBLIC_OPERATIONS: readonly string[] = ['listPublicPractices', 'getPublicPractice'];

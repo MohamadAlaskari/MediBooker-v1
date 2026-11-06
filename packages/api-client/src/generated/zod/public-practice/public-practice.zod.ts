@@ -8,6 +8,26 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary The published practices, for the sitemap
+ */
+export const listPublicPracticesQueryLimitDefault = 20;
+export const listPublicPracticesQueryLimitMax = 100;
+
+
+
+export const ListPublicPracticesQueryParams = zod.object({
+  "limit": zod.number().min(1).max(listPublicPracticesQueryLimitMax).default(listPublicPracticesQueryLimitDefault),
+  "cursor": zod.string().optional().describe('The nextCursor of the page before')
+})
+
+export const ListPublicPracticesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "slug": zod.string().describe('The current slug')
+})),
+  "nextCursor": zod.string().nullable().describe('Null on the last page')
+})
+
+/**
  * @summary The public page of a published practice
  */
 export const GetPublicPracticeParams = zod.object({

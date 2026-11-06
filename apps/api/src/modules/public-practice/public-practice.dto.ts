@@ -1,9 +1,28 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { CursorPage } from '../../common/http/cursor-page.js';
 
 /**
  * What leaves the API about a practice without sign-in: exactly these fields (BR-22, BR-24).
  * Every field is named here and copied one by one, so a new column never becomes public by itself.
  */
+
+export class PublicPracticeListItemDto {
+  @ApiProperty({ description: 'The current slug', example: 'al-noor' })
+  readonly slug!: string;
+}
+
+export class PublicPracticeListDto implements CursorPage<PublicPracticeListItemDto> {
+  @ApiProperty({ type: [PublicPracticeListItemDto] })
+  readonly items!: readonly PublicPracticeListItemDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null on the last page',
+    example: null,
+  })
+  readonly nextCursor!: string | null;
+}
 
 export class PublicThemeDto {
   @ApiProperty({ example: 'TEAL' })

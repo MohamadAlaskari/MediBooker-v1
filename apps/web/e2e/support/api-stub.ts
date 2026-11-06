@@ -6,10 +6,27 @@
 import { createServer, type ServerResponse } from 'node:http';
 import { PRACTICES } from './practices.ts';
 
+const LIST_PATH = '/api/v1/public/practices';
 const PATH = /^\/api\/v1\/public\/practices\/([^/]+)$/;
-// A Map: the slug comes from the URL, and `__proto__` is no practice.
+// A Map and a type check: the slug comes from the URL, and `__proto__` is no practice.
 const PRACTICE_BY_SLUG = new Map(Object.entries(PRACTICES));
 const forwardedFor = new Set<string>();
+
+const LISTED = ['al-noor', 'ocean', 'closed'];
+/** Smaller than the list, so the tests see the web walk through the pages. */
+const LIST_PAGE_SIZE = 2;
+
+function list(response: ServerResponse, cursor: string | null): void {
+  const start = cursor === null ? 0 : Number(cursor);
+  const end = start + LIST_PAGE_SIZE;
+  response.writeHead(200, { 'Content-Type': 'application/json' });
+  response.end(
+    JSON.stringify({
+      items: LISTED.slice(start, end).map((slug) => ({ slug })),
+      nextCursor: end < LISTED.length ? String(end) : null,
+    }),
+  );
+}
 
 function problem(response: ServerResponse, status: number, code: string): void {
   response.writeHead(status, { 'Content-Type': 'application/problem+json' });
@@ -37,13 +54,18 @@ const server = createServer((request, response) => {
   }
   const visitor = request.headers['x-forwarded-for'];
   if (typeof visitor === 'string') forwardedFor.add(visitor);
+  const { pathname, searchParams } = new URL(url, 'http://stub');
+  if (pathname === LIST_PATH) {
+    list(response, searchParams.get('cursor'));
+    return;
+  }
   const slug = PATH.exec(url)?.[1] ?? '';
   if (slug === 'broken') {
     problem(response, 503, 'SERVICE_UNAVAILABLE');
     return;
   }
   const practice = PRACTICE_BY_SLUG.get(slug);
-  if (practice === undefined) {
+  if (typeof practice !== 'function') {
     problem(response, 404, 'NOT_FOUND');
     return;
   }

@@ -2,18 +2,22 @@ import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import type { RequestContext } from '../../common/context/request-context.js';
+import { cursorPageOf, type CursorQueryDto, decodeCursor } from '../../common/http/cursor-page.js';
 import { requirePracticeContext } from '../../common/tenancy/practice-context.js';
 import { PracticeContextMissingError } from '../../common/tenancy/practice-errors.js';
+import { isPracticeSlug } from '../../common/tenancy/practice-route.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
+import { PublishedPractices } from '../../common/tenancy/published-practices.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbDateOf } from '../../common/time/convert.js';
 import { OPEN_NOW_HORIZON_DAYS } from './domain/open-now.js';
-import type { PublicPracticeDto } from './public-practice.dto.js';
+import type { PublicPracticeDto, PublicPracticeListDto } from './public-practice.dto.js';
 import { toPublicPractice } from './public-practice.mapper.js';
 
 /**
  * Reads the public view of the practice of the current `@PracticeScoped('slug')` request: the name
- * and slug from the registry, everything else from the practice's own database.
+ * and slug from the registry, everything else from the practice's own database. The list of
+ * practices needs no practice database and no scope.
  */
 @Injectable()
 export class PublicPracticeService {
@@ -21,7 +25,18 @@ export class PublicPracticeService {
     @InjectTransactionHost('practice') private readonly txHost: PracticeTransactionHost,
     private readonly clock: Clock,
     private readonly cls: ClsService<RequestContext>,
+    private readonly published: PublishedPractices,
   ) {}
+
+  async list({ limit, cursor }: CursorQueryDto): Promise<PublicPracticeListDto> {
+    const after = cursor === undefined ? undefined : decodeCursor(cursor, isPracticeSlug);
+    const slugs = await this.published.slugs(after, limit + 1);
+    return cursorPageOf(
+      slugs.map((slug) => ({ slug })),
+      limit,
+      ({ slug }) => slug,
+    );
+  }
 
   async read(acceptLanguage: string | undefined): Promise<PublicPracticeDto> {
     const { listing } = requirePracticeContext(this.cls);

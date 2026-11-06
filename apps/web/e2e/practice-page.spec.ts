@@ -96,6 +96,23 @@ test.describe('the public practice page (08 P03)', () => {
     expect(jsonLd).toContain('openingHoursSpecification');
   });
 
+  test('names every practice in every language in the sitemap, over all pages of the API', async ({
+    request,
+    baseURL,
+  }) => {
+    const response = await request.get('/sitemap.xml');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toContain('xml');
+    const sitemap = await response.text();
+    for (const slug of ['al-noor', 'ocean', 'closed']) {
+      for (const locale of ['ar', 'en']) {
+        expect(sitemap).toContain(`<loc>${baseURL ?? ''}/${locale}/${slug}</loc>`);
+      }
+    }
+    expect(sitemap).toContain('hreflang="ar"');
+    expect(sitemap).not.toContain('old-name');
+  });
+
   test('answers 404 for an unknown practice and for a slug that cannot be one', async ({
     request,
   }) => {

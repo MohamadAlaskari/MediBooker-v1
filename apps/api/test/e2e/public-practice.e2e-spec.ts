@@ -7,6 +7,7 @@ import {
   PracticeResolver,
   type SlugResolution,
 } from '../../src/common/tenancy/practice-resolver.js';
+import { PublishedPractices } from '../../src/common/tenancy/published-practices.js';
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
 import { PUBLIC_PRACTICE_REQUESTS_PER_MINUTE } from '../../src/modules/public-practice/public-practice.controller.js';
 import { createTestApp } from '../support/create-test-app.js';
@@ -38,23 +39,115 @@ const client = {
   staffMember: { findMany: () => Promise.resolve(ROWS.team) },
 };
 
+const PUBLISHED_SLUGS = ['al-noor', 'lindenhof', 'the-third'];
+
 function setUp(resolveSlug: (slug: string) => SlugResolution) {
   const release = vi.fn();
   const acquire = vi.fn(() => Promise.resolve({ practiceId: PRACTICE_A, client, release }));
   const resolver = { resolveSlug: vi.fn((slug: string) => Promise.resolve(resolveSlug(slug))) };
+  const published = {
+    slugs: vi.fn((_after: string | undefined, take: number) =>
+      Promise.resolve(PUBLISHED_SLUGS.slice(0, take)),
+    ),
+  };
   const app = createTestApp({
     // Sunday 2026-11-15, 10:00 in Riyadh.
     clock: new FixedClock(Temporal.Instant.from('2026-11-15T07:00:00Z')),
     overrides: [
       { provide: PracticeResolver, useValue: resolver },
+      { provide: PublishedPractices, useValue: published },
       {
         provide: PracticeConnectionManager,
         useValue: { acquire, close: vi.fn(), evictIdle: vi.fn(), stats: vi.fn() },
       },
     ],
   });
-  return { app, acquire, release, resolver };
+  return { app, acquire, release, resolver, published };
 }
+
+describe('GET /api/v1/public/practices without a database', () => {
+  const { app: created, acquire, published } = setUp(() => SERVED);
+  let app: NestExpressApplication;
+
+  beforeAll(async () => {
+    app = await created;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const list = (query = ''): request.Test => request(app.getHttpServer()).get(`${PATH}${query}`);
+
+  it('answers without sign-in with slugs only, and leases no practice client', async () => {
+    acquire.mockClear();
+    const response = await list().expect(200);
+    expect(response.body).toEqual({
+      items: [{ slug: 'al-noor' }, { slug: 'lindenhof' }, { slug: 'the-third' }],
+      nextCursor: null,
+    });
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(acquire).not.toHaveBeenCalled();
+  });
+
+  it('asks for 20 by default, and one more to see whether a page follows', async () => {
+    published.slugs.mockClear();
+    await list().expect(200);
+    expect(published.slugs).toHaveBeenCalledWith(undefined, 21);
+  });
+
+  it('continues behind the slug of its cursor', async () => {
+    const first = await list('?limit=2').expect(200);
+    const { items, nextCursor } = first.body as { items: unknown[]; nextCursor: string };
+    expect(items).toEqual([{ slug: 'al-noor' }, { slug: 'lindenhof' }]);
+    published.slugs.mockClear();
+    await list(`?limit=2&cursor=${nextCursor}`).expect(200);
+    expect(published.slugs).toHaveBeenCalledWith('lindenhof', 3);
+  });
+
+  it.each([
+    ['limit=0', 'limit', 'TOO_SMALL'],
+    ['limit=101', 'limit', 'TOO_LARGE'],
+    ['limit=abc', 'limit', 'INVALID_TYPE'],
+    ['cursor=%20', 'cursor', 'INVALID_FORMAT'],
+    // Well-formed cursors that decode to a NUL byte, which the database would refuse with a 500.
+    ['cursor=AA', 'cursor', 'INVALID_FORMAT'],
+    ['cursor=YQBi', 'cursor', 'INVALID_FORMAT'],
+    ['cursor=a&cursor=b', 'cursor', 'INVALID_TYPE'],
+    ['practiceId=1', 'practiceId', 'UNKNOWN_FIELD'],
+  ])('rejects %s and names the field', async (query, field, code) => {
+    published.slugs.mockClear();
+    const response = await list(`?${query}`).expect(400);
+    const { code: problem, errors } = response.body as {
+      code: string;
+      errors: { field: string; code: string }[];
+    };
+    expect(problem).toBe('VALIDATION_FAILED');
+    expect(errors).toContainEqual(expect.objectContaining({ field, code }));
+    expect(published.slugs).not.toHaveBeenCalled();
+  });
+});
+
+describe('the rate limit of the list', () => {
+  const { app: created } = setUp(() => ({ answer: 'NOT_FOUND' }));
+  let app: NestExpressApplication;
+
+  beforeAll(async () => {
+    app = await created;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('answers 429 for the 61st request of an address within a minute', async () => {
+    for (let count = 0; count < PUBLIC_PRACTICE_REQUESTS_PER_MINUTE; count += 1) {
+      await request(app.getHttpServer()).get(PATH).expect(200);
+    }
+    const response = await request(app.getHttpServer()).get(PATH).expect(429);
+    expect(response.headers['retry-after']).toBeDefined();
+  });
+});
 
 describe('GET /api/v1/public/practices/:slug without a database', () => {
   describe('a served practice', () => {

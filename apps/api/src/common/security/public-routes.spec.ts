@@ -442,9 +442,14 @@ describe('the route rules (02 §11)', () => {
 });
 
 describe('public routes (02 §4)', () => {
-  it('are exactly the practice page and the two health probes: a new public route is a reviewed change to this list', async () => {
+  it('are exactly the list of practices, the practice page and the two health probes: a new public route is a reviewed change to this list', async () => {
     expect(await inventoryOf([AppModule.forRoot(parseEnv(TEST_ENV))])).toMatchObject({
       publicRoutes: [
+        {
+          handler: 'PublicPracticeController.listPublicPractices',
+          method: 'GET',
+          path: '/api/v1/public/practices',
+        },
         {
           handler: 'PublicPracticeController.getPublicPractice',
           method: 'GET',

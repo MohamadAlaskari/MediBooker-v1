@@ -10,6 +10,7 @@ import { PracticeContextInterceptor } from './practice-context.interceptor.js';
 import { PracticeResolver } from './practice-resolver.js';
 import { PracticeRunner } from './practice-runner.js';
 import { PracticeSecrets } from './practice-secrets.js';
+import { PublishedPractices } from './published-practices.js';
 
 /**
  * The tenancy layer (02 §5): the connection manager, practice resolution for
@@ -27,8 +28,9 @@ import { PracticeSecrets } from './practice-secrets.js';
     PracticeResolver,
     PracticeRunner,
     PracticeSecrets,
+    PublishedPractices,
     { provide: APP_INTERCEPTOR, useClass: PracticeContextInterceptor },
   ],
-  exports: [PracticeCache, PracticeConnectionManager, PracticeRunner],
+  exports: [PracticeCache, PracticeConnectionManager, PracticeRunner, PublishedPractices],
 })
 export class TenancyModule {}

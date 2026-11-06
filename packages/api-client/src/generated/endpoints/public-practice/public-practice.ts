@@ -21,8 +21,10 @@ import type {
 
 import type {
   GetPublicPracticeHeaders,
+  ListPublicPracticesParams,
   ProblemDetailsDto,
-  PublicPracticeDto
+  PublicPracticeDto,
+  PublicPracticeListDto
 } from '../../model';
 
 import { apiFetch } from '../../../http/fetcher';
@@ -47,6 +49,113 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListPublicPracticesUrl = (params?: ListPublicPracticesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/public/practices?${stringifiedParams}` : `/api/v1/public/practices`
+}
+
+/**
+ * @summary The published practices, for the sitemap
+ */
+export const listPublicPractices = async (params?: ListPublicPracticesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicPracticeListDto> => {
+
+  return apiFetch<PublicPracticeListDto>(getListPublicPracticesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicPracticesQueryKey = (params?: ListPublicPracticesParams,) => {
+    return [
+    `/api/v1/public/practices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicPracticesQueryOptions = <TData = Awaited<ReturnType<typeof listPublicPractices>>, TError = ErrorType<ProblemDetailsDto>>(params?: ListPublicPracticesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicPracticesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicPractices>>> = ({ signal }) => listPublicPractices(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPublicPracticesQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicPractices>>>
+export type ListPublicPracticesQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useListPublicPractices<TData = Awaited<ReturnType<typeof listPublicPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+ params: undefined |  ListPublicPracticesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPublicPractices>>,
+          TError,
+          Awaited<ReturnType<typeof listPublicPractices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPublicPractices<TData = Awaited<ReturnType<typeof listPublicPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+ params?: ListPublicPracticesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPublicPractices>>,
+          TError,
+          Awaited<ReturnType<typeof listPublicPractices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPublicPractices<TData = Awaited<ReturnType<typeof listPublicPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+ params?: ListPublicPracticesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The published practices, for the sitemap
+ */
+
+export function useListPublicPractices<TData = Awaited<ReturnType<typeof listPublicPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+ params?: ListPublicPracticesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPublicPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPublicPracticesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
 
 export const getGetPublicPracticeUrl = (slug: string,) => {
 

@@ -3,6 +3,7 @@ import {
   configureApiClient,
   getPublicPractice,
   isApiError,
+  listPublicPractices,
   type PublicPracticeDto,
 } from '@medibooker/api-client';
 import { headers } from 'next/headers';
@@ -61,3 +62,31 @@ export const loadPublicPractice = cache(
     }
   },
 );
+
+const LARGEST_PAGE = 100;
+/**
+ * 5,000 practices. The walk runs on the limit of the visitor, 60 requests per minute, so it must
+ * stay well below that; 08 P03 says what comes before that number. It also ends the walk if a
+ * cursor should ever lead nowhere.
+ */
+const MAX_PAGES = 50;
+
+/**
+ * Every published slug, for the sitemap. A failure throws, so an outage answers an error instead
+ * of an empty sitemap that would tell search engines the practices are gone.
+ */
+export async function loadPublishedSlugs(): Promise<readonly string[]> {
+  environment();
+  const slugs: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { items, nextCursor } = await listPublicPractices(
+      { limit: LARGEST_PAGE, ...(cursor === undefined ? {} : { cursor }) },
+      { cache: 'no-store' },
+    );
+    slugs.push(...items.map(({ slug }) => slug));
+    if (nextCursor === null) break;
+    cursor = nextCursor;
+  }
+  return slugs;
+}

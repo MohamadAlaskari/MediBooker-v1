@@ -62,10 +62,14 @@ test.describe('the web skeleton (08 F06)', () => {
     }
   });
 
-  test('keeps search engines out of the API', async ({ request }) => {
+  test('keeps search engines out of the API and shows them the sitemap', async ({
+    request,
+    baseURL,
+  }) => {
     const robots = await (await request.get('/robots.txt')).text();
     expect(robots).toContain('Allow: /');
     expect(robots).toContain('Disallow: /api/');
+    expect(robots).toContain(`Sitemap: ${baseURL ?? ''}/sitemap.xml`);
   });
 
   test('answers the container probe', async ({ request }) => {

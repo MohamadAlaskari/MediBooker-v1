@@ -99,6 +99,7 @@ Extend this list; never reuse a code with a different meaning.
 | POST /me/devices | patient | Register or refresh a push token `{ platform, token, appVersion, locale }` (idempotent per token) | BR-21 |
 | DELETE /me/devices/{id} | patient | Remove a push token (the app also calls it on sign-out) | BR-21 |
 | POST /auth/sessions/revoke-all | signed-in user, or the single-use token from the "new sign-in" e-mail (E10) | Sign out everywhere and require a password reset | ADR 0001 |
+| GET /public/practices?limit&cursor | public | Cursor list of the current slugs of published, active practices in a served market, from the registry alone, no `lastmod`; the sitemap reads it | BR-22 |
 | GET /public/practices/{slug} | public | Practice page: published profile fields, opening hours, special days (next 60 days), online-bookable services, team members with consent (name, specialty, languages, `photoUrl` or null), theme (preset, 11-step scale, logo URL, initials), locales. Unpublished → 404 | BR-22, BR-23, BR-24 |
 | GET /providers?serviceId | patient | Doctors for the doctor picker: `displayName`, `photoUrl` (only with photo consent, else null → initials) | BR-24 |
 | GET, PATCH /settings/practice-page | admin (GET also staff, doctor) | Publish, slug (`PRACTICE_SLUG_TAKEN`), about and directions per locale, sections shown, legal links | BR-22 |

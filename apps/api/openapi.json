@@ -318,6 +318,42 @@
         ],
         "type": "object"
       },
+      "PublicPracticeListDto": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicPracticeListItemDto"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Null on the last page",
+            "example": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "PublicPracticeListItemDto": {
+        "properties": {
+          "slug": {
+            "description": "The current slug",
+            "example": "al-noor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "type": "object"
+      },
       "PublicServiceDto": {
         "properties": {
           "description": {
@@ -514,6 +550,79 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/public/practices": {
+      "get": {
+        "operationId": "listPublicPractices",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "description": "The nextCursor of the page before",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPracticeListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "summary": "The published practices, for the sitemap",
+        "tags": [
+          "public-practice"
+        ]
+      }
+    },
     "/api/v1/public/practices/{slug}": {
       "get": {
         "operationId": "getPublicPractice",
