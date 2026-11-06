@@ -104,7 +104,7 @@ Reference the IDs in code comments and test names, for example `it('BR-01 reject
 | BR-01 | A slot has at most one active appointment. No double booking, also under concurrent requests. | Partial unique index + row lock in a transaction |
 | BR-02 | Each patient profile (not account) has at most `maxFutureAppointmentsPerPatient` future active appointments (default 2, as in v1). Staff may override with a reason, which is audited. | Service, serialized per patient |
 | BR-03 | Bookable window: `startsAt ≥ now + minLeadTime` (default 2 h) and `≤ now + maxHorizon` (default 90 days). Never in the past. | Service |
-| BR-04 | Patients can cancel or reschedule until `cancellationDeadlineHours` (default 24 h) before the start. After that the app shows the practice phone number. Staff can always cancel, with a reason. | Service |
+| BR-04 | Patients can cancel or reschedule until `cancellationDeadlineHours` (default 24 elapsed hours, ADR 0014) before the start. After that the app shows the practice phone number. Staff can always cancel, with a reason. | Service |
 | BR-05 | Reschedule is atomic: book the new slot and cancel the old appointment in one transaction. If the new booking fails, the old appointment stays unchanged. | Transaction |
 | BR-06 | Slots are generated from availability rules for a date range. Generation is idempotent (unique providerId + startsAt) and skips exceptions and public holidays. | Job + unique index |
 | BR-07 | A slot with an active appointment cannot be blocked or deleted. Staff cancel the appointment first; the patient is notified. | Service |

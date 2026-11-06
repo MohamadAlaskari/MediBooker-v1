@@ -19,6 +19,7 @@ import { EnvModule } from './config/env.module.js';
 import type { Env } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
+import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
 
 export interface AppModuleOptions {
   /** Where logs go; only createTestApp sets it, to capture or discard them. Default: stdout. */
@@ -27,7 +28,7 @@ export interface AppModuleOptions {
 
 /**
  * The root module, built from the environment that main.ts (or a test) parsed. There is no
- * configuration module: nothing reads `process.env` after main.ts (02 §3).
+ * configuration module: nothing reads `process.env` after main.ts or a command of cli/ (02 §3).
  */
 @Module({})
 export class AppModule {
@@ -49,6 +50,7 @@ export class AppModule {
         TenancyModule,
         HealthModule,
         PublicPracticeModule,
+        SchedulingModule,
       ],
       providers: [
         // Global guards run in this order: rate limit first, then authentication.

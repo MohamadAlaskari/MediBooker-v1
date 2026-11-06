@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from 'cn';
 import type { ComponentProps, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 /** From `shadcn add badge`, adapted to the Figma component and the tokens (ADR 0007). */
 const badgeVariants = cva(

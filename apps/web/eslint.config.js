@@ -28,6 +28,21 @@ export default defineConfig(
     rules: { 'medibooker/no-system-clock': 'error' },
   },
   {
+    // The package's own cn reads our type tokens as colours and drops them. A component from the
+    // shadcn CLI imports it: change that import, and map the classes to tokens (08 X07).
+    name: 'medibooker/web/class-merge',
+    files: ['src/**'],
+    ignores: ['src/lib/utils.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [{ name: 'cn', message: 'Import cn from @/lib/utils: it knows our type tokens.' }],
+        },
+      ],
+    },
+  },
+  {
     // The stub's practices hold colours as the API sends them: data, not styling.
     name: 'medibooker/web/e2e-data',
     files: ['e2e/support/practices.ts'],

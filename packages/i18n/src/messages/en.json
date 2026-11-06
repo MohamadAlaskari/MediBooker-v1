@@ -79,9 +79,25 @@
     },
     "freeTimes": {
       "title": "Free times",
-      "subtitle": "Online booking starts here soon.",
-      "placeholder": "Until then, please call us and we will find a time for you.",
-      "timeZoneNote": "All times are local to the practice."
+      "subtitle": "Pick a time that suits you. You confirm the booking after signing in.",
+      "placeholder": "Please call us and we will find a time for you.",
+      "timeZoneNote": "All times are local to the practice.",
+      "service": "Service",
+      "serviceOption": "{name} · {duration}",
+      "doctor": "Doctor",
+      "anyDoctor": "Any doctor",
+      "days": "Days",
+      "previousWeek": "Previous week",
+      "nextWeek": "Next week",
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "timeLabel": "{day}, {time}",
+      "hint": "Tap a time to continue. You sign in or create a free account next.",
+      "loading": "Looking for free times…",
+      "empty": "No free times in the next six weeks for this choice.",
+      "error": "The free times could not be loaded.",
+      "retry": "Try again",
+      "orCall": "Prefer to call?"
     },
     "services": {
       "title": "Services",
@@ -109,5 +125,10 @@
       "privacy": "Privacy",
       "bookingWith": "Online booking with"
     }
+  },
+  "signIn": {
+    "title": "Sign in",
+    "body": "Online sign-in and booking start here soon. Your time is not reserved yet; please call the practice to book it.",
+    "back": "Back"
   }
 }

@@ -1,5 +1,5 @@
-import { cn } from 'cn';
 import type { ComponentProps, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 /**
  * From `shadcn add alert`, adapted to the tokens (ADR 0007). `note` by default: a screen reader

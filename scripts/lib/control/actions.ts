@@ -157,7 +157,15 @@ function databaseActions(stack: Stack): readonly Action[] {
       id: 'seed',
       group: GROUP_DATABASE,
       label: 'Demo-Praxen einspielen (synthetische Daten)',
-      steps: [{ kind: 'compose', profiles: seedProfiles, args: ['run', '--rm', 'seed'] }],
+      steps: [
+        { kind: 'compose', profiles: seedProfiles, args: ['run', '--rm', 'seed'] },
+        // The API generates slots at its start, which here is over already.
+        {
+          kind: 'compose',
+          profiles: seedProfiles,
+          args: ['exec', 'api', 'node', 'dist/cli/generate-slots.js'],
+        },
+      ],
     },
     {
       id: 'psql',

@@ -58,6 +58,30 @@ export interface SeedPracticeData {
       readonly withdrawnAt?: string;
     }[];
   }[];
+  readonly availabilityRules: readonly {
+    readonly id: string;
+    readonly providerId: string;
+    readonly weekday: number;
+    readonly startMinute: number;
+    readonly endMinute: number;
+    readonly slotMinutes: number;
+    readonly serviceIds: readonly string[];
+  }[];
+  readonly availabilityExceptions: readonly {
+    readonly id: string;
+    readonly providerId: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly reason: 'VACATION' | 'HOLIDAY' | 'TRAINING' | 'OTHER';
+  }[];
+  /** Fixed slots, so tests have real ids. Free times come from the slot generation, not the seed. */
+  readonly slots: readonly {
+    readonly id: string;
+    readonly providerId: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+    readonly status: 'OPEN' | 'BOOKED' | 'BLOCKED';
+  }[];
 }
 
 /** A fixed id: the practice's number, the kind of row and a running number. */
@@ -70,8 +94,42 @@ const OPENING_HOURS = 2;
 const SPECIAL_DAY = 3;
 const STAFF = 4;
 const CONSENT = 5;
+const RULE = 6;
+const EXCEPTION = 7;
+const SLOT = 8;
 
 const CONSENT_GIVEN_AT = '2026-10-01T08:00:00.000Z';
+const SLOT_MINUTES = 30;
+
+interface WorkingTime {
+  readonly providerId: string;
+  readonly intervals: readonly (readonly [number, number])[];
+}
+
+/** One rule per provider, weekday and interval, with running fixed ids. */
+function weeklyRules(
+  practice: number,
+  weekdays: readonly number[],
+  times: readonly WorkingTime[],
+  serviceIds: readonly string[],
+): SeedPracticeData['availabilityRules'] {
+  const combinations = times.flatMap(({ providerId, intervals }) =>
+    weekdays.flatMap((weekday) =>
+      intervals.map(([startMinute, endMinute]) => ({
+        providerId,
+        weekday,
+        startMinute,
+        endMinute,
+      })),
+    ),
+  );
+  return combinations.map((combination, index) => ({
+    ...combination,
+    id: rowId(practice, RULE, index + 1),
+    slotMinutes: SLOT_MINUTES,
+    serviceIds,
+  }));
+}
 
 /** Sunday to Thursday, 09:00 to 13:00 and 16:00 to 20:00. */
 const AL_NOOR_HOURS = [7, 1, 2, 3, 4].flatMap((weekday, day) => [
@@ -192,6 +250,39 @@ const AL_NOOR_DATA: SeedPracticeData = {
       consents: [],
     },
   ],
+  availabilityRules: weeklyRules(
+    1,
+    [7, 1, 2, 3, 4],
+    [
+      {
+        providerId: rowId(1, STAFF, 1),
+        intervals: [
+          [540, 780],
+          [960, 1200],
+        ],
+      },
+      { providerId: rowId(1, STAFF, 2), intervals: [[540, 780]] },
+    ],
+    [rowId(1, SERVICE, 1), rowId(1, SERVICE, 2), rowId(1, SERVICE, 3)],
+  ),
+  availabilityExceptions: [
+    {
+      id: rowId(1, EXCEPTION, 1),
+      providerId: rowId(1, STAFF, 2),
+      startsAt: '2026-12-06T00:00:00.000Z',
+      endsAt: '2026-12-11T00:00:00.000Z',
+      reason: 'VACATION',
+    },
+  ],
+  slots: [
+    {
+      id: rowId(1, SLOT, 1),
+      providerId: rowId(1, STAFF, 1),
+      startsAt: '2036-01-08T06:00:00.000Z',
+      endsAt: '2036-01-08T06:30:00.000Z',
+      status: 'BLOCKED',
+    },
+  ],
 };
 
 const LINDENHOF_DATA: SeedPracticeData = {
@@ -269,6 +360,39 @@ const LINDENHOF_DATA: SeedPracticeData = {
       // Hidden by an admin despite the consent: not listed (BR-24).
       hiddenAt: '2026-10-20T08:00:00.000Z',
       consents: [{ id: rowId(2, CONSENT, 2), type: 'PUBLIC_PROFILE', givenAt: CONSENT_GIVEN_AT }],
+    },
+  ],
+  availabilityRules: weeklyRules(
+    2,
+    [1, 2, 3, 4, 5],
+    [
+      {
+        providerId: rowId(2, STAFF, 1),
+        intervals: [
+          [480, 720],
+          [840, 1080],
+        ],
+      },
+      { providerId: rowId(2, STAFF, 2), intervals: [[480, 720]] },
+    ],
+    [rowId(2, SERVICE, 1), rowId(2, SERVICE, 2)],
+  ),
+  availabilityExceptions: [
+    {
+      id: rowId(2, EXCEPTION, 1),
+      providerId: rowId(2, STAFF, 2),
+      startsAt: '2026-12-21T00:00:00.000Z',
+      endsAt: '2026-12-24T00:00:00.000Z',
+      reason: 'TRAINING',
+    },
+  ],
+  slots: [
+    {
+      id: rowId(2, SLOT, 1),
+      providerId: rowId(2, STAFF, 1),
+      startsAt: '2036-01-08T07:00:00.000Z',
+      endsAt: '2036-01-08T07:30:00.000Z',
+      status: 'BLOCKED',
     },
   ],
 };
@@ -382,6 +506,42 @@ export async function fillPractice(client: Client, data: SeedPracticeData): Prom
           [consent.id, member.id, consent.type, consent.givenAt, consent.withdrawnAt ?? null],
         );
       }
+    }
+    for (const rule of data.availabilityRules) {
+      await client.query(
+        `INSERT INTO availability_rules
+           (id, provider_id, weekday, start_minute, end_minute, slot_minutes, valid_from)
+         VALUES ($1, $2, $3, $4, $5, $6, '2026-01-01') ON CONFLICT DO NOTHING`,
+        [
+          rule.id,
+          rule.providerId,
+          rule.weekday,
+          rule.startMinute,
+          rule.endMinute,
+          rule.slotMinutes,
+        ],
+      );
+      for (const serviceId of rule.serviceIds) {
+        await client.query(
+          `INSERT INTO availability_rule_services (rule_id, service_id)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [rule.id, serviceId],
+        );
+      }
+    }
+    for (const row of data.availabilityExceptions) {
+      await client.query(
+        `INSERT INTO availability_exceptions (id, provider_id, starts_at, ends_at, reason)
+         VALUES ($1, $2, $3, $4, $5::availability_exception_reason) ON CONFLICT DO NOTHING`,
+        [row.id, row.providerId, row.startsAt, row.endsAt, row.reason],
+      );
+    }
+    for (const row of data.slots) {
+      await client.query(
+        `INSERT INTO slots (id, provider_id, starts_at, ends_at, status)
+         VALUES ($1, $2, $3, $4, $5::slot_status) ON CONFLICT DO NOTHING`,
+        [row.id, row.providerId, row.startsAt, row.endsAt, row.status],
+      );
     }
     await client.query('COMMIT');
   } catch (error) {

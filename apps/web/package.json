@@ -20,6 +20,7 @@
     "@medibooker/api-client": "workspace:*",
     "@medibooker/design-tokens": "workspace:*",
     "@medibooker/i18n": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "class-variance-authority": "catalog:",
     "cn": "catalog:",
     "gsap": "catalog:",

@@ -20,9 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GetPublicAvailabilityParams,
+  GetPublicFreeTimesParams,
   GetPublicPracticeHeaders,
   ListPublicPracticesParams,
   ProblemDetailsDto,
+  PublicAvailabilityDto,
+  PublicFreeTimesDto,
   PublicPracticeDto,
   PublicPracticeListDto
 } from '../../model';
@@ -266,6 +270,236 @@ export function useGetPublicPractice<TData = Awaited<ReturnType<typeof getPublic
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPublicPracticeQueryOptions(slug,headers,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetPublicAvailabilityUrl = (slug: string,
+    params: GetPublicAvailabilityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/public/practices/${slug}/availability?${stringifiedParams}` : `/api/v1/public/practices/${slug}/availability`
+}
+
+/**
+ * @summary Which days of a range have free times
+ */
+export const getPublicAvailability = async (slug: string,
+    params: GetPublicAvailabilityParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicAvailabilityDto> => {
+
+  return apiFetch<PublicAvailabilityDto>(getGetPublicAvailabilityUrl(slug,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicAvailabilityQueryKey = (slug: string,
+    params?: GetPublicAvailabilityParams,) => {
+    return [
+    `/api/v1/public/practices/${slug}/availability`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPublicAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof getPublicAvailability>>, TError = ErrorType<ProblemDetailsDto>>(slug: string,
+    params: GetPublicAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicAvailabilityQueryKey(slug,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicAvailability>>> = ({ signal }) => getPublicAvailability(slug,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPublicAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicAvailability>>>
+export type GetPublicAvailabilityQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetPublicAvailability<TData = Awaited<ReturnType<typeof getPublicAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicAvailabilityParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublicAvailability<TData = Awaited<ReturnType<typeof getPublicAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublicAvailability<TData = Awaited<ReturnType<typeof getPublicAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Which days of a range have free times
+ */
+
+export function useGetPublicAvailability<TData = Awaited<ReturnType<typeof getPublicAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPublicAvailabilityQueryOptions(slug,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetPublicFreeTimesUrl = (slug: string,
+    params: GetPublicFreeTimesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/public/practices/${slug}/slots?${stringifiedParams}` : `/api/v1/public/practices/${slug}/slots`
+}
+
+/**
+ * @summary The free start times of one day
+ */
+export const getPublicFreeTimes = async (slug: string,
+    params: GetPublicFreeTimesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicFreeTimesDto> => {
+
+  return apiFetch<PublicFreeTimesDto>(getGetPublicFreeTimesUrl(slug,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicFreeTimesQueryKey = (slug: string,
+    params?: GetPublicFreeTimesParams,) => {
+    return [
+    `/api/v1/public/practices/${slug}/slots`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPublicFreeTimesQueryOptions = <TData = Awaited<ReturnType<typeof getPublicFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(slug: string,
+    params: GetPublicFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicFreeTimesQueryKey(slug,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicFreeTimes>>> = ({ signal }) => getPublicFreeTimes(slug,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPublicFreeTimesQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicFreeTimes>>>
+export type GetPublicFreeTimesQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetPublicFreeTimes<TData = Awaited<ReturnType<typeof getPublicFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicFreeTimesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicFreeTimes>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicFreeTimes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublicFreeTimes<TData = Awaited<ReturnType<typeof getPublicFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicFreeTimes>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicFreeTimes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPublicFreeTimes<TData = Awaited<ReturnType<typeof getPublicFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The free start times of one day
+ */
+
+export function useGetPublicFreeTimes<TData = Awaited<ReturnType<typeof getPublicFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ slug: string,
+    params: GetPublicFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPublicFreeTimesQueryOptions(slug,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

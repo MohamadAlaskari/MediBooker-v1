@@ -60,6 +60,9 @@ export const STACKS: Readonly<Record<Mode, Stack>> = {
 /** The practice the seed creates; the links and the smoke test use it. */
 export const DEMO_PRACTICE = 'al-noor';
 
+/** A service of that practice that can be booked online. */
+export const DEMO_SERVICE = '00000001-0000-4000-8100-000000000001';
+
 export interface Link {
   readonly label: string;
   readonly target: string;

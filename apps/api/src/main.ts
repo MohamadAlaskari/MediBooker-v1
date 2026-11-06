@@ -7,8 +7,9 @@ import { PlatformPrismaService } from './common/database/platform-prisma.service
 import { registerProcessHandlers } from './common/logging/process-handlers.js';
 import { parseEnv } from './config/env.schema.js';
 import { loadWorkspaceEnv } from './config/load-env.js';
+import { SlotGenerationJob } from './modules/scheduling/slot-generation.job.js';
 
-// The only place that reads process.env (02 §3).
+// The only place that reads process.env (02 §3), with the command line of cli/.
 loadWorkspaceEnv(import.meta.dirname, process.env.NODE_ENV);
 const env = parseEnv(process.env);
 
@@ -23,3 +24,5 @@ await app.listen(env.PORT, env.HOST);
 // here: a failure is logged through the process handlers as one fatal line, and the process
 // exits with 1.
 await app.get(PlatformPrismaService).assertReachable();
+// Catches up on a night this instance was down, without holding up the start.
+void app.get(SlotGenerationJob).runInBackground();

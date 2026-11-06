@@ -4,7 +4,13 @@ import { REDACTED_PATHS } from './redaction.js';
 
 describe('REVIEWED_LOG_FIELDS', () => {
   it('holds exactly the reviewed fields of 02 §8: changing it is a reviewed change', () => {
-    expect([...REVIEWED_LOG_FIELDS.keys()]).toEqual(['practiceId', 'clusterId', 'reasonCode']);
+    expect([...REVIEWED_LOG_FIELDS.keys()]).toEqual([
+      'practiceId',
+      'clusterId',
+      'reasonCode',
+      'succeeded',
+      'failed',
+    ]);
   });
 
   it('shares no name with the redacted fields', () => {

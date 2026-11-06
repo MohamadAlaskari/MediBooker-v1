@@ -40,7 +40,13 @@ export default defineConfig({
       provider: 'v8',
       enabled: false,
       include: ['src/**/*.ts'],
-      exclude: ['src/generated/**', 'src/main.ts', 'src/openapi/generate.ts', '**/*.d.ts'],
+      exclude: [
+        'src/generated/**',
+        'src/main.ts',
+        'src/cli/**',
+        'src/openapi/generate.ts',
+        '**/*.d.ts',
+      ],
       thresholds: {
         lines: 80,
         branches: 70,

@@ -4,6 +4,7 @@
   "private": true,
   "description": "Languages and texts of MediBooker v2: the ICU catalogue, locales, direction, negotiation and formats.",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

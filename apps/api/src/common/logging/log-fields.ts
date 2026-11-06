@@ -52,6 +52,9 @@ export const REVIEWED_LOG_FIELDS: ReadonlyMap<string, ValueRule> = new Map([
   ['clusterId', isClusterId],
   // F04: why a practice cannot be served, the reason of a PracticeUnavailableError (05 §1.3).
   ['reasonCode', isReasonCode],
+  // P04: how a run over all practices went, for the nightly job's log line and its alert.
+  ['succeeded', isNumber],
+  ['failed', isNumber],
 ]);
 
 const ALLOWED_FIELDS: ReadonlyMap<string, ValueRule> = new Map([

@@ -12,28 +12,6 @@ interface SectionProps {
   readonly format: PracticeFormat;
 }
 
-/** Where P06 shows the free times; until then the way to get an appointment is the phone. */
-export function FreeTimesSection({ practice }: Pick<SectionProps, 'practice'>): ReactNode {
-  const t = useTranslations('practicePage.freeTimes');
-  return (
-    <PageSection id="free-times" title={t('title')} subtitle={t('subtitle')}>
-      <div className={CARD_CLASS}>
-        <p className="text-body-default text-text-primary">{t('placeholder')}</p>
-        {practice.phone === null ? null : (
-          <a
-            href={telHref(practice.phone)}
-            className="mt-2 inline-flex min-h-touch-target items-center gap-2 text-label-large text-text-brand hover:underline"
-          >
-            <Phone aria-hidden className="size-5" />
-            <span dir="ltr">{practice.phone}</span>
-          </a>
-        )}
-        <p className="mt-2 text-caption text-text-tertiary">{t('timeZoneNote')}</p>
-      </div>
-    </PageSection>
-  );
-}
-
 export function ServicesSection({ practice, format }: SectionProps): ReactNode {
   const t = useTranslations('practicePage.services');
   return (

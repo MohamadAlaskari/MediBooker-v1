@@ -110,8 +110,8 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 - **`lib/api.client.ts`:** `baseUrl: ''`, `credentials: 'same-origin'`; `getHeaders` adds `Accept-Language` and, from A05, the CSRF header. Only generated hooks; no handwritten `fetch`. The practice is part of every generated path, so query keys of two practices never collide.
 - **Free times (P06):** the generated hooks poll every 45 s and pass `cache: 'no-cache'`, so the browser revalidates instead of serving the 30-second cached response.
 - **Server components fetch only public data.** Personal and health data never pass through server-component props.
-- **Tokens and hand-offs in URLs:** links from e-mails carry tokens in the fragment (`/ar/verify-email#token=…`; invitations also carry the practice id, `#practice=…&token=…`); the page reads them and POSTs them in the body. The hand-off from the practice page to sign-in also uses the fragment. Neither reaches server logs or a `Referer`.
-- **`safeReturnPath(next)`** (P06, `lib/safe-return-path.ts`): accepts only `/<locale>/[a-z0-9/-]*` with the UUID parameters `serviceId` and `slotId`; rejects `//`, `\`, encoded slashes, URL schemes and anything longer than 512 characters.
+- **Tokens and hand-offs in URLs:** links from e-mails carry tokens in the fragment (`/ar/verify-email#token=…`; invitations also carry the practice id, `#practice=…&token=…`); the page reads them and POSTs them in the body. The hand-off from the practice page to sign-in also uses the fragment, and names only the practice page: a URL stays in the browser's history, so the chosen service, doctor and time stay out of it (`sessionStorage`, A05). Neither reaches server logs or a `Referer`.
+- **`safeReturnPath(next)`** (P06, `lib/safe-return-path.ts`): accepts only `/<locale>/[a-z0-9/-]*`, with no query; rejects `//`, `\`, encoded slashes, URL schemes and anything longer than 512 characters.
 
 ## 8. i18n and RTL
 

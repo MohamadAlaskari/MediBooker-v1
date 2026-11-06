@@ -19,7 +19,8 @@
     "db:generate": "prisma generate --config prisma.platform.config.ts && prisma generate --config prisma.practice.config.ts && node scripts/write-schema-versions.ts",
     "db:migrate:dev:platform": "prisma migrate dev --create-only --config prisma.platform.config.ts",
     "db:migrate:dev:practice": "prisma migrate dev --create-only --config prisma.practice.config.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "slots:generate": "node --enable-source-maps dist/cli/generate-slots.js"
   },
   "dependencies": {
     "@nestjs-cls/transactional": "catalog:",
@@ -27,6 +28,7 @@
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
+    "@nestjs/schedule": "catalog:",
     "@nestjs/swagger": "catalog:",
     "@nestjs/throttler": "catalog:",
     "@prisma/adapter-pg": "catalog:",

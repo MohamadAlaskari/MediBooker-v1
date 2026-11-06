@@ -1,4 +1,4 @@
-import { DEMO_PRACTICE, type Stack } from './stacks.ts';
+import { DEMO_PRACTICE, DEMO_SERVICE, type Stack } from './stacks.ts';
 
 // A development server compiles a page on its first request.
 const TIMEOUT_MS = 30_000;
@@ -112,6 +112,22 @@ function practicePageCheck(stack: Stack): Check {
       if (problem !== undefined) return problem;
       if (!answer.text.includes('<h1')) return 'Keine Überschrift';
       return answer.text.includes('application/ld+json') ? undefined : 'Keine Suchdaten';
+    },
+  };
+}
+
+/** The rules of the seed became slots: the whole way from the job to the public free times. */
+function freeTimesCheck(stack: Stack): Check {
+  return {
+    name: 'Demo-Praxis hat freie Termine',
+    url: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}/availability?serviceId=${DEMO_SERVICE}`,
+    hint: SEED_HINT,
+    verify: (answer) => {
+      const problem = hasStatus(200)(answer);
+      if (problem !== undefined) return problem;
+      return answer.text.includes('"hasFreeTimes":true')
+        ? undefined
+        : 'Kein Tag mit freien Terminen';
     },
   };
 }
@@ -240,6 +256,7 @@ export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Che
   return [
     ...probeChecks(stack),
     demoPracticeCheck(stack),
+    freeTimesCheck(stack),
     rootRedirectCheck(stack),
     pageCheck(stack, 'ar', 'rtl'),
     practicePageCheck(stack),

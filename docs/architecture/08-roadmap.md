@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (this commit), then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -45,10 +45,10 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 19 | X10 | Android emulator smoke test | `ci(mobile): add Android emulator smoke test for Hermes and RTL` | - | planned |
 | 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
-| 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (`8c1da1a`), sitemap in this commit |
-| 23 | P04 | Availability and slot generation | `feat(scheduling): add availability rules and DST-safe slot generation` | - | planned |
-| 24 | P05 | Public free times | `feat(scheduling): expose public free times per practice` | - | planned |
-| 25 | P06 | Free times on the page | `feat(web): show free times on the practice page` | - | planned |
+| 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (`8c1da1a`), sitemap in `54c9140` |
+| 23 | P04 | Availability and slot generation | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit), rest with its first consumer |
+| 24 | P05 | Public free times | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit) |
+| 25 | P06 | Free times on the page | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit) |
 | 26 | A01 | Accounts, sessions, memberships, audit | `feat(auth): add accounts, sessions, memberships and audit log` | - | planned |
 | 27 | A02 | Notification outboxes and account e-mails | `feat(notifications): add outbox, SMTP adapter and account e-mails` | - | planned |
 | 28 | A03 | Patient sign-up, verification, reset | `feat(auth): add patient sign-up, e-mail verification and reset` | - | planned |
@@ -569,7 +569,7 @@ Acceptance:
 - `pnpm --filter @medibooker/web generate` twice leaves no diff.
 - `pnpm --filter @medibooker/web exec shadcn add button --dry-run` reports no change to existing files; `grep -rn 'npx shadcn' .claude/skills docs/adr` finds nothing.
 
-As built (one commit with X04, X06 and P03): `shadcn init --base aria --rtl` and `components.json`, `theme.css` with the variables of ADR 0007, and Button, Badge and Alert adapted to Figma and the tokens. `tokens/layout.json` gains `size.touch-target`, so `min-h-touch-target` exists; a class without a token generates nothing. The other components, the `dev/kit` page and the sonner hash come with their first consumer. When a component is added, map its classes to tokens: shadcn's defaults (`h-8`, `text-sm`, `px-2.5`) have none.
+As built (one commit with X04, X06 and P03): `shadcn init --base aria --rtl` and `components.json`, `theme.css` with the variables of ADR 0007, and Button, Badge and Alert adapted to Figma and the tokens. `tokens/layout.json` gains `size.touch-target`, so `min-h-touch-target` exists; a class without a token generates nothing. The other components, the `dev/kit` page and the sonner hash come with their first consumer. When a component is added, map its classes to tokens: shadcn's defaults (`h-8`, `text-sm`, `px-2.5`) have none. It also imports `cn` from the package: use `@/lib/utils`, whose `cn` knows the type tokens, because the package's own reads `text-label-large` as a colour and silently drops it next to `text-text-brand`; a lint rule says so. `--overwrite` on the CLI replaces the adapted components, so leave it off.
 
 ### X08 — Mobile shell: i18n, RTL, theme, fonts and version gate
 
@@ -709,6 +709,10 @@ Acceptance:
 - Integration: a second run, also concurrent, creates 0 rows; an overlapping insert violates `EXCLUDE`; `BOOKED` and `BLOCKED` slots survive a rule change; the event fires after commit and never on rollback; with two app instances, the `practice_job_runs` claim makes the second run for the same practice and night a no-op that leases no client; the nightly job generates for A and B with each practice's own zone and weekend, and a failure in B does not stop A.
 - Test names cite BR-06, BR-07 and BR-15.
 
+As built (one commit with P05): the schema, `generateSlots`, `dayRange` and `bookableWindow` in `slots.rules.ts`, `SlotGenerationService`, the nightly `SlotGenerationJob` and ADR 0014. The job also runs at every start of the API, for a night an instance was down, and `pnpm slots:generate` (`src/cli/generate-slots.ts`) runs it by hand; the menu's seed entry calls it, because the seed never reads the clock and writes no free times itself. The seed has rules, an absence and one fixed `BLOCKED` slot per practice, so tests have real ids. A database seeded before this commit has no rules: menu entry `reset-db`, then `seed`.
+
+Deferred in lean mode: `DomainEvents` and `slots.changed` (no consumer before realtime; M04's admin changes and R03 are the first), `practice_job_runs` and `PracticeJobRuns.claim()` (a second instance only repeats idempotent work; before OPS01 runs more than one).
+
 ### P05 — Public free-times endpoints
 
 **Commit:** `feat(scheduling): expose public free times per practice` · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews
@@ -721,6 +725,8 @@ Acceptance:
 - An unconsented `providerId`, an unknown service and a service id of another practice each → 404; a range over 42 days → 400 with a field error on `to`.
 - The `Africa/Cairo` day range of 2027-04-30 is [2027-04-29T22:00Z, 2027-04-30T21:00Z).
 - 429 after the limit; `Cache-Control` is exactly `public, max-age=30`; responses match the OpenAPI schemas.
+
+As built (one commit with P04): the routes are `GET /api/v1/public/practices/{slug}/availability` and `…/slots`, `getPublicAvailability` and `getPublicFreeTimes`. `from` and `to` are optional: today and the 42nd day. A free time is only `{ startsAt }`, and several providers with the same start give one time. The first version also named a slot id; its security review showed that comparing two answers by it reveals the times and absences of a provider without a public profile, and that a withdrawal would not have taken effect (BR-24). So the booking of B02 takes `serviceId`, `startsAt` and optionally `providerId`, and picks the slot in its transaction, unlike the `slotId` of the sample in the `nestjs-feature` skill. `@PublicCache` and the limit of 60 requests per minute per route and address follow P02's way with `@Throttle`. The smoke test of the control menu checks that the demo practice has free times, the whole way from the rules through the job to the public route.
 
 ### P06 — Free times on the public page
 
@@ -735,6 +741,8 @@ Acceptance:
 - `pnpm --filter @medibooker/web typecheck` covers `e2e/**`.
 - After the suite, `psql -lqt` on the e2e database lists no `practice_…` database and `SELECT rolname FROM pg_roles WHERE rolname LIKE 'practice_%'` lists no role created by a fixture (teardown works).
 - `safeReturnPath` unit tests reject `//evil.example`, `/\evil.example`, `/%2F%2Fevil.example`, `https://evil.example` and `javascript:alert(1)`.
+
+As built (one commit with P04 and P05): `free-times-picker.tsx` is a client island with its own query client and only its own texts. It reads the next 42 days, so the strip shows six weeks; later weeks come with booking. The hand-off carries only the practice page in the fragment: a second review pointed out that a URL stays in the browser's history, where a service and a doctor say something about someone on a shared computer (health-data-security §1, §8). The placeholder needs no more, so A05 adds what it needs. Service select from the shadcn CLI, adapted to the tokens. The sign-in placeholder is `[locale]/(public)/sign-in`, marked `noindex`; M01's reserved slugs must name `sign-in`. Without JavaScript the frame and the phone remain. Moved: `createPractice` and provisioned practices in the web tests, until a test must change data on the real path (booking). The tests run against the API stub, through a route in the test fixture that does what the proxy does; the smoke test proves the real way up to the free times.
 
 ## Accounts
 
@@ -830,6 +838,8 @@ Acceptance:
 - Playwright in `ar` and `en`: sign-up → verification link → sign-in → portal; staff sign-in → TOTP → dashboard; the free-times hand-off resumes after sign-in; no token in web storage; cookies are `HttpOnly`, `Secure` and `SameSite=Strict`; axe 0.
 - Two tabs in two practices of one staff user each show their own practice's data.
 
+From the review of P06: the chosen service, doctor and time travel in `sessionStorage`, written by the time's click handler, not in the URL (`next` names only the practice page), and they do not go into an e-mail link. `safeReturnPath` proves the same site, not the same practice, and only the shape of what follows: the resumed booking only pre-fills, shows the practice, service and time, and books after an explicit confirmation; the server checks everything again.
+
 ### A06 — Mobile authentication flows
 
 **Commit:** `feat(mobile): add sign-in, sign-up and secure session storage` · **Depends on:** D16 · **Owner:** mobile-engineer
@@ -893,7 +903,7 @@ Scope: `GET`/`PATCH /practices/{practiceId}/settings/listing` (platform database
 
 Acceptance: admin-only (another role → 403; another practice → 404); the property test passes for random valid hex values; practice B claiming A's retired slug → 409 `PRACTICE_SLUG_TAKEN`; the old slug redirects with 308 on the web; unpublishing makes the public page 404 on the next request in the same instance and within `PUBLIC_ROUTE_CACHE_MS` in another; a slug change writes a `platform_audit_events` row and a page change an `audit_events` row in the practice database, each in the transaction of its change; Playwright and axe in `ar` and `en`.
 
-From the reviews of P02 and P03: the write paths accept only `https://` for the legal links (the page already guards) and check the format of the practice's e-mail address, because the page links it as `mailto:` and `?bcc=` must not get in; publishing requires the legal links a market asks for (health-data-security §11c; the seeded practices have none); the wording of publish and slug says that a slug goes to search engines through the sitemap and that unpublishing does not recall their copies, which matters for a slug with a person's name.
+From the reviews of P02 and P03: the write paths accept only `https://` for the legal links (the page already guards) and check the format of the practice's e-mail address, because the page links it as `mailto:` and `?bcc=` must not get in; publishing requires the legal links a market asks for (health-data-security §11c; the seeded practices have none); the wording of publish and slug says that a slug goes to search engines through the sitemap and that unpublishing does not recall their copies, which matters for a slug with a person's name; the free times answer 404 for a service or a provider while `showServices` or `showTeam` is off.
 
 ### M02 — Services, opening hours and special days
 
@@ -911,7 +921,7 @@ Scope: `GET`/`POST`/`PATCH …/staff` (admin); `GET`/`PATCH /practices/{practice
 
 Acceptance: an admin cannot consent for someone else (403); the request right after a withdrawal returns the public page without the member; every give and withdraw writes a `staff_consents` row with `text_version` and an `AuditEvent`, and every withdrawal a `revocation_journal` entry; a revoked support membership answers 404 on its next request.
 
-From the review of P03: the write path checks `languages` as language codes (the page shows an invalid one as written); while D14 stays A, the public list leaves out members who are no providers; the consent text says that the listing is on the public internet and indexed by search engines, that our own withdrawal takes effect at once and that copies at third parties cannot be recalled at once (`noarchive` reduces them); the fields shown (title, name, specialty or position, languages) are aligned with health-data-security §1 and BR-24.
+From the review of P03: the write path checks `languages` as language codes (the page shows an invalid one as written); while D14 stays A, the public list leaves out members who are no providers; the consent text says that the listing is on the public internet and indexed by search engines, that our own withdrawal takes effect at once and that copies at third parties cannot be recalled at once (`noarchive` reduces them); the fields shown (title, name, specialty or position, languages) are aligned with health-data-security §1 and BR-24; the text also says that bookable times can still appear anonymously under "any doctor" after a withdrawal (RT-88).
 
 ### M04 — Working hours, exceptions and slot management
 
@@ -1015,7 +1025,7 @@ Scope:
 
 - `POST /me/exports` and `GET /me/exports/{id}` (replacing `GET /me/export` in the `api-contract` and `health-data-security` skills): an asynchronous job (`account_exports`) with one step per practice of the index, each step through `runInPractice` with the caller's own and managed patients read from that practice's database, each step's part encrypted; the export is complete only when every practice has delivered; download through a short-lived signed URL (R02 storage).
 - `DELETE /me`: deactivate at once, revoke all sessions and delete the user's device tokens, account tokens and notification preferences (platform); a saga (`account_deletions` with one step per practice, through `runInPractice`) unlinks the account from patient profiles and family links in each practice database and stops its notifications, while the records stay for each practice's retention duty (BR-14); each finished step deletes that practice's `practice_access` rows of the user; the platform account is anonymised after the platform retention period, once every step has finished.
-- Retention periods as configuration, including those of `account_exports` and `account_deletions` (ADR 0005 §1.1).
+- Retention periods as configuration, including those of `account_exports` and `account_deletions` (ADR 0005 §1.1), and of past slots and provider absences, which nothing deletes yet and whose `ON DELETE RESTRICT` blocks erasing a staff row (review of P05).
 
 Acceptance: the export contains only own and managed data from every practice of the index; a family link revoked in a practice while the index row is still active keeps the managed patient out of that practice's part; when two practices are exported concurrently, each part's `practiceId` matches the `practice_identity` its step read; a practice that is not `ACTIVE` or behind the schema keeps its step pending, and the export completes after it returns; each deletion step is idempotent (run twice, same result); after deactivation no device token, account token or notification preference of the user remains, and after each step none of its `practice_access` rows for that practice; a failing step retries with backoff and raises an alert; the user row is anonymised only after every step finished; audit events are written in both databases; `grep -n 'GET /me/export' .claude/skills/health-data-security/SKILL.md .claude/skills/api-contract/SKILL.md` finds nothing.
 
@@ -1073,4 +1083,4 @@ Scope:
 
 Acceptance: a staging deploy from a digest with approval runs both migration steps and `verify`, and its summary shows every practice at the target version; a deliberately failing fixture migration in one staging practice leaves the others migrated, answers 503 only for that practice and raises the alert; a practice created in staging through `practice:create` is provisioned and serves its public page, and its audit row records the authenticated task principal; `pg_stat_ssl` shows `ssl = true` for every API and task connection; the restore sample and the PITR drill pass and are documented; alerts fire in a drill (5xx spike, failed logins, migration failure, an idle-in-transaction session, an archive failure, a practice database whose `CONNECT` is open to `PUBLIC`); a break-glass drill leaves rows in both audit logs and its session is gone at expiry; a forged `X-Forwarded-For` at the edge does not change the rate-limit key, and the edge log holds no practice or patient id; a practice app credential from the secret store cannot connect to another practice database; security-reviewer verdict APPROVE.
 
-From the review of P03: the web stays reachable only through the edge, because on its own port a forged `X-Forwarded-For` opens its own limit (here 8082, on loopback only); `trusted_proxies` and `TRUST_PROXY_HOPS` change together; the edge access log is personal data and needs a retention period; `robots.ts` disallows everything on staging hosts.
+From the review of P03: the web stays reachable only through the edge, because on its own port a forged `X-Forwarded-For` opens its own limit (here 8082, on loopback only); `trusted_proxies` and `TRUST_PROXY_HOPS` change together; the edge access log is personal data and needs a retention period; `robots.ts` disallows everything on staging hosts. From the review of P05: no extended TTL or serve-stale on the two free-times routes; edge logs without query strings, because an address with a `serviceId` shows interest in a health service; rate limits per IPv6 /64.

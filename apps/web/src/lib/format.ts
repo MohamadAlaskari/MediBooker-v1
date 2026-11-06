@@ -16,12 +16,22 @@ export interface PracticeFormat {
   readonly day: (isoDate: string) => string;
   /** The year of such a date, with the practice's digits. */
   readonly year: (isoDate: string) => string;
+  /** Such a date in full: "Wednesday, 4 November". */
+  readonly dayLong: (isoDate: string) => string;
+  /** Its month and year: "November 2026". */
+  readonly monthYear: (isoDate: string) => string;
+  /** Its short weekday: "Wed". */
+  readonly weekdayShort: (isoDate: string) => string;
+  /** Its day of the month, with the practice's digits. */
+  readonly dayOfMonth: (isoDate: string) => string;
   /** The time of an instant in the practice's zone. */
   readonly instantTime: (instant: string) => string;
   /** The weekday of an instant in the practice's zone. */
   readonly instantWeekday: (instant: string) => string;
   /** The ISO date of an instant in the practice's zone. */
   readonly instantDate: (instant: string) => string;
+  /** The hour of an instant on the practice's clock, 0 to 23, for calculating. */
+  readonly instantHour: (instant: string) => number;
   readonly number: (value: number) => string;
   /** Language codes as one sentence part: "Arabic and English". */
   readonly languages: (codes: readonly string[]) => string;
@@ -63,6 +73,11 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     new Intl.DateTimeFormat(formatting, { ...options, timeZone: 'UTC' });
   // The calendar date in the zone, whatever the language: en-CA writes YYYY-MM-DD.
   const isoDateInZone = new Intl.DateTimeFormat('en-CA', { dateStyle: 'short', timeZone });
+  const hourInZone = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    hourCycle: 'h23',
+    timeZone,
+  });
   return {
     clock: (wallClock) => inUtc({ hour, minute: '2-digit' }).format(utcClock(wallClock)),
     weekday: (isoWeekday) =>
@@ -70,9 +85,15 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     day: (isoDate) =>
       inUtc({ weekday: 'short', day: 'numeric', month: 'short' }).format(utcDate(isoDate)),
     year: (isoDate) => inUtc({ year: 'numeric' }).format(utcDate(isoDate)),
+    dayLong: (isoDate) =>
+      inUtc({ weekday: 'long', day: 'numeric', month: 'long' }).format(utcDate(isoDate)),
+    monthYear: (isoDate) => inUtc({ month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
+    weekdayShort: (isoDate) => inUtc({ weekday: 'short' }).format(utcDate(isoDate)),
+    dayOfMonth: (isoDate) => inUtc({ day: 'numeric' }).format(utcDate(isoDate)),
     instantTime: (instant) => inZone({ hour, minute: '2-digit' }).format(new Date(instant)),
     instantWeekday: (instant) => inZone({ weekday: 'long' }).format(new Date(instant)),
     instantDate: (instant) => isoDateInZone.format(new Date(instant)),
+    instantHour: (instant) => Number(hourInZone.format(new Date(instant))),
     number: (value) => new Intl.NumberFormat(formatting).format(value),
     languages: (codes) => {
       const names = new Intl.DisplayNames([locale], { type: 'language' });

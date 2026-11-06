@@ -147,6 +147,7 @@ export const PRACTICES: Readonly<Record<string, (language: string) => PublicPrac
       nextChangeAt: '2026-11-09T05:00:00.000Z',
       numberingSystem: 'arab',
     }),
+  'no-times': () => practice({ slug: 'no-times' }),
   hidden: () =>
     practice({
       slug: 'hidden',

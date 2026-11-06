@@ -36,6 +36,25 @@ enum StaffConsentType {
   @@map("staff_consent_type")
 }
 
+/// Why a provider is away. No value says anything about health (BR-06).
+enum AvailabilityExceptionReason {
+  VACATION
+  HOLIDAY
+  TRAINING
+  OTHER
+
+  @@map("availability_exception_reason")
+}
+
+/// Whether a slot can be booked (BR-07).
+enum SlotStatus {
+  OPEN
+  BOOKED
+  BLOCKED
+
+  @@map("slot_status")
+}
+
 /// The practice this database belongs to: a singleton row written by provisioning. The connection
 /// manager compares it with the registry before it serves a client (ADR 0005 §2.2), and the app
 /// role cannot change it (ADR 0005 §4.3).
@@ -193,6 +212,8 @@ model Service {
   /// class: public
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  availabilityRules AvailabilityRuleService[]
+
   @@map("services")
 }
 
@@ -222,7 +243,10 @@ model StaffMember {
   /// class: personal
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  consents StaffConsent[]
+  consents               StaffConsent[]
+  availabilityRules      AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
+  slots                  Slot[]
 
   @@map("staff_members")
 }
@@ -247,4 +271,92 @@ model StaffConsent {
 
   @@unique([staffMemberId, type], map: "staff_consents_active_key", where: raw("(withdrawn_at IS NULL)"))
   @@map("staff_consents")
+}
+
+/// The weekly template a provider works by, in local wall-clock minutes (BR-06, BR-15). Independent
+/// of the opening hours. Slots are generated from it.
+model AvailabilityRule {
+  /// class: personal
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal (a staff member with isProvider)
+  providerId  String    @map("provider_id") @db.Uuid
+  /// class: personal (ISO weekday: 1 Monday to 7 Sunday; CHECK in the migration)
+  weekday     Int       @db.SmallInt
+  /// class: personal (minutes after local midnight)
+  startMinute Int       @map("start_minute") @db.SmallInt
+  /// class: personal (minutes after local midnight, at most 1440)
+  endMinute   Int       @map("end_minute") @db.SmallInt
+  /// class: personal (5 to 240; CHECK in the migration)
+  slotMinutes Int       @map("slot_minutes") @db.SmallInt
+  /// class: personal (a practice-local date)
+  validFrom   DateTime  @map("valid_from") @db.Date
+  /// class: personal (a practice-local date, inclusive; null: open-ended)
+  validTo     DateTime? @map("valid_to") @db.Date
+  /// class: personal
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  provider StaffMember               @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  services AvailabilityRuleService[]
+  slots    Slot[]
+
+  @@map("availability_rules")
+}
+
+/// Which services the slots of a rule can be booked for (BR-08).
+model AvailabilityRuleService {
+  /// class: personal
+  ruleId    String @map("rule_id") @db.Uuid
+  /// class: public
+  serviceId String @map("service_id") @db.Uuid
+
+  rule    AvailabilityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  service Service          @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@id([ruleId, serviceId])
+  @@map("availability_rule_services")
+}
+
+/// A time a provider is away: no slots are generated in it (BR-06). Not a reason for the public.
+model AvailabilityException {
+  /// class: personal
+  id         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  providerId String                      @map("provider_id") @db.Uuid
+  /// class: personal (before endsAt; CHECK in the migration)
+  startsAt   DateTime                    @map("starts_at") @db.Timestamptz(3)
+  /// class: personal
+  endsAt     DateTime                    @map("ends_at") @db.Timestamptz(3)
+  /// class: personal
+  reason     AvailabilityExceptionReason
+
+  provider StaffMember @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@map("availability_exceptions")
+}
+
+/// A concrete time of one provider (BR-06, BR-07). Only an OPEN slot leaves the API without sign-in,
+/// and only its start. No overlap per provider: EXCLUDE in the migration.
+model Slot {
+  /// class: personal
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  providerId String     @map("provider_id") @db.Uuid
+  /// class: personal
+  startsAt   DateTime   @map("starts_at") @db.Timestamptz(3)
+  /// class: personal (after startsAt; CHECK in the migration)
+  endsAt     DateTime   @map("ends_at") @db.Timestamptz(3)
+  /// class: personal
+  status     SlotStatus @default(OPEN)
+  /// class: personal (null: the rule is gone, and the slot can be booked for no service)
+  ruleId     String?    @map("rule_id") @db.Uuid
+
+  provider StaffMember       @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  rule     AvailabilityRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@unique([providerId, startsAt])
+  @@index([ruleId])
+  @@index([startsAt], map: "slots_open_starts_at_idx", where: raw("(status = 'OPEN'::slot_status)"))
+  @@map("slots")
 }

@@ -14,17 +14,18 @@ export default defineConfig(
     rules: { 'medibooker/no-system-clock': 'error' },
   },
   {
-    // main.ts parses the environment once; everything else receives the parsed Env (02 §3).
+    // main.ts and each command of cli/ parse the environment once; everything else receives the
+    // parsed Env (02 §3).
     name: 'medibooker/api/environment',
     files: ['src/**/*.ts'],
-    ignores: ['src/main.ts', '**/*.spec.ts'],
+    ignores: ['src/main.ts', 'src/cli/**', '**/*.spec.ts'],
     rules: {
       'no-restricted-properties': [
         'error',
         {
           object: 'process',
           property: 'env',
-          message: 'Only src/main.ts reads process.env; inject ENV instead (02 §3).',
+          message: 'Only src/main.ts and src/cli read process.env; inject ENV instead (02 §3).',
         },
       ],
     },

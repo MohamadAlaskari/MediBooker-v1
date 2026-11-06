@@ -46,7 +46,7 @@ medibooker-db (one-off tasks: provisioning, migration runner, backups) ──►
 | 0011 | Error model (problem+json, codes, status policy) | Accepted |
 | 0012 | Contract pipeline and committed generated code | Accepted |
 | [0013](../adr/0013-i18n-binding.md) | i18n library binding: next-intl | Accepted (2026-11-06) |
-| 0014 | Time handling: Temporal, practice zones, elapsed durations | Planned in P04 |
+| [0014](../adr/0014-time-handling.md) | Time handling: Temporal, practice zones, elapsed durations | Accepted (2026-11-06) |
 
 The stack rows and their status (Confirmed, Proposed, Open) are in `CLAUDE.md`. A Proposed row is the default; a change to it needs a decision ([09](09-risks-and-decisions.md)).
 
@@ -82,6 +82,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | X05 and X03 Design tokens and generated API client | Committed (`099be7b`) |
 | F05, first part: Docker images, dev and prod stacks, control menu | Committed (`027e10f`) |
 | X04, X06, X07 and P03 Texts, web shell, first components and the public practice page | Committed (`8c1da1a`) |
+| The sitemap with `GET /public/practices` | Committed (`54c9140`) |
+| P04, P05 and P06 Slots from rules, the public free times, and the picker on the page | Done (one commit) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

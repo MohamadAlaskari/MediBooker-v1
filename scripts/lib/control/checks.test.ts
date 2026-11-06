@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { allPassed, healthChecks, runChecks, smokeChecks, type Check } from './checks.ts';
-import { STACKS } from './stacks.ts';
+import { DEMO_SERVICE, STACKS } from './stacks.ts';
 
 interface Route {
   readonly status: number;
@@ -25,6 +25,9 @@ function answering(routes: Routes): typeof fetch {
     );
   });
 }
+
+const freeTimesUrl = (apiUrl: string): string =>
+  `${apiUrl}/api/v1/public/practices/al-noor/availability?serviceId=${DEMO_SERVICE}`;
 
 const DEMO_PRACTICE_ANSWER = { status: 200, body: '{"slug":"al-noor"}' };
 
@@ -63,6 +66,7 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
       body: `<url><loc>${webUrl}/en/al-noor</loc></url>`,
     },
     [`${apiUrl}/api/v1/public/practices/al-noor`]: limitCountingDown(),
+    [freeTimesUrl(apiUrl)]: { status: 200, body: '{"days":[{"hasFreeTimes":true}]}' },
     [`${apiUrl}/api/v1/public/practices/gibt-es-nicht`]: {
       status: 404,
       headers: {
@@ -231,6 +235,16 @@ describe('what the smoke test catches', () => {
     expect(await failuresWith('prod', { [url]: { status: 200, body: '<h1>x</h1>' } })).toEqual([
       'Keine Suchdaten',
     ]);
+  });
+
+  it('a practice without free times, or an API that cannot say', async () => {
+    const url = freeTimesUrl('http://localhost:3001');
+    expect(
+      await failuresWith('dev', {
+        [url]: { status: 200, body: '{"days":[{"hasFreeTimes":false}]}' },
+      }),
+    ).toEqual(['Kein Tag mit freien Terminen']);
+    expect(await failuresWith('dev', { [url]: { status: 503 } })).toEqual(['Status 503 statt 200']);
   });
 
   it('a sitemap that fails, or names the address of the container', async () => {

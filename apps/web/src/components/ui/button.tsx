@@ -1,7 +1,6 @@
 'use client';
 
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from 'cn';
 import type { ReactNode, RefAttributes } from 'react';
 import {
   Button as ButtonPrimitive,
@@ -9,6 +8,7 @@ import {
   type ButtonProps as ButtonPrimitiveProps,
   type LinkProps as LinkPrimitiveProps,
 } from 'react-aria-components';
+import { cn } from '@/lib/utils';
 
 /**
  * From `shadcn add button`, adapted to the Figma component and the tokens (ADR 0007): targets of at

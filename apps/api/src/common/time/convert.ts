@@ -14,3 +14,13 @@ export function plainDateOf(date: Date): Temporal.PlainDate {
 export function dbDateOf(date: Temporal.PlainDate): Date {
   return new Date(date.toZonedDateTime('UTC').epochMilliseconds);
 }
+
+/** A `@db.Timestamptz` value as an instant. */
+export function instantOf(date: Date): Temporal.Instant {
+  return Temporal.Instant.fromEpochMilliseconds(date.getTime());
+}
+
+/** An instant as the value of a `@db.Timestamptz` column. */
+export function dbInstantOf(instant: Temporal.Instant): Date {
+  return new Date(instant.epochMilliseconds);
+}

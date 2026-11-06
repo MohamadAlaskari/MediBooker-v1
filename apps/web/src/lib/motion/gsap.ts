@@ -13,5 +13,6 @@ export const EASE_ENTER = CustomEase.create('medibooker-enter', motion.ease.ente
 
 /** Seconds, as GSAP counts them. */
 export const DURATION_SLOW = motion.duration.slow / 1000;
+export const DURATION_FAST = motion.duration.fast / 1000;
 
 export { gsap, useGSAP };

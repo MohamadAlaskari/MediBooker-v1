@@ -107,6 +107,7 @@ describe('the commands', () => {
   it('seed production through its own profile', () => {
     expect(composeCommands('prod', 'seed')).toEqual([
       'compose --env-file .env.prod -f compose.prod.yaml --profile demo run --rm seed',
+      'compose --env-file .env.prod -f compose.prod.yaml --profile demo exec api node dist/cli/generate-slots.js',
     ]);
   });
 

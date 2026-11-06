@@ -15,7 +15,7 @@ test.describe('the public practice page (08 P03)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Al Noor Medical Centre');
     await expect(page.getByRole('heading', { name: 'Check-up' })).toBeVisible();
     await expect(page.getByText('Open now · until 16:00')).toBeVisible();
-    await expect(page.locator('[aria-current="date"]')).toContainText('Today');
+    await expect(page.locator('#opening-hours [aria-current="date"]')).toContainText('Today');
   });
 
   test('has every section, and the language switch goes to the same practice', async ({ page }) => {

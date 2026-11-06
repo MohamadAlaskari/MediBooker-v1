@@ -109,6 +109,70 @@
         ],
         "type": "object"
       },
+      "PublicAvailabilityDayDto": {
+        "properties": {
+          "date": {
+            "description": "ISO date in the practice's time zone",
+            "example": "2026-11-15",
+            "type": "string"
+          },
+          "hasFreeTimes": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "hasFreeTimes"
+        ],
+        "type": "object"
+      },
+      "PublicAvailabilityDto": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAvailabilityDayDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "type": "object"
+      },
+      "PublicFreeTimeDto": {
+        "properties": {
+          "startsAt": {
+            "description": "An instant",
+            "example": "2026-11-15T09:00:00Z",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "PublicFreeTimesDto": {
+        "properties": {
+          "date": {
+            "description": "ISO date in the practice's time zone",
+            "example": "2026-11-15",
+            "type": "string"
+          },
+          "times": {
+            "items": {
+              "$ref": "#/components/schemas/PublicFreeTimeDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "times"
+        ],
+        "type": "object"
+      },
       "PublicOpeningHoursDto": {
         "properties": {
           "closesAt": {
@@ -709,6 +773,238 @@
           }
         },
         "summary": "The public page of a published practice",
+        "tags": [
+          "public-practice"
+        ]
+      }
+    },
+    "/api/v1/public/practices/{slug}/availability": {
+      "get": {
+        "operationId": "getPublicAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A doctor with a public profile",
+            "in": "query",
+            "name": "providerId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day, in the practice's time zone; default: today",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "example": "2026-11-15",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Last day; at most 42 days in all; default: the 42nd day",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "example": "2026-12-26",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "example": "al-noor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAvailabilityDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "summary": "Which days of a range have free times",
+        "tags": [
+          "public-practice"
+        ]
+      }
+    },
+    "/api/v1/public/practices/{slug}/slots": {
+      "get": {
+        "operationId": "getPublicFreeTimes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A doctor with a public profile",
+            "in": "query",
+            "name": "providerId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A day in the practice's time zone",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "example": "2026-11-15",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "example": "al-noor",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFreeTimesDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "summary": "The free start times of one day",
         "tags": [
           "public-practice"
         ]

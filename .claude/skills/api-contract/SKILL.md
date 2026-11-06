@@ -61,8 +61,8 @@ Extend this list; never reuse a code with a different meaning.
 | GET /me/appointments?scope=upcoming\|past | patient | Own appointments | |
 | GET /services | public | Bookable services | BR-08 |
 | POST /services, PATCH /services/{id} | admin | Manage services | |
-| GET /availability?serviceId&providerId&from&to | public (decided 2026-11-01) | Days with free times (`hasFreeTimes` per day; no counts of booked times) | BR-03, BR-22 |
-| GET /slots?serviceId&providerId&date | public (decided 2026-11-01) | Free start times of one day; `providerId` only for doctors with a public profile, otherwise grouped as any doctor; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22, BR-24 |
+| GET /public/practices/{slug}/availability?serviceId&providerId&from&to | public (decided 2026-11-01) | Days with free times (`hasFreeTimes` per day; no counts of booked times); at most 42 days, by default the next 42; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22 |
+| GET /public/practices/{slug}/slots?serviceId&providerId&date | public (decided 2026-11-01) | Free start times of one day, each only `{ startsAt }`: no slot id, by which two answers could be compared (BR-24); `providerId` only for doctors with a public profile, otherwise grouped as any doctor; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22, BR-24 |
 | POST /appointments | patient (for self), staff (with patientId) | Book | BR-01, 02, 03, 08, 09 |
 | GET /appointments?from&to&providerId&status | staff, doctor, admin | Practice appointments | |
 | GET /appointments/{id} | owner or staff | Details | |
