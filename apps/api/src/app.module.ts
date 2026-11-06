@@ -1,13 +1,15 @@
 import { type DynamicModule, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ClsModule } from 'nestjs-cls';
 import { LoggerModule } from 'nestjs-pino';
 import type { DestinationStream } from 'pino';
 import { PlatformDatabaseModule } from './common/database/platform-database.module.js';
 import { platformTransactionalPlugin } from './common/database/platform-transactional.js';
+import { ProblemDetailsFilter } from './common/errors/problem-details.filter.js';
+import { createValidationPipe } from './common/errors/validation.js';
+import { NoStoreInterceptor } from './common/http/no-store.interceptor.js';
 import { pinoOptions } from './common/logging/pino-options.js';
-import { UnknownExceptionFilter } from './common/logging/unknown-exception.filter.js';
 import { AuthenticationGuard } from './common/security/authentication.guard.js';
 import { throttlers } from './common/security/throttlers.js';
 import { practiceTransactionalPlugin } from './common/tenancy/practice-transactional.adapter.js';
@@ -53,8 +55,9 @@ export class AppModule {
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         AuthenticationGuard,
         { provide: APP_GUARD, useExisting: AuthenticationGuard },
-        // Until X01's ProblemDetailsFilter: logs unknown exceptions without their message.
-        { provide: APP_FILTER, useClass: UnknownExceptionFilter },
+        { provide: APP_PIPE, useFactory: createValidationPipe },
+        { provide: APP_INTERCEPTOR, useClass: NoStoreInterceptor },
+        { provide: APP_FILTER, useClass: ProblemDetailsFilter },
       ],
     };
   }

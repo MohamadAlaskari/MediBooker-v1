@@ -33,6 +33,7 @@ catalog:
   '@nestjs/common': 12.3.2
   '@nestjs/core': 12.3.2
   '@nestjs/platform-express': 12.3.2
+  '@nestjs/swagger': 12.1.0
   '@nestjs/testing': 12.3.2
   '@nestjs/throttler': 6.7.1
   # The TLS integration spec generates a CA and a server certificate at run time; Node has no
@@ -53,6 +54,8 @@ catalog:
   # Watch mode of `nest start --watch` (@swc/cli's optional peer). Not 6.x: @swc/cli 0.8.2 accepts
   # only ^5.0.0 (ADR 0006 version table).
   chokidar: 5.0.0
+  class-transformer: 0.5.1
+  class-validator: 0.15.1
   eslint: 10.14.0
   eslint-config-prettier: 10.1.8
   eslint-import-resolver-typescript: 4.4.5
@@ -87,6 +90,8 @@ catalog:
 # Install scripts run only for the packages listed here (pnpm 12 strictDepBuilds, ADR 0006).
 allowBuilds:
   lefthook: true
+  # 2026-11-06 (X02, through swagger-ui-dist): denied. The postinstall only sends install analytics.
+  '@scarf/scarf': false
   # 2026-11-04 (F03): denied. The native binary comes from the optional platform package, and
   # SWC emits decorator metadata without the script, which only checks the binding and would
   # otherwise download @swc/wasm. Without an entry, pnpm 12 fails with ERR_PNPM_IGNORED_BUILDS.

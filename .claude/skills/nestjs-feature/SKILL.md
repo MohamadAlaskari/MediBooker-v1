@@ -26,14 +26,14 @@ apps/api/
       context/               RequestContext (nestjs-cls): the request id is the CLS id; slots practice (F04), actor (A01)
       security/              @Public(), AuthenticationGuard (global, deny by default); A01: @CurrentUser()
       logging/               pino options, field allowlist, serializers, redaction, process handlers;
-                             UnknownExceptionFilter (until X01); bindLogFields (F04)
+                             bindLogFields (F04)
       database/              F04: PlatformPrismaService, the `platform` transaction plugin,
                              Prisma error readers (isConnectionFailure), SecretStore with DevSecretStore
       tenancy/               F04: PracticeConnectionManager, @PracticeScoped(), PracticeContextInterceptor,
                              PracticeRunner (runInPractice, forEachPractice), PracticeCache, the `practice`
                              transaction adapter, the status table (practice-access.rules.ts)
-      errors/ · validation/  X01
-      http/                  JsonOnlyMiddleware (X01), NoStoreInterceptor and @PublicCache() (X02), pagination (P02)
+      errors/                error catalogue, DomainException, ProblemDetailsFilter, validation pipe, jsonOnly (X01)
+      http/                  NoStoreInterceptor (X02), @PublicCache() (P05), pagination (P03)
       time/                  Clock, SystemClock, FixedClock (F04); convert.ts, Date ⇄ Temporal (P02)
       events/                DomainEvents (P04)
     health/                  /health/live; /health/ready (F04)

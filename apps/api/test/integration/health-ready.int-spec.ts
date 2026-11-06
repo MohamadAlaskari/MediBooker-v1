@@ -37,7 +37,7 @@ describe('GET /health/ready with the platform database (02 §10)', () => {
       await readiness({ ...databases.apiEnv, PLATFORM_DATABASE_URL: missing.toString() }),
     ).toEqual({
       status: 503,
-      body: '{"message":"Service Unavailable","statusCode":503}',
+      body: expect.stringContaining('"code":"SERVICE_UNAVAILABLE"') as unknown,
     });
   });
 });

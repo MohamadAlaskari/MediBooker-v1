@@ -92,7 +92,11 @@ export async function requestIdentity(
     status: response.status,
     practiceId: response.status === 200 ? practiceIdOf(response.text) : undefined,
     retryAfter: typeof retryAfter === 'string' ? retryAfter : undefined,
-    body: response.text,
+    // An error is compared by its code: the rest of its body is the catalogue's and the request id.
+    body:
+      response.status === 200
+        ? response.text
+        : (JSON.parse(response.text) as { code: string }).code,
   };
 }
 
@@ -106,12 +110,12 @@ export function served(practiceId: string): IdentityAnswer {
   };
 }
 
-/** A 503 answer with `Retry-After: 30` and Nest's body, which names no practice (05 §1.3). */
+/** A 503 answer with `Retry-After: 30`; the problem body names no practice (05 §1.3). */
 export const UNAVAILABLE: IdentityAnswer = {
   status: 503,
   practiceId: undefined,
   retryAfter: '30',
-  body: JSON.stringify({ message: 'Service Unavailable', statusCode: 503 }),
+  body: 'SERVICE_UNAVAILABLE',
 };
 
 /** A 404 answer: the practice is hidden. */
@@ -119,7 +123,7 @@ export const NOT_FOUND: IdentityAnswer = {
   status: 404,
   practiceId: undefined,
   retryAfter: undefined,
-  body: JSON.stringify({ message: 'Not Found', statusCode: 404 }),
+  body: 'NOT_FOUND',
 };
 
 /** The route the app's resolver serves a practice with, for direct connection-manager calls. */

@@ -127,6 +127,9 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm check:migrations
 
+      - name: Check that the generated files are current
+        run: pnpm check:drift
+
       # X02 adds here: pnpm check:drift.
       # F07 adds here: expo export, expo install --check, expo-doctor and the one-React check.
 

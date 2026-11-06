@@ -50,7 +50,7 @@ function isForcedPlatformError(kind: string): kind is ForcedPlatformError {
 
 /**
  * Test-only routes under /api/v1/probe/platform-errors (they never exist in src, 02 §12). Each
- * lets its error escape, as a feature would, so the UnknownExceptionFilter logs it.
+ * lets its error escape, as a feature would, so the ProblemDetailsFilter logs it.
  */
 @Controller('probe/platform-errors')
 class PlatformErrorProbeController {

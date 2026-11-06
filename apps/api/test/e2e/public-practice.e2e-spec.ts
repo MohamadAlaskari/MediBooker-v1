@@ -11,6 +11,7 @@ import { FixedClock } from '../../src/common/time/fixed-clock.js';
 import { PUBLIC_PRACTICE_REQUESTS_PER_MINUTE } from '../../src/modules/public-practice/public-practice.controller.js';
 import { createTestApp } from '../support/create-test-app.js';
 import { PRACTICE_A, practiceRoute } from '../support/practice-routes.js';
+import { problemWithoutRequestId } from '../support/problem.js';
 import {
   keyPathsOf,
   PUBLIC_PRACTICE_KEY_PATHS,
@@ -126,7 +127,7 @@ describe('GET /api/v1/public/practices/:slug without a database', () => {
       acquire.mockClear();
       const unknown = await request(app.getHttpServer()).get(`${PATH}/unknown`).expect(404);
       const unpublished = await request(app.getHttpServer()).get(`${PATH}/unpublished`).expect(404);
-      expect(unpublished.text).toBe(unknown.text);
+      expect(problemWithoutRequestId(unpublished)).toEqual(problemWithoutRequestId(unknown));
       expect(acquire).not.toHaveBeenCalled();
     });
 
@@ -137,7 +138,7 @@ describe('GET /api/v1/public/practices/:slug without a database', () => {
         const unknown = await request(app.getHttpServer()).get(`${PATH}/unknown`).expect(404);
         resolver.resolveSlug.mockClear();
         const invalid = await request(app.getHttpServer()).get(`${PATH}/${slug}`).expect(404);
-        expect(invalid.text).toBe(unknown.text);
+        expect(problemWithoutRequestId(invalid)).toEqual(problemWithoutRequestId(unknown));
         expect(resolver.resolveSlug).not.toHaveBeenCalled();
       },
     );

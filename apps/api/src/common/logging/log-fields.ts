@@ -14,7 +14,7 @@ import { isUuid } from '../context/request-id.js';
 type ValueRule = (value: unknown) => boolean;
 
 /**
- * A class name, as Nest and nestjs-pino set the context (`UnknownExceptionFilter`). A Nest Logger
+ * A class name, as Nest and nestjs-pino set the context (`ProblemDetailsFilter`). A Nest Logger
  * without a context of its own passes the last argument of a call as the context (nestjs-pino 5.3.1
  * `Logger.call`), so `new Logger().log('booked for %s', email)` would log the e-mail address there:
  * this rule drops it, but a name-shaped value (`Sara`) has the form of a class name, so a Logger is

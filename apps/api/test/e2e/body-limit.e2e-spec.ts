@@ -44,7 +44,7 @@ describe('body parsers (02 §3 step 7)', () => {
     expect(response.status).toBe(404);
   });
 
-  it('parses JSON and leaves a urlencoded form unparsed: the urlencoded parser stays off', async () => {
+  it('parses JSON and refuses a urlencoded form: the urlencoded parser stays off', async () => {
     const server = app.getHttpServer();
     const json = await request(server)
       .post('/api/v1/probe/body')
@@ -55,7 +55,7 @@ describe('body parsers (02 §3 step 7)', () => {
       .post('/api/v1/probe/body')
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send('email=sara%40example.test');
-    expect(form.body).toEqual({ bodyType: 'undefined' });
+    expect(form.status).toBe(415);
   });
 
   it.each([

@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02, X01+X02, F06, X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (this commit), F06, X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -33,8 +33,8 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 7 | F05 | API images and delivery pipeline | `build(docker): add API images, compose stack and GHCR publishing` | U5 | planned |
 | 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | planned |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
-| 10 | X01 | Server error system | `feat(api): add problem+json error system and field validation` | - | planned |
-| 11 | X02 | OpenAPI contract and app config | `feat(contract): generate OpenAPI 3.1 document and app-config endpoint` | - | planned |
+| 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | done (this commit) |
+| 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | done (this commit) |
 | 12 | X03 | Generated API client | `feat(api-client): generate typed client, query hooks, zod and mocks` | - | planned |
 | 13 | X04 | Shared ICU catalogues | `feat(i18n): add shared ICU catalogues for Arabic and English` | D1 | planned |
 | 14 | X05 | Design and motion tokens | `feat(design-tokens): build design and motion tokens from Figma` | - | planned |
@@ -43,8 +43,8 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
 | 18 | X09 | Mobile UI kit | `feat(mobile): add design-system UI kit v1` | - | planned |
 | 19 | X10 | Android emulator smoke test | `ci(mobile): add Android emulator smoke test for Hermes and RTL` | - | planned |
-| 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | done (this commit) |
-| 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | done (this commit) |
+| 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
+| 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 22 | P03 | Public practice page | `feat(web): render public practice page with theme and SEO metadata` | D2 | planned |
 | 23 | P04 | Availability and slot generation | `feat(scheduling): add availability rules and DST-safe slot generation` | - | planned |
 | 24 | P05 | Public free times | `feat(scheduling): expose public free times per practice` | - | planned |
@@ -448,6 +448,8 @@ Acceptance (HTTP tests without a database):
 - Every error response has `application/problem+json`, `Cache-Control: no-store` and `X-Request-Id`.
 - Unit: catalogue invariants and one table test per filter source.
 
+As built (one commit with X02): `jsonOnly` is a plain middleware in `common/errors`; the shared field decorators of `common/validation` wait for their first consumer, until then a DTO uses class-validator directly; `PracticeContextInterceptor` keeps answering with a `ServiceUnavailableException`, which the filter renders by its status, and the filter also renders a `PracticeUnavailableError` that reaches it directly.
+
 ### X02 — OpenAPI 3.1 contract and app-config endpoint
 
 **Commit:** `feat(contract): generate OpenAPI 3.1 document and app-config endpoint` · **Depends on:** - · **Owner:** backend-engineer; architect reviews
@@ -468,6 +470,8 @@ Acceptance:
 - `/api/docs` returns 404 when disabled.
 - Architecture tests fail for a fixture controller with `@Public()` outside the allowed prefixes, for a route under `/practices/{practiceId}` without `@PracticeScoped`, and for an operation missing from the registries.
 - `grep -n "family-invitations/{token}" .claude/skills/api-contract/SKILL.md` finds nothing.
+
+As built (one commit with X01): deferred are the app-config endpoint (→ X08), `@PublicCache` (→ P05) and ADR 0012 (→ X03). `@ApiErrors` is replaced by a post-processing step in `src/openapi/document.ts`: each operation gets its ProblemDetails responses by what its path says. `AUTHZ_MATRIX` and `CROSS_PRACTICE` arrive with A01; `test/integration/authz/matrix.ts` holds `PUBLIC_OPERATIONS`.
 
 ### X03 — Generated API client package
 

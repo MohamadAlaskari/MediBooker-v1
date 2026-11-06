@@ -169,7 +169,7 @@ describe('the field allowlist (formatters.log)', () => {
     expect(text()).not.toMatch(MARKERS);
   });
 
-  it.each(['UnknownExceptionFilter', 'RouterExplorer', 'NestFactory', 'LogProbe'])(
+  it.each(['ProblemDetailsFilter', 'RouterExplorer', 'NestFactory', 'LogProbe'])(
     'keeps the class name %s as the context',
     (context) => {
       const { logger, lines } = createCapturedLogger(env);

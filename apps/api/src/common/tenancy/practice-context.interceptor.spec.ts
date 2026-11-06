@@ -13,11 +13,8 @@ import { PRACTICE_A, practiceRoute } from '../../../test/support/practice-routes
 import type { RequestContext } from '../context/request-context.js';
 import type { PracticeClient, PracticeLease } from './practice-client.js';
 import type { PracticeConnectionManager } from './practice-connection-manager.js';
-import {
-  PracticeContextInterceptor,
-  PRACTICE_RETRY_AFTER_SECONDS,
-} from './practice-context.interceptor.js';
-import { PracticeUnavailableError } from './practice-errors.js';
+import { PracticeContextInterceptor } from './practice-context.interceptor.js';
+import { PRACTICE_RETRY_AFTER_SECONDS, PracticeUnavailableError } from './practice-errors.js';
 import type { PracticeResolution, PracticeResolver } from './practice-resolver.js';
 import { PracticeScoped } from './practice-scoped.decorator.js';
 

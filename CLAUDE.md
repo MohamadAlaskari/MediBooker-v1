@@ -14,7 +14,7 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 | `.claude/skills/` | Project skills (how we work) | Active |
 | `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
 | `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules) | Active |
-| `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans (`scan-secrets.ts`), CI-configuration test (`ci-config.test.ts`) | Active |
+| `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans (`scan-secrets.ts`), CI-configuration test (`ci-config.test.ts`), generated-file check (`check-drift.ts`) | Active |
 | `.github/` | GitHub Actions: workflows `ci.yml` (only required check `ci-ok`), `codeql.yml`, `scheduled.yml`; composite actions `setup` and `gitleaks`; actionlint config; pull request template. `renovate.json` sits at the root — `docs/adr/0009-ci-branch-model-and-supply-chain.md` | Active |
 | `apps/` | `api` (NestJS 12, since F03), `db-migrate` (database CLI `medibooker-db`, since F04); `web` (Next.js) and `mobile` (Expo) follow | Built feature by feature along `docs/architecture/08-roadmap.md` |
 
@@ -110,7 +110,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Typecheck | `pnpm typecheck` |
 | Unit tests (Vitest) | `pnpm test` (run `pnpm test --force` once after installing gitleaks) |
 | Format / check formatting | `pnpm format` / `pnpm format:check` |
-| All checks before a commit, after `git add`: hook check, staged secret scan, formatting, lockfile dedupe check, migration check, lint, typecheck, tests with coverage gates, build | `pnpm verify` |
+| All checks before a commit, after `git add`: hook check, staged secret scan, formatting, lockfile dedupe check, migration check, lint, typecheck, tests with coverage gates, build, drift check | `pnpm verify` |
 | Check the `.gitleaksignore` pin | `node scripts/scan-secrets.ts pin` |
 | Scan the full git history for secrets, as CI does | `node scripts/scan-secrets.ts history` |
 | Lint the workflows and validate `renovate.json` (Docker; before a commit that changes `.github/` or `renovate.json`) | commands in `docs/dev/getting-started.md` (images from `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE` in `ci.yml`) |
@@ -122,6 +122,9 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Reset the local databases | `pnpm db:reset` |
 | Integration tests (Docker, Testcontainers; run before a commit that changes database code) | `pnpm test:integration` |
 | Check the migration rules | `pnpm check:migrations` |
+| Write the OpenAPI document `apps/api/openapi.json` (after a DTO or route change) | `pnpm generate` |
+| Fail when a generated file differs from git | `pnpm check:drift` |
+| Try the endpoints in the browser (`OPENAPI_UI_ENABLED=true`, dev server running) | http://localhost:3001/api/docs |
 | Build | `pnpm build` |
 | API tests with coverage | `pnpm --filter @medibooker/api test` |
 | One package only | `pnpm --filter @medibooker/eslint-config test` |

@@ -7,7 +7,7 @@ import { driverFailureOf, isPrismaKnownRequestError } from '../database/prisma-e
  * the raw request, response and error (`wrapSerializers: false` in pinoOptions), and they read only
  * the properties named here, each in a form that cannot carry other text: never the URL, the query
  * string, headers, bodies or error messages. Messages also stay out of `msg`: the
- * `keepMessageConstant` hook (pino-options.ts) and the UnknownExceptionFilter keep pino from
+ * `keepMessageConstant` hook (pino-options.ts) and the ProblemDetailsFilter keep pino from
  * copying them there.
  */
 

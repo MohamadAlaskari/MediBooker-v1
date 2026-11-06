@@ -32,6 +32,9 @@ export type PracticeUnavailableReason =
   /** A public acquisition above PRACTICE_CLIENT_CREATIONS_PER_SECOND. */
   | 'PRACTICE_CREATION_RATE_EXCEEDED';
 
+/** The `Retry-After` of a practice that cannot be served (05 §1.3). */
+export const PRACTICE_RETRY_AFTER_SECONDS = 30;
+
 /** A practice that cannot be served now (ADR 0005 §5): 503 for that practice only. */
 export class PracticeUnavailableError extends Error {
   constructor(

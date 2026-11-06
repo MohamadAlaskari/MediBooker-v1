@@ -8,3 +8,6 @@
 
 # Written by pnpm.
 pnpm-lock.yaml
+
+# Written by pnpm generate, byte-identical on every run.
+apps/api/openapi.json

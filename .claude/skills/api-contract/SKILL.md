@@ -24,7 +24,7 @@ description: Contract-first API rules for MediBooker v2 — how the OpenAPI spec
 | Timestamps | ISO 8601 in UTC with `Z` (`2026-11-04T08:30:00Z`). Date-only values as `YYYY-MM-DD`, interpreted in the practice time zone |
 | Enums | UPPER_SNAKE (`BOOKED`, `PUBLIC`) |
 | Lists | `GET /x?limit=20&cursor=…` → `{ items: [...], nextCursor: string \| null }`; `limit` ≤ 100 |
-| Errors | `application/problem+json`: `{ type, title, status, detail, code, errors?: [{ field, code, message }] }` |
+| Errors | `application/problem+json`: `{ type, title, status, detail, code, requestId, params?, errors?: [{ field, code, message, params? }] }`; `type` is `urn:medibooker:problem:<kebab-code>`; the status comes from the catalogue (`common/errors/error-catalog.ts`, ADR 0011) |
 | Validation errors | 400 with `errors[]`; field paths in camelCase |
 | Conflicts | 409 with a specific `code` |
 | Idempotency | `Idempotency-Key` header (UUID) on `POST /appointments` and reschedule |
@@ -43,7 +43,7 @@ description: Contract-first API rules for MediBooker v2 — how the OpenAPI spec
 
 Extend this list; never reuse a code with a different meaning.
 
-`VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `EMAIL_NOT_VERIFIED`, `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `MFA_REQUIRED`, `SLOT_NOT_AVAILABLE`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `RATE_LIMITED`, `NOT_A_MANAGED_PATIENT`, `GUARDIAN_DECLARATION_REQUIRED`, `INVITATION_EXPIRED`, `NOTE_NOT_EDITABLE`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `FILE_REJECTED`, `FILE_NOT_READY`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `VERIFICATION_CODE_INVALID`, `THEME_COLOR_INVALID`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`.
+`VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `RATE_LIMITED`, `INTERNAL_ERROR`, `SERVICE_UNAVAILABLE`, `EMAIL_NOT_VERIFIED`, `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `MFA_REQUIRED`, `SLOT_NOT_AVAILABLE`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `RATE_LIMITED`, `NOT_A_MANAGED_PATIENT`, `GUARDIAN_DECLARATION_REQUIRED`, `INVITATION_EXPIRED`, `NOTE_NOT_EDITABLE`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `FILE_REJECTED`, `FILE_NOT_READY`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `VERIFICATION_CODE_INVALID`, `THEME_COLOR_INVALID`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`.
 
 ## Endpoint catalogue (initial proposal)
 

@@ -16,7 +16,7 @@ import { isConnectionFailure } from '../database/prisma-errors.js';
 import { bindLogFields } from '../logging/bind-log-fields.js';
 import type { PracticeLease } from './practice-client.js';
 import { PracticeConnectionManager } from './practice-connection-manager.js';
-import { PracticeUnavailableError } from './practice-errors.js';
+import { PRACTICE_RETRY_AFTER_SECONDS, PracticeUnavailableError } from './practice-errors.js';
 import { PracticeResolver } from './practice-resolver.js';
 import {
   isPracticeSlug,
@@ -26,9 +26,6 @@ import {
   resolvedPracticeOf,
 } from './practice-route.js';
 import { practiceScopeOf } from './practice-scoped.decorator.js';
-
-/** The `Retry-After` of a practice that cannot be served (05 §1.3), until X01's catalogue. */
-export const PRACTICE_RETRY_AFTER_SECONDS = 30;
 
 /** The practice of a request after its checks: its client's lease, and a public route's listing. */
 interface LeasedPractice {
@@ -51,9 +48,9 @@ interface PracticeScopedRequest {
  * when the handler's result is complete, also after an error. A01 adds the index, membership and
  * role checks before the lease.
  *
- * A PracticeUnavailableError is answered with 503 and `Retry-After` (until X01), as is a query
- * that fails in the handler because the practice's connection failed; that client is closed. Only
- * the practice id and the reason code are logged.
+ * A PracticeUnavailableError is answered with 503 and `Retry-After`, as is a query that fails in
+ * the handler because the practice's connection failed; that client is closed. Only the practice
+ * id and the reason code are logged, and the ProblemDetailsFilter writes the answer.
  */
 @Injectable()
 export class PracticeContextInterceptor implements NestInterceptor {

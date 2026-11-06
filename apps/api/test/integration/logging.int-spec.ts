@@ -102,10 +102,11 @@ describe('logging of data-layer failures (02 §8)', () => {
     });
 
     it.each([
-      ['a PrismaClientValidationError', 'validation', { type: 'PrismaClientValidationError' }],
+      ['a PrismaClientValidationError', 'validation', 500, { type: 'PrismaClientValidationError' }],
       [
         'a CHECK violation',
         'check-violation',
+        500,
         {
           type: 'PrismaClientKnownRequestError',
           code: '23514',
@@ -115,7 +116,9 @@ describe('logging of data-layer failures (02 §8)', () => {
       ],
       [
         'a unique violation',
+        // No service translated it: CONFLICT, and logged as an unexpected exception (05 §1.3).
         'unique-violation',
+        409,
         {
           type: 'PrismaClientKnownRequestError',
           code: '23505',
@@ -126,9 +129,9 @@ describe('logging of data-layer failures (02 §8)', () => {
       ],
     ])(
       '02 §8 %s is logged with its codes and without the marker it carries',
-      async (_, path, codes) => {
+      async (_, path, status, codes) => {
         expect(await forceError(path)).toEqual({
-          status: 500,
+          status,
           errors: [expect.objectContaining(codes) as unknown],
         });
         expect(markersIn(logs.text())).toEqual([]);
@@ -137,7 +140,7 @@ describe('logging of data-layer failures (02 §8)', () => {
 
     it('ADR-0005 §4.10 the server log holds the failed statements without the failing values', async () => {
       for (const path of Object.keys(FORCED_PLATFORM_ERRORS)) {
-        expect((await forceError(path)).status).toBe(500);
+        expect([409, 500]).toContain((await forceError(path)).status);
       }
       const log = await serverLogThroughNow(readServerLog, databases.superuserUrl());
       expect({

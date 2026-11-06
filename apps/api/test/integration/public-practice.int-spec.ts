@@ -10,6 +10,7 @@ import { PracticeConnectionManager } from '../../src/common/tenancy/practice-con
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
 import { createTestApp } from '../support/create-test-app.js';
 import { usePracticeDatabases } from '../support/practices.js';
+import { problemWithoutRequestId } from '../support/problem.js';
 import { keyPathsOf, PUBLIC_PRACTICE_KEY_PATHS } from '../support/public-practice-rows.js';
 import { withClient } from './support/sql.js';
 
@@ -154,8 +155,12 @@ describe('GET /api/v1/public/practices/:slug on real databases (08 P02)', () => 
     const connections = app.get(PracticeConnectionManager);
     const creationsBefore = connections.stats().creations;
     const unknown = await get('no-such-practice').expect(404);
-    expect((await get('not-published').expect(404)).text).toBe(unknown.text);
-    expect((await get('still-provisioning').expect(404)).text).toBe(unknown.text);
+    expect(problemWithoutRequestId(await get('not-published').expect(404))).toEqual(
+      problemWithoutRequestId(unknown),
+    );
+    expect(problemWithoutRequestId(await get('still-provisioning').expect(404))).toEqual(
+      problemWithoutRequestId(unknown),
+    );
     expect(connections.stats().creations).toBe(creationsBefore);
   });
 

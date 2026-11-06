@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { STATUS_CODES } from 'node:http';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -127,7 +126,7 @@ describe('access log', () => {
       expect(exceptionLines).toHaveLength(1);
       expect(exceptionLines[0]).toMatchObject({
         level: 50,
-        context: 'UnknownExceptionFilter',
+        context: 'ProblemDetailsFilter',
         msg: 'unknown exception',
         err: { type },
       });
@@ -146,12 +145,6 @@ describe('access log', () => {
     ],
     // The serializer fails on reading the message and falls back to the type.
     ['a message getter that throws', '/api/v1/probe/throws-failing-message', { type: 'Error' }],
-    // Nest reads the message of an http-errors error to answer it; the filter answers 500 instead.
-    [
-      'the shape of an http-errors error and a message getter that throws',
-      '/api/v1/probe/throws-exposed-failing-message',
-      { type: 'Error' },
-    ],
     // Nest reads err.constructor; the serializer reads the class from the prototype.
     [
       'a constructor getter that throws',
@@ -189,7 +182,7 @@ describe('access log', () => {
       expect(exceptionLines).toEqual([
         expect.objectContaining({
           level: 50,
-          context: 'UnknownExceptionFilter',
+          context: 'ProblemDetailsFilter',
           msg: 'unknown exception',
           err: expectedError,
         }),
@@ -198,14 +191,32 @@ describe('access log', () => {
     },
   );
 
-  it('answers an unknown http-errors error as Nest does, with its status, and logs it without its message', async () => {
+  it('reads only the status of an http-errors error whose message getter throws, and logs it once', async () => {
+    const id = randomUUID();
+    await request(app.getHttpServer())
+      .get('/api/v1/probe/throws-exposed-failing-message')
+      .set('X-Request-Id', id)
+      .expect(400);
+    await logs.waitForAccessLine(id);
+    const exceptionLines = logs
+      .lines()
+      .filter((line) => line.reqId === id && line.responseTime === undefined);
+    expect(exceptionLines).toEqual([
+      expect.objectContaining({
+        msg: 'unknown exception',
+        err: expect.objectContaining({ type: 'Error' }) as unknown,
+      }),
+    ]);
+  });
+
+  it('answers an unknown http-errors error by its status only, and logs it without its message', async () => {
     const id = randomUUID();
     const response = await request(app.getHttpServer())
       .get('/api/v1/probe/throws-http-error')
       .set('X-Request-Id', id)
-      .expect(418);
-    // `expose: false`: Nest answers with the status text instead of the message.
-    expect(response.body).toEqual({ statusCode: 418, message: STATUS_CODES[418] });
+      .expect(400);
+    // Any other 4xx becomes VALIDATION_FAILED (05 §1.3); the message never reaches the client.
+    expect(JSON.parse(response.text)).toMatchObject({ code: 'VALIDATION_FAILED' });
 
     await logs.waitForAccessLine(id);
     const exceptionLines = logs
@@ -214,7 +225,7 @@ describe('access log', () => {
     expect(exceptionLines).toHaveLength(1);
     expect(exceptionLines[0]).toMatchObject({
       level: 50,
-      context: 'UnknownExceptionFilter',
+      context: 'ProblemDetailsFilter',
       msg: 'unknown exception',
       err: { type: 'Error' },
     });
@@ -233,7 +244,7 @@ describe('access log', () => {
     // Positive control: the capture holds a boot line and the exception line.
     expect(logs.text()).toContain('Mapped {/health/live, GET}');
     expect(logs.lines()).toContainEqual(
-      expect.objectContaining({ reqId: ids[1], context: 'UnknownExceptionFilter' }),
+      expect.objectContaining({ reqId: ids[1], context: 'ProblemDetailsFilter' }),
     );
     expect(logs.lines().filter((line) => 'droppedFields' in line)).toEqual([]);
   });

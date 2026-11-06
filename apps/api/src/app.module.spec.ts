@@ -6,7 +6,7 @@ import { TEST_ENV } from '../test/support/test-env.js';
 import { AppModule } from './app.module.js';
 import { PlatformPrismaService } from './common/database/platform-prisma.service.js';
 import { SecretStore } from './common/database/secret-store.js';
-import { UnknownExceptionFilter } from './common/logging/unknown-exception.filter.js';
+import { ProblemDetailsFilter } from './common/errors/problem-details.filter.js';
 import { AuthenticationGuard } from './common/security/authentication.guard.js';
 import { PracticeConnectionManager } from './common/tenancy/practice-connection-manager.js';
 import { Clock } from './common/time/clock.js';
@@ -26,7 +26,7 @@ describe('AppModule', () => {
       // Nest injects by type from decorator metadata; without it the filter's logger is undefined.
       const filterParameterTypes: unknown = Reflect.getMetadata(
         'design:paramtypes',
-        UnknownExceptionFilter,
+        ProblemDetailsFilter,
       );
       expect(filterParameterTypes).toEqual([PinoLogger]);
     } finally {
