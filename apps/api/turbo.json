@@ -28,10 +28,10 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.example"]
     },
     "dev": {
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "test:integration": {
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "db:seed": {
       "dependsOn": ["db:generate"]

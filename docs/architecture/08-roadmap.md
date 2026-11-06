@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (this commit), then A05 and the booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (`22c0cd5`), then A05 and the booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -49,9 +49,9 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 23 | P04 | Availability and slot generation | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`), rest with its first consumer |
 | 24 | P05 | Public free times | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`) |
 | 25 | P06 | Free times on the page | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`) |
-| 26 | A01 | Accounts, sessions, memberships, audit | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | accounts and sessions done (this commit), rest with B01 and A04 |
-| 27 | A02 | Notification outboxes and account e-mails | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | account e-mails done (this commit), practice messages with E09 and N01 |
-| 28 | A03 | Patient sign-up, verification, reset | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | done (this commit) |
+| 26 | A01 | Accounts, sessions, memberships, audit | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | accounts and sessions done (`22c0cd5`), rest with B01 and A04 |
+| 27 | A02 | Notification outboxes and account e-mails | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | account e-mails done (`22c0cd5`), practice messages with E09 and N01 |
+| 28 | A03 | Patient sign-up, verification, reset | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | done (`22c0cd5`) |
 | 29 | A04 | Staff invitations, MFA, sessions, practice creation | `feat(auth): add staff invitations, TOTP MFA and session control` | - | planned |
 | 30 | A05 | Web authentication flows | `feat(web): add sign-in, sign-up, verification and two-factor flows` | D16 | planned |
 | 31 | A06 | Mobile authentication flows | `feat(mobile): add sign-in, sign-up and secure session storage` | D16 | planned |
