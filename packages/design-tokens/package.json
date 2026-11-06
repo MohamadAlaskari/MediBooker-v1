@@ -1,0 +1,31 @@
+{
+  "name": "@medibooker/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design and motion tokens of MediBooker v2, built from the Figma variables: a Tailwind stylesheet and typed values.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tokens.css": "./css/tokens.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "generate": "node scripts/build-tokens.ts",
+    "lint": "eslint --max-warnings=0 .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@medibooker/eslint-config": "workspace:*",
+    "@medibooker/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

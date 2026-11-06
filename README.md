@@ -4,7 +4,7 @@ Online appointment booking for medical practices. Patients book, reschedule and 
 
 ## Status
 
-MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`) and the web skeleton are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
+MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`) the web skeleton, the design tokens and the generated API client are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
 
 ## Repository
 

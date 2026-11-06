@@ -18,7 +18,7 @@
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
     "check:migrations": "node scripts/check-migrations.ts",
-    "generate": "pnpm --filter @medibooker/api generate",
+    "generate": "pnpm --filter @medibooker/design-tokens generate && pnpm --filter @medibooker/api generate && pnpm --filter @medibooker/api-client generate",
     "check:drift": "pnpm generate && node scripts/check-drift.ts",
     "db:up": "docker compose up -d --wait db",
     "db:migrate": "turbo run db:migrate",

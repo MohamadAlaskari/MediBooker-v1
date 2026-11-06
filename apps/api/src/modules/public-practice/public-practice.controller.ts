@@ -23,7 +23,7 @@ export class PublicPracticeController {
   @PracticeScoped('slug')
   @Throttle({ default: { ttl: 60_000, limit: PUBLIC_PRACTICE_REQUESTS_PER_MINUTE } })
   @ApiOperation({ summary: 'The public page of a published practice' })
-  @ApiParam({ name: 'slug', example: 'al-noor' })
+  @ApiParam({ name: 'slug', type: String, example: 'al-noor' })
   @ApiHeader({
     name: 'Accept-Language',
     required: false,

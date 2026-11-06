@@ -314,7 +314,7 @@ Features import each other only through their `index.ts`.
 | @peculiar/x509 (F04, a devDependency of the API) | 3.1.0 | same (published 2026-10-27) | — (the TLS spec generates its CA and server certificate at run time; Node has no API that generates X.509 certificates) |
 | argon2 (A01) | 0.45.1 | same | — |
 | orval · msw (Vitest only) | 8.46.0 · 3.0.3 | same | — |
-| style-dictionary · culori (M01) · @formatjs/icu-messageformat-parser | 5.7.1 · 4.0.2 · 3.5.22 | same | — |
+| culori (M01) · @formatjs/icu-messageformat-parser | 4.0.2 · 3.5.22 | same | — |
 | next | 16.4.3 | 16.4.4 | 16.4.4 was published on 2026-11-02; F06 takes the newest version past the gate |
 | react · react-dom | 19.3.0 | 19.3.1 | Expo SDK 58.0.22 pins 19.3.0; one React copy across web, mobile and the shared hook package (pnpm `overrides`, F07) |
 | @types/react · @types/react-dom · babel-plugin-react-compiler · server-only | 19.3.0 · 19.3.0 · 1.0.0 · 0.0.1 | same | — |

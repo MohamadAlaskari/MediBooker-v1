@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "../../apps/api/openapi.json"],
+      "outputs": ["coverage/**", "reports/**"]
+    }
+  }
+}

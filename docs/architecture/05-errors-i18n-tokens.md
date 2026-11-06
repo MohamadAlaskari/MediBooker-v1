@@ -196,9 +196,9 @@ The catalogue is ICU JSON either way, so the decision only changes the bindings 
 
 1. **Source:** Figma variables in the collections Primitives, Brand (Teal default, Ocean, Indigo, Violet, Graphite), Color (Light, Dark), Typography (English, Arabic), Dimension and, new for ADR 0008, Motion.
 2. **Export:** the ui-designer runs a read-only `use_figma` dump into `packages/design-tokens/tokens/*.json`: W3C DTCG, aliases kept, one file per collection and mode. The files are committed and reviewed like code. X05 updates the `design-system` skill and `.claude/agents/ui-designer.md`, which still name a single `tokens.json`.
-3. **Build:** `pnpm --filter @medibooker/design-tokens generate` runs Style Dictionary 5.7.1 (`scripts/build-tokens.ts`, Node type stripping) and writes two committed files; CI fails on drift:
+3. **Build:** `pnpm --filter @medibooker/design-tokens generate` runs `scripts/build-tokens.ts` (Node type stripping, no build library) and writes two committed files; CI fails on drift:
    - `css/tokens.css`, a Tailwind v4 stylesheet:
-     - `@theme` after resetting `--color-*`, `--spacing-*`, `--radius-*`, `--text-*`, `--font-*` and `--breakpoint-*` to `initial`, so only token utilities exist; variable names equal the Figma WEB code syntax (`--color-bg-canvas` → `bg-bg-canvas`);
+     - `@theme static` after resetting `--color-*`, `--spacing-*`, `--radius-*`, `--text-*`, `--font-*`, `--font-weight-*`, `--leading-*`, `--tracking-*`, `--shadow-*`, `--ease-*`, `--container-*` and `--breakpoint-*` to `initial`, so only token utilities exist; variable names equal the Figma WEB code syntax (`--color-bg-canvas` → `bg-bg-canvas`);
      - primitives and the Teal `--brand-50 … --brand-950` as plain properties; presets as `[data-brand='ocean']` and so on; the nine semantic brand tokens stay `var(--brand-…)` references, so a runtime brand change propagates;
      - dark values under `[data-theme='dark']` and under `@media (prefers-color-scheme: dark)` for `[data-theme='system']`;
      - `:lang(ar)` and `:lang(en)` font stacks and line heights;

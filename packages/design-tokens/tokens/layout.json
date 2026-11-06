@@ -1,0 +1,26 @@
+{
+  "breakpoint": {
+    "$type": "dimension",
+    "tablet": {
+      "$value": {
+        "value": 744,
+        "unit": "px"
+      }
+    },
+    "desktop": {
+      "$value": {
+        "value": 1280,
+        "unit": "px"
+      }
+    }
+  },
+  "container": {
+    "$type": "dimension",
+    "page": {
+      "$value": {
+        "value": 1120,
+        "unit": "px"
+      }
+    }
+  }
+}

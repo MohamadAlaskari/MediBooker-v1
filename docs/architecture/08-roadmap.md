@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (this commit), X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (this commit), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -31,13 +31,13 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
 | 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | committed (`284776c`) |
 | 7 | F05 | API images and delivery pipeline | `build(docker): add API images, compose stack and GHCR publishing` | U5 | planned |
-| 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | done (this commit) |
+| 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | committed (`c80aa43`) |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
 | 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
-| 12 | X03 | Generated API client | `feat(api-client): generate typed client, query hooks, zod and mocks` | - | planned |
+| 12 | X03 | Generated API client | `feat(shared): add design tokens and generated API client` | - | done (this commit) |
 | 13 | X04 | Shared ICU catalogues | `feat(i18n): add shared ICU catalogues for Arabic and English` | D1 | planned |
-| 14 | X05 | Design and motion tokens | `feat(design-tokens): build design and motion tokens from Figma` | - | planned |
+| 14 | X05 | Design and motion tokens | `feat(shared): add design tokens and generated API client` | - | done (this commit) |
 | 15 | X06 | Web shell | `feat(web): add i18n, RTL, theming, fonts, motion and error routes` | D1 | planned |
 | 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): add shadcn/ui kit on React Aria mapped to design tokens` | - | planned |
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
@@ -488,6 +488,8 @@ Acceptance:
 - `pnpm --filter @medibooker/web typecheck` and `pnpm --filter @medibooker/mobile typecheck` pass.
 - `grep -n "packages/validation" .claude/skills/react-web-feature/SKILL.md` finds nothing.
 
+As built (one commit with X05): the app-config endpoint moved to X08, so the query test runs against `getPublicPractice`, and it uses `queryClient.query` with the generated options instead of rendering the hook, because no renderer exists before X06. The mobile typecheck moved to F07; the web consumes the package from P03. `msw` and `@faker-js/faker` are devDependencies. MSW 3 renames `onUnhandledRequest` to `onUnhandledFrame`.
+
 ### X04 — Shared ICU message catalogues
 
 **Commit:** `feat(i18n): add shared ICU catalogues for Arabic and English` · **Depends on:** D1 · **Owner:** web-engineer and mobile-engineer; ui-designer reviews the copy
@@ -516,6 +518,15 @@ Acceptance:
 - Two builds are byte-identical; the snapshot of variable names and motion exports is stable.
 - A Tailwind compile of a fixture generates no utilities for primitives or Tailwind defaults.
 - `grep -rn "tokens.json" .claude/agents/ui-designer.md .claude/skills/design-system/SKILL.md` finds nothing.
+
+As built (one commit with X03):
+
+- A build of our own (`scripts/build-tokens.ts`) replaces Style Dictionary: every output would have been a custom format, and the package has one dependency less.
+- The token files were checked against Figma with a read-only script: a hash per collection and mode, all 11 equal.
+- Beyond the six namespaces, the stylesheet also resets `--font-weight-*`, `--leading-*`, `--tracking-*`, `--shadow-*`, `--ease-*` and `--container-*`. It adds what these replace: `shadow-elevation-*` from the Figma effect styles, `ease-standard`, `-enter`, `-exit`, and `max-w-page` with the two breakpoints from the `design-system` skill (`tokens/layout.json`, no Figma variables).
+- Line heights are set directly per `:lang()`, so a passage in another language gets its own.
+- No `dev` script: `node --watch-path` is not available on Linux and tokens change rarely; run `pnpm generate`.
+- Open for the ui-designer: the `Motion` collection in Figma (`tokens/motion.json` is the source until then), and the decision on `text/tertiary` on `bg/subtle`, 4.43:1 in light. Until then the rule in the `design-system` skill applies, and a test keeps the value visible.
 
 ### X06 — Web shell: i18n, RTL, theme, fonts, motion and error routes
 

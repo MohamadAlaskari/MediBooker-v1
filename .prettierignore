@@ -11,3 +11,6 @@ pnpm-lock.yaml
 
 # Written by pnpm generate, byte-identical on every run.
 apps/api/openapi.json
+packages/api-client/src/generated/
+packages/design-tokens/css/tokens.css
+packages/design-tokens/src/generated/

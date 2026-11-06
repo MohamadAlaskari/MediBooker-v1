@@ -1,0 +1,38 @@
+{
+  "brand": {
+    "50": {
+      "$value": "{violet.50}"
+    },
+    "100": {
+      "$value": "{violet.100}"
+    },
+    "200": {
+      "$value": "{violet.200}"
+    },
+    "300": {
+      "$value": "{violet.300}"
+    },
+    "400": {
+      "$value": "{violet.400}"
+    },
+    "500": {
+      "$value": "{violet.500}"
+    },
+    "600": {
+      "$value": "{violet.600}"
+    },
+    "700": {
+      "$value": "{violet.700}"
+    },
+    "800": {
+      "$value": "{violet.800}"
+    },
+    "900": {
+      "$value": "{violet.900}"
+    },
+    "950": {
+      "$value": "{violet.950}"
+    },
+    "$type": "color"
+  }
+}

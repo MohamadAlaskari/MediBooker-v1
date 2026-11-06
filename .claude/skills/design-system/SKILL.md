@@ -114,7 +114,7 @@ Naming: Figma `color/bg/canvas` → CSS `--color-bg-canvas` → React Native `th
 | `color/icon/danger`, `success`, `warning`, `info` | red/600, green/600, amber/600, blue/600 | red/400, green/400, amber/400, blue/400 | |
 | `color/icon/disabled`, `inverse` | gray/400, gray/50 | gray/600, gray/900 | |
 
-All text/background pairs meet WCAG 2.2 AA (4.5:1) in both modes; borders and icons meet 3:1 against every surface (140 pairs verified). Re-run the check whenever a primitive changes. Disabled states are exempt and use `text/disabled`.
+All text/background pairs meet WCAG 2.2 AA (4.5:1) in both modes; borders and icons meet 3:1 against every surface (tests in `packages/design-tokens`). One exception: `text/tertiary` on `bg/subtle` is 4.43:1 in light, so meta text on a hover row uses `text/secondary`. The tests re-run the check whenever a primitive changes. Disabled states are exempt and use `text/disabled`.
 
 ### Practice themes (ADR 0002, BR-23)
 
@@ -165,7 +165,7 @@ Code: font stack `"Noto Sans Arabic", "Inter", sans-serif` for `ar` (Latin snipp
 
 ### Motion (ADR 0008)
 
-To be added in Figma as a `Motion` collection, then exported like all tokens: `motion/duration/instant` 0 · `fast` 120 · `base` 200 · `slow` 320 (ms) and `motion/ease/standard` (0.2, 0, 0, 1) · `enter` (0.05, 0.7, 0.1, 1) · `exit` (0.3, 0, 1, 1) as cubic-bezier control points. These starting values are confirmed by the ui-designer in X05. Code uses them as CSS variables (transitions), a TypeScript object for GSAP (`CustomEase`) and Reanimated (`Easing.bezier`). Reduced motion: end state at once, or an opacity fade of at most `fast`.
+To be added in Figma as a `Motion` collection; until then `packages/design-tokens/tokens/motion.json` is the source: `motion/duration/instant` 0 · `fast` 120 · `base` 200 · `slow` 320 (ms) and `motion/ease/standard` (0.2, 0, 0, 1) · `enter` (0.05, 0.7, 0.1, 1) · `exit` (0.3, 0, 1, 1) as cubic-bezier control points. These starting values are confirmed by the ui-designer in X05. Code uses them as CSS variables (transitions), a TypeScript object for GSAP (`CustomEase`) and Reanimated (`Easing.bezier`). Reduced motion: end state at once, or an opacity fade of at most `fast`.
 
 ### Web components (ADR 0007)
 
@@ -300,6 +300,6 @@ Records & Family components map to the domain (`medibooker-domain`): Note Card =
 ## Token export pipeline
 
 1. The `ui-designer` changes variables in Figma.
-2. A read-only `use_figma` script dumps all variables (names, types, per-mode values, alias targets) to `packages/design-tokens/tokens.json` (W3C DTCG format).
-3. Style Dictionary builds `tokens.css` (Light in `:root`, Dark in `[data-theme='dark']`, typography per `:lang(ar)` / `:lang(en)`, brand presets as `[data-brand='ocean']` etc. setting `--brand-50 … --brand-950`) and `tokens.ts` (light/dark themes, typography per locale, brand presets) for React Native. A custom practice colour overrides the `--brand-*` values at runtime.
-4. CI fails if the generated files are out of date.
+2. A read-only `use_figma` script dumps the variables (names, types, per-mode values, alias targets) into `packages/design-tokens/tokens/*.json`: W3C DTCG, aliases kept, one file per collection and mode (`primitives`, `brand.<preset>`, `color.<mode>`, `typography.<mode>`, `dimension`). `text-styles`, `elevation`, `layout` and `motion` have no Figma variables and are edited with the Figma styles or this skill.
+3. `pnpm generate` runs `scripts/build-tokens.ts` and writes `css/tokens.css` (the Tailwind theme: Light in `@theme`, Dark in `[data-theme='dark']` and for `[data-theme='system']`, typography per `:lang()`, brand presets as `[data-brand='ocean']` etc. setting `--brand-50 … --brand-950`) and `src/generated/tokens.ts` (`BRAND_PRESETS`, `createColorTheme`, typography per locale, spacing, radius, motion) for React Native and e-mails. Set `data-theme` and `data-brand` on `<html>`. A custom practice colour overrides the `--brand-*` values at runtime.
+4. `pnpm check:drift` and CI fail if the generated files are out of date.

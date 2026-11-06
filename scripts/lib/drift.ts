@@ -1,5 +1,10 @@
 /** The files that `pnpm generate` writes and git keeps, so a stale one fails verify and CI. */
-export const GENERATED_FILES = ['apps/api/openapi.json'] as const;
+export const GENERATED_FILES = [
+  'apps/api/openapi.json',
+  'packages/api-client/src/generated',
+  'packages/design-tokens/css/tokens.css',
+  'packages/design-tokens/src/generated/tokens.ts',
+] as const;
 
 /** A line per file git reports: changed by the generator, or never added. */
 export function driftProblems(changed: readonly string[], untracked: readonly string[]): string[] {

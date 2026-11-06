@@ -9,7 +9,7 @@ description: Contract-first API rules for MediBooker v2 — how the OpenAPI spec
 
 1. `architect` designs the change: endpoint, DTOs, error codes, permissions.
 2. `backend-engineer` implements DTOs and decorators in `apps/api`. The OpenAPI 3.1 document is generated from the code and committed as `apps/api/openapi.json`. CI fails if it is out of date.
-3. `packages/api-client` is generated from it: types, fetch functions and TanStack Query hooks (generator: orval or hey-api, decide once). Never edit generated files.
+3. `packages/api-client` is generated from it with Orval (`pnpm generate`, ADR 0012): types, fetch functions, TanStack Query hooks, zod schemas and MSW mocks. Never edit generated files.
 4. Web and mobile import only from `@medibooker/api-client`. No handwritten `fetch` calls to the API.
 
 ## Conventions

@@ -1,0 +1,94 @@
+{
+  "font": {
+    "family": {
+      "sans": {
+        "$type": "fontFamily",
+        "$value": ["Inter", "sans-serif"]
+      }
+    },
+    "style": {
+      "$type": "fontWeight",
+      "regular": {
+        "$value": 400
+      },
+      "medium": {
+        "$value": 500
+      },
+      "semibold": {
+        "$value": 600
+      },
+      "bold": {
+        "$value": 700
+      }
+    },
+    "line-height": {
+      "$type": "dimension",
+      "display": {
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
+      "heading-h1": {
+        "$value": {
+          "value": 36,
+          "unit": "px"
+        }
+      },
+      "heading-h2": {
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "heading-h3": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "body-large": {
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "body-default": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "body-small": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "label-large": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "label-default": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "label-small": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "caption": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      }
+    }
+  }
+}

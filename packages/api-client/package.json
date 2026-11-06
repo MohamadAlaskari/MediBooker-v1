@@ -1,0 +1,40 @@
+{
+  "name": "@medibooker/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The typed API client of MediBooker v2, generated from the OpenAPI document: query hooks, zod schemas and MSW mocks.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./zod": "./src/zod.ts",
+    "./mocks": "./src/mocks.ts"
+  },
+  "scripts": {
+    "generate": "orval --config orval.config.ts",
+    "lint": "eslint --max-warnings=0 .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "catalog:",
+    "@medibooker/eslint-config": "workspace:*",
+    "@medibooker/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "msw": "catalog:",
+    "orval": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

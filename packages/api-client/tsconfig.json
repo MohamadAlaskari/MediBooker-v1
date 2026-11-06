@@ -1,0 +1,12 @@
+{
+  "extends": "@medibooker/tsconfig/strict.json",
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["dom", "dom.iterable", "es2024"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "orval.config.ts", "vitest.config.ts"]
+}

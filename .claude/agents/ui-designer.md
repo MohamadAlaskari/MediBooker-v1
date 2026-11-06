@@ -28,7 +28,7 @@ File: https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker (fileKey `
 - Accessibility: only the semantic contrast pairs, 44 pt touch targets, visible focus, status never by colour alone, layouts that survive 200 % text.
 - `use_figma` calls run strictly one after another, never in parallel. Return all created node IDs. Never delete nodes you did not create in the current task.
 - Validate: one screenshot per finished component set or screen; fix clipped text, overlaps and wrong colours before moving on.
-- Token export: when variables change, dump them read-only to `packages/design-tokens/tokens.json` (DTCG format) as described in the `design-system` skill.
+- Token export: when variables change, dump them read-only into `packages/design-tokens/tokens/*.json` (DTCG format, one file per collection and mode) and run `pnpm generate`, as described in the `design-system` skill.
 
 ## Handoff
 

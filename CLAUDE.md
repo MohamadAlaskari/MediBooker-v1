@@ -13,7 +13,7 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 | `.claude/agents/` | Project subagents (the team) | Active |
 | `.claude/skills/` | Project skills (how we work) | Active |
 | `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
-| `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules); `@medibooker/i18n` (locales, direction, negotiation) | Active |
+| `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules); `@medibooker/i18n` (locales, direction, negotiation); `@medibooker/design-tokens` (tokens from Figma, Tailwind stylesheet); `@medibooker/api-client` (generated client, `ApiError`, query client) | Active |
 | `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans (`scan-secrets.ts`), CI-configuration test (`ci-config.test.ts`), generated-file check (`check-drift.ts`) | Active |
 | `.github/` | GitHub Actions: workflows `ci.yml` (only required check `ci-ok`), `codeql.yml`, `scheduled.yml`; composite actions `setup` and `gitleaks`; actionlint config; pull request template. `renovate.json` sits at the root — `docs/adr/0009-ci-branch-model-and-supply-chain.md` | Active |
 | `apps/` | `api` (NestJS 12, since F03), `db-migrate` (database CLI `medibooker-db`, since F04), `web` (Next.js, since F06); `mobile` (Expo) follows | Built feature by feature along `docs/architecture/08-roadmap.md` |
@@ -123,7 +123,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Integration tests (Docker, Testcontainers; run before a commit that changes database code) | `pnpm test:integration` |
 | Web end-to-end tests in a real browser, against the production build (once: `pnpm --filter @medibooker/web exec playwright install chromium`) | `pnpm test:e2e` |
 | Check the migration rules | `pnpm check:migrations` |
-| Write the OpenAPI document `apps/api/openapi.json` (after a DTO or route change) | `pnpm generate` |
+| Write the generated files: design tokens, the OpenAPI document `apps/api/openapi.json`, the API client (after a token, DTO or route change) | `pnpm generate` |
 | Fail when a generated file differs from git | `pnpm check:drift` |
 | Try the endpoints in the browser (`OPENAPI_UI_ENABLED=true`, dev server running) | http://localhost:3001/api/docs |
 | Build | `pnpm build` |

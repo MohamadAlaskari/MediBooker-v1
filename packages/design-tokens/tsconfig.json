@@ -1,0 +1,10 @@
+{
+  "extends": "@medibooker/tsconfig/library.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src", "scripts", "vitest.config.ts"]
+}

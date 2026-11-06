@@ -1,0 +1,38 @@
+{
+  "brand": {
+    "50": {
+      "$value": "{graphite.50}"
+    },
+    "100": {
+      "$value": "{graphite.100}"
+    },
+    "200": {
+      "$value": "{graphite.200}"
+    },
+    "300": {
+      "$value": "{graphite.300}"
+    },
+    "400": {
+      "$value": "{graphite.400}"
+    },
+    "500": {
+      "$value": "{graphite.500}"
+    },
+    "600": {
+      "$value": "{graphite.600}"
+    },
+    "700": {
+      "$value": "{graphite.700}"
+    },
+    "800": {
+      "$value": "{graphite.800}"
+    },
+    "900": {
+      "$value": "{graphite.900}"
+    },
+    "950": {
+      "$value": "{graphite.950}"
+    },
+    "$type": "color"
+  }
+}

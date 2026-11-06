@@ -526,7 +526,8 @@
             "name": "slug",
             "required": true,
             "schema": {
-              "example": "al-noor"
+              "example": "al-noor",
+              "type": "string"
             }
           }
         ],
