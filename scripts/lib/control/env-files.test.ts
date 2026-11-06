@@ -61,6 +61,7 @@ describe('ensureEnvFile', () => {
   });
 
   it.each(['dev', 'prod'] as const)('never overwrites the file of %s', (mode) => {
+    writeFileSync(path.join(root, '.env.example'), 'FROM_THE_TEMPLATE=1\n');
     const file = path.join(root, STACKS[mode].envFile);
     writeFileSync(file, 'KEPT=1\n');
     expect(ensureEnvFile(STACKS[mode], root)).toBe(false);
