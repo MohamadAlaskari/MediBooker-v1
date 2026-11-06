@@ -18,6 +18,7 @@ import { TimeModule } from './common/time/time.module.js';
 import { EnvModule } from './config/env.module.js';
 import type { Env } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
 
@@ -49,6 +50,7 @@ export class AppModule {
         PlatformDatabaseModule,
         TenancyModule,
         HealthModule,
+        AuthModule,
         PublicPracticeModule,
         SchedulingModule,
       ],

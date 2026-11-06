@@ -37,6 +37,8 @@ import { AppModule } from '../../app.module.js';
 import { API_VERSIONING } from '../../app.setup.js';
 import { parseEnv } from '../../config/env.schema.js';
 import { PracticeScoped, practiceScopeOf } from '../tenancy/practice-scoped.decorator.js';
+import { ClsService } from 'nestjs-cls';
+import { Authenticator } from './actor.js';
 import { AuthenticationGuard } from './authentication.guard.js';
 import { isPublicHandler, Public } from './public.decorator.js';
 
@@ -294,7 +296,11 @@ class BlankVersionController {
     ReboundController,
     RequestScopedController,
   ],
-  providers: [{ provide: APP_GUARD, useClass: AuthenticationGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: AuthenticationGuard },
+    { provide: Authenticator, useValue: { authenticate: () => Promise.resolve(undefined) } },
+    { provide: ClsService, useValue: { set: () => undefined } },
+  ],
 })
 class FixtureModule {}
 
@@ -350,7 +356,7 @@ describe('the route inventory', () => {
 });
 
 /** The only path prefixes under which a route may answer without sign-in (02 §4). */
-const PUBLIC_PREFIXES = ['/api/v1/public/', '/health/'];
+const PUBLIC_PREFIXES = ['/api/v1/public/', '/api/v1/auth/', '/health/'];
 
 function publicOutsideTheAllowedPaths(routes: readonly MappedRoute[]): string[] {
   return routes
@@ -442,9 +448,33 @@ describe('the route rules (02 §11)', () => {
 });
 
 describe('public routes (02 §4)', () => {
-  it('are exactly the list of practices, the practice page, its free times and the two health probes: a new public route is a reviewed change to this list', async () => {
+  it('are exactly sign-in and sign-up, the list of practices, the practice page, its free times and the two health probes: a new public route is a reviewed change to this list', async () => {
     expect(await inventoryOf([AppModule.forRoot(parseEnv(TEST_ENV))])).toMatchObject({
       publicRoutes: [
+        { handler: 'AuthController.login', method: 'POST', path: '/api/v1/auth/login' },
+        { handler: 'AuthController.logout', method: 'POST', path: '/api/v1/auth/logout' },
+        {
+          handler: 'AuthController.forgotPassword',
+          method: 'POST',
+          path: '/api/v1/auth/password/forgot',
+        },
+        {
+          handler: 'AuthController.resetPassword',
+          method: 'POST',
+          path: '/api/v1/auth/password/reset',
+        },
+        { handler: 'AuthController.refresh', method: 'POST', path: '/api/v1/auth/refresh' },
+        { handler: 'AuthController.register', method: 'POST', path: '/api/v1/auth/register' },
+        {
+          handler: 'AuthController.verifyEmail',
+          method: 'POST',
+          path: '/api/v1/auth/verify-email',
+        },
+        {
+          handler: 'AuthController.resendVerification',
+          method: 'POST',
+          path: '/api/v1/auth/verify-email/resend',
+        },
         {
           handler: 'PublicPracticeController.listPublicPractices',
           method: 'GET',

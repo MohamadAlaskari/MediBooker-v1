@@ -44,6 +44,11 @@ const REPORTED: Fixture[] = [
     content: `export const dbConfig = {\n  host: 'localhost',\n  password: '${SYNTHETIC_SECRET}',\n};\n`,
   },
   {
+    name: 'a value that only starts like a zod schema',
+    file: 'zod-like.env',
+    content: `DB_PASSWORD=zod.${SYNTHETIC_SECRET}\n`,
+  },
+  {
     name: 'a quoted *_SECRET value',
     file: 'jwt.env',
     content: `JWT_SECRET="${SYNTHETIC_SECRET}"\n`,
@@ -151,6 +156,11 @@ const NOT_REPORTED: Fixture[] = [
     name: 'password: process.env.DB_PASSWORD',
     file: 'env-config.js',
     content: 'export const dbConfig = {\n  password: process.env.DB_PASSWORD\n};\n',
+  },
+  {
+    name: 'a generated zod schema of a password, as the last key of its object',
+    file: 'auth.zod.ts',
+    content: 'export const LoginBody = zod.object({\n  "password": zod.string().max(1024)\n});\n',
   },
   { name: 'an empty value', file: 'empty.env', content: 'DB_PASSWORD=\n' },
   { name: 'a value of 7 characters', file: 'short.env', content: 'DB_PASSWORD=Sh0rt-7\n' },

@@ -9,6 +9,7 @@ export const FIELD_ERROR_MESSAGES = {
   TOO_SMALL: 'Too small',
   TOO_LARGE: 'Too large',
   UNKNOWN_FIELD: 'Unknown field',
+  PASSWORD_BREACHED: 'Found in a list of breached passwords',
 } as const satisfies Readonly<Record<string, string>>;
 
 export type FieldErrorCode = keyof typeof FIELD_ERROR_MESSAGES;

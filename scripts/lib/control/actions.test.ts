@@ -118,8 +118,8 @@ describe('the commands', () => {
   });
 
   it('restart only the services that keep running', () => {
-    expect(composeCommands('dev', 'restart')[0]).toMatch(/restart api web$/);
-    expect(composeCommands('prod', 'restart')[0]).toMatch(/restart api web proxy$/);
+    expect(composeCommands('dev', 'restart')[0]).toMatch(/restart api web mailpit$/);
+    expect(composeCommands('prod', 'restart')[0]).toMatch(/restart api web proxy mailpit$/);
   });
 });
 

@@ -110,6 +110,9 @@ const STAGING = parseEnv({
   PLATFORM_DATABASE_URL:
     'postgresql://platform_app:pw@db.internal.test:5432/medibooker_platform?sslmode=verify-full&sslrootcert=/ca.pem',
   MARKETS: 'SA',
+  PUBLIC_WEB_URL: 'https://web.example.test',
+  AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
+  AUTH_SECRET_REF: 'hosted:auth-secret',
 });
 
 describe('PracticeClientOpener (02 §5 item 3)', () => {

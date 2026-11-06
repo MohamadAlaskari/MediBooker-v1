@@ -11,6 +11,8 @@ export interface ErrorDefinition {
 export const ERROR_CATALOG = {
   VALIDATION_FAILED: { status: 400, title: 'Validation failed' },
   UNAUTHENTICATED: { status: 401, title: 'Authentication required' },
+  INVALID_CREDENTIALS: { status: 401, title: 'Invalid credentials' },
+  INVALID_TOKEN: { status: 400, title: 'Invalid or expired token' },
   FORBIDDEN: { status: 403, title: 'Forbidden' },
   NOT_FOUND: { status: 404, title: 'Not found' },
   CONFLICT: { status: 409, title: 'Conflict' },

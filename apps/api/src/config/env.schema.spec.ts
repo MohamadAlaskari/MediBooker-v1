@@ -18,6 +18,9 @@ const PRODUCTION: EnvSource = {
   TRUST_PROXY_HOPS: '1',
   PLATFORM_DATABASE_URL: DEPLOYED_DATABASE_URL,
   MARKETS: 'SA',
+  PUBLIC_WEB_URL: 'https://web.example.test',
+  AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
+  AUTH_SECRET_REF: 'hosted:auth-secret',
 };
 
 const STAGING: EnvSource = { ...PRODUCTION, APP_ENV: 'staging' };
@@ -80,6 +83,11 @@ describe('parseEnv', () => {
       DATABASE_TX_MAX_WAIT_MS: 2000,
       DATABASE_TX_TIMEOUT_MS: 5000,
       MARKETS: [],
+      AUTH_SIGNING_KEY_REFS: ['dev:auth-signing-key'],
+      AUTH_SECRET_REF: 'dev:auth-secret',
+      PUBLIC_WEB_URL: 'http://localhost:3000',
+      MAIL_FROM: 'MediBooker <no-reply@medibooker.invalid>',
+      OUTBOX_POLL_SECONDS: 5,
     });
   });
 
@@ -571,6 +579,84 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
         expect(stderr).toContain('DATABASE_CLUSTER_ENDPOINTS (custom: not_a_json_object)');
         expect(stderr).not.toContain('only_in_local_and_ci');
       });
+    });
+  });
+
+  describe('accounts and their e-mails (A01, A02)', () => {
+    it('reads the signing keys as a list, the first of which signs', () => {
+      expect(
+        parseEnv({ ...LOCAL, AUTH_SIGNING_KEY_REFS: 'dev:new, dev:old' }).AUTH_SIGNING_KEY_REFS,
+      ).toEqual(['dev:new', 'dev:old']);
+    });
+
+    it('takes the address of links in e-mails as an origin, without a path or a trailing slash', () => {
+      expect(parseEnv({ ...LOCAL, PUBLIC_WEB_URL: 'http://localhost:8080' })).toMatchObject({
+        PUBLIC_WEB_URL: 'http://localhost:8080',
+      });
+      for (const value of ['https://web.example.test/', 'https://web.example.test/app', 'nope']) {
+        expect(parseInvalid({ ...LOCAL, PUBLIC_WEB_URL: value }).stderr).toContain(
+          'PUBLIC_WEB_URL',
+        );
+      }
+    });
+
+    it.each([
+      ['staging', STAGING],
+      ['production', PRODUCTION],
+    ])('in %s needs an https address, and references that are not for development', (_, base) => {
+      expect(parseInvalid({ ...base, PUBLIC_WEB_URL: undefined }).stderr).toContain(
+        'PUBLIC_WEB_URL (custom: required_in_staging_and_production)',
+      );
+      expect(parseInvalid({ ...base, PUBLIC_WEB_URL: 'http://web.example.test' }).stderr).toContain(
+        'PUBLIC_WEB_URL (custom: https_required_in_staging_and_production)',
+      );
+      expect(parseInvalid({ ...base, AUTH_SIGNING_KEY_REFS: undefined }).stderr).toContain(
+        'AUTH_SIGNING_KEY_REFS (custom: dev_reference_only_in_local_and_ci)',
+      );
+      expect(
+        parseInvalid({ ...base, AUTH_SIGNING_KEY_REFS: 'hosted:new,dev:old' }).stderr,
+      ).toContain('AUTH_SIGNING_KEY_REFS (custom: dev_reference_only_in_local_and_ci)');
+      expect(parseInvalid({ ...base, AUTH_SECRET_REF: undefined }).stderr).toContain(
+        'AUTH_SECRET_REF (custom: dev_reference_only_in_local_and_ci)',
+      );
+    });
+
+    it.each([
+      ['staging', STAGING],
+      ['production', PRODUCTION],
+    ])('in %s sends e-mails only encrypted and with the certificate checked', (_, base) => {
+      for (const url of [
+        'smtp://mail.example.test:587',
+        'smtp://mail.example.test:587?requireTLS=false',
+        'smtps://mail.example.test?tls.rejectUnauthorized=false',
+        'smtp://mail.example.test:587?requireTLS=true&logger=true',
+      ]) {
+        expect(parseInvalid({ ...base, SMTP_URL: url }).stderr).toContain(
+          'SMTP_URL (custom: tls_required_in_staging_and_production)',
+        );
+      }
+      for (const url of [
+        'smtps://mail.example.test:465',
+        'smtp://mail.example.test:587?requireTLS=true',
+      ]) {
+        expect(parseEnv({ ...base, SMTP_URL: url }).SMTP_URL).toBe(url);
+      }
+    });
+
+    it('takes only a mail server for e-mails', () => {
+      for (const url of ['http://mail.example.test', 'direct://mail.example.test']) {
+        expect(parseInvalid({ ...LOCAL, SMTP_URL: url }).stderr).toContain('SMTP_URL');
+      }
+    });
+
+    it('takes a plain mail server in local and ci, for Mailpit', () => {
+      expect(parseEnv({ ...LOCAL, SMTP_URL: 'smtp://mailpit:1025' }).SMTP_URL).toBe(
+        'smtp://mailpit:1025',
+      );
+    });
+
+    it('turns the timer of the outbox off with 0', () => {
+      expect(parseEnv({ ...LOCAL, OUTBOX_POLL_SECONDS: '0' }).OUTBOX_POLL_SECONDS).toBe(0);
     });
   });
 

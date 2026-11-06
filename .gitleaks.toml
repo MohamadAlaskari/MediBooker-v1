@@ -30,7 +30,7 @@ regex = '''(?im)(?:(?:[\w.-]*(?:password|passwd|passphrase|pwd|secret)|(?:\b|_)p
 keywords = ["pass", "pwd", "secret", "://"]
 
 [[rules.allowlists]]
-description = "Placeholders: changeme, example, <...>, ${VAR}, $VAR, process.env.* (empty values are too short)"
+description = "Placeholders: changeme, example, <...>, ${VAR}, $VAR, process.env.*, a zod schema (empty values are too short)"
 regexes = [
   '''(?i)change[_-]?me''',
   '''(?i)example''',
@@ -40,4 +40,7 @@ regexes = [
   '''^\$\{[A-Za-z_][A-Za-z0-9_]*(?::?-|:?\?[^}]*)?\}$''',
   '''^\$[A-Za-z_][A-Za-z0-9_]*$''',
   '''^process\.env\b''',
+  # The generated request schemas: the last key of an object has no comma, so its value is code
+  # that runs to the end of the line.
+  '''^zod\.[a-z]+\(''',
 ]

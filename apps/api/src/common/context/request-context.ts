@@ -1,16 +1,17 @@
 import type { ServerResponse } from 'node:http';
 import { ClsMiddleware, type ClsStore } from 'nestjs-cls';
+import type { Actor } from '../security/actor.js';
 import type { PracticeContext } from '../tenancy/practice-context.js';
 import { REQUEST_ID_HEADER, requestIdOf, type IdentifiableRequest } from './request-id.js';
 
 /**
  * The request context (nestjs-cls). The request id is the CLS id (`ClsService.getId()`).
  * `practice` holds the resolved practice and its client's lease, set only by the tenancy layer
- * (F04); `actor` is filled by authentication (A01), and until then nothing may set it.
+ * (F04); `actor` is set only by the authentication guard (A01).
  */
 export interface RequestContext extends ClsStore {
   practice?: PracticeContext;
-  actor?: never;
+  actor?: Actor;
 }
 
 /**

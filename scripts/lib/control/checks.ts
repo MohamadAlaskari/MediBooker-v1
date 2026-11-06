@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto';
+import { setTimeout as pause } from 'node:timers/promises';
 import { DEMO_PRACTICE, DEMO_SERVICE, type Stack } from './stacks.ts';
 
 // A development server compiles a page on its first request.
 const TIMEOUT_MS = 30_000;
+const RETRY_PAUSE_MS = 1000;
 
 interface Answer {
   readonly status: number;
@@ -14,6 +17,11 @@ export interface Check {
   readonly name: string;
   readonly url: string;
   readonly headers?: Readonly<Record<string, string>>;
+  /** GET unless a check says otherwise. */
+  readonly method?: 'POST';
+  readonly body?: string;
+  /** How often to ask, a second apart, for something that happens in the background. */
+  readonly attempts?: number;
   readonly verify: (answer: Answer) => string | undefined;
   /** What to do when it fails, if there is more to say than the problem. */
   readonly hint?: string;
@@ -77,6 +85,11 @@ function probeChecks(stack: Stack): readonly Check[] {
     {
       name: 'Web-Seite',
       url: `${stack.webUrl}/en`,
+      verify: isHealthy,
+    },
+    {
+      name: 'E-Mail-Fänger (Mailpit)',
+      url: `${stack.mailUrl}/livez`,
       verify: isHealthy,
     },
   ];
@@ -145,6 +158,37 @@ function sitemapCheck(stack: Stack): Check {
       return answer.text.includes(`<loc>${address}</loc>`) ? undefined : `${address} fehlt`;
     },
   };
+}
+
+/** The whole way of an account e-mail: the sign-up, its outbox and the mail server. */
+function accountEmailChecks(stack: Stack, runId: string, locale: string): readonly Check[] {
+  const email = `smoke-${runId}-${locale}@example.test`;
+  return [
+    {
+      name: `Registrierung nimmt an (${locale})`,
+      url: `${stack.apiUrl}/api/v1/auth/register`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password: randomUUID(),
+        locale,
+        privacyNoticeVersion: 'smoke',
+      }),
+      verify: hasStatus(202),
+    },
+    {
+      name: `Bestätigungs-E-Mail kommt an (${locale})`,
+      url: `${stack.mailUrl}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+      attempts: 20,
+      hint: 'Der Ausgang der API schickt alle paar Sekunden: Protokoll der API ansehen',
+      verify: (answer) => {
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        return answer.text.includes(email) ? undefined : 'Keine E-Mail im Mailpit';
+      },
+    },
+  ];
 }
 
 /** Behind a proxy a redirect easily names the container's own address instead of the site. */
@@ -252,7 +296,11 @@ function behindProxyChecks(stack: Stack, swaggerEnabled: boolean): readonly Chec
 }
 
 /** The smoke test: what a visitor and a client depend on, against the running containers. */
-export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Check[] {
+export function smokeChecks(
+  stack: Stack,
+  swaggerEnabled: boolean,
+  runId = String(Date.now()),
+): readonly Check[] {
   return [
     ...probeChecks(stack),
     demoPracticeCheck(stack),
@@ -263,6 +311,8 @@ export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Che
     sitemapCheck(stack),
     pageCheck(stack, 'en', 'ltr'),
     problemCheck(stack),
+    ...accountEmailChecks(stack, runId, 'ar'),
+    ...accountEmailChecks(stack, runId, 'en'),
     ...(stack.mode === 'dev'
       ? [
           {
@@ -275,27 +325,40 @@ export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Che
   ];
 }
 
+/** The problem of one request, or undefined. An unreachable service is a problem. */
+async function askOnce(check: Check, fetchImpl: typeof fetch): Promise<string | undefined> {
+  const { url, headers, method, body, verify } = check;
+  try {
+    const response = await fetchImpl(url, {
+      ...(headers === undefined ? {} : { headers }),
+      ...(method === undefined ? {} : { method }),
+      ...(body === undefined ? {} : { body }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    return verify({
+      status: response.status,
+      headers: response.headers,
+      text: await response.text(),
+    });
+  } catch {
+    return 'Nicht erreichbar';
+  }
+}
+
 /** Runs the checks one after the other. Never throws: an unreachable service is a failed check. */
 export async function runChecks(
   checks: readonly Check[],
   fetchImpl: typeof fetch = fetch,
+  retryPauseMs: number = RETRY_PAUSE_MS,
 ): Promise<readonly CheckResult[]> {
   const results: CheckResult[] = [];
-  for (const { name, url, headers, verify, hint, advisory } of checks) {
-    let problem: string | undefined;
-    try {
-      const response = await fetchImpl(url, {
-        ...(headers === undefined ? {} : { headers }),
-        redirect: 'manual',
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      problem = verify({
-        status: response.status,
-        headers: response.headers,
-        text: await response.text(),
-      });
-    } catch {
-      problem = 'Nicht erreichbar';
+  for (const check of checks) {
+    const { name, url, hint, advisory, attempts = 1 } = check;
+    let problem = await askOnce(check, fetchImpl);
+    for (let asked = 1; problem !== undefined && asked < attempts; asked += 1) {
+      await pause(retryPauseMs);
+      problem = await askOnce(check, fetchImpl);
     }
     results.push({
       name,

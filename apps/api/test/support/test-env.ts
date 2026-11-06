@@ -13,4 +13,6 @@ export const TEST_ENV: Readonly<Record<string, string>> = {
   SECRET_STORE: 'dev',
   // Synthetic and of low entropy on purpose, so the staged secret scan has nothing to report.
   DEV_SECRET_SEED: 'synthetic-test-seed',
+  // A test drives the outbox itself: no timer in the background.
+  OUTBOX_POLL_SECONDS: '0',
 };

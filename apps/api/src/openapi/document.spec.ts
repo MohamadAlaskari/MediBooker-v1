@@ -1,13 +1,15 @@
 import type { OpenAPIObject } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PUBLIC_OPERATIONS } from '../../test/integration/authz/matrix.js';
+import { AUTHZ_MATRIX, PUBLIC_OPERATIONS } from '../../test/integration/authz/matrix.js';
 import { createTestApp } from '../../test/support/create-test-app.js';
 import { operationIdsOf, serializeOpenApiDocument, buildOpenApiDocument } from './document.js';
 
 interface OperationResponses {
   responses: Record<string, { content?: Record<string, unknown> }>;
 }
+
+const REGISTERED = [...PUBLIC_OPERATIONS, ...Object.keys(AUTHZ_MATRIX)];
 
 /** The operationIds of a document that no registry knows (06, 02 §11). */
 function unregisteredOperations(document: OpenAPIObject, registered: readonly string[]): string[] {
@@ -65,7 +67,11 @@ describe('the OpenAPI document (X02)', () => {
   });
 
   it('registers every operation for the authorization matrix', () => {
-    expect(unregisteredOperations(document, PUBLIC_OPERATIONS)).toEqual([]);
+    expect(unregisteredOperations(document, REGISTERED)).toEqual([]);
+  });
+
+  it('registers an operation either as public or as protected, never as both', () => {
+    expect(PUBLIC_OPERATIONS.filter((id) => id in AUTHZ_MATRIX)).toEqual([]);
   });
 
   it('fails for an operation that no registry knows', () => {
@@ -76,6 +82,6 @@ describe('the OpenAPI document (X02)', () => {
         '/api/v1/fixture': { get: { operationId: 'fixtureOperation', responses: {} } },
       },
     };
-    expect(unregisteredOperations(fixture, PUBLIC_OPERATIONS)).toEqual(['fixtureOperation']);
+    expect(unregisteredOperations(fixture, REGISTERED)).toEqual(['fixtureOperation']);
   });
 });

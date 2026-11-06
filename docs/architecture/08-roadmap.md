@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (this commit), then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (this commit), then A05 and the booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -46,12 +46,12 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (`8c1da1a`), sitemap in `54c9140` |
-| 23 | P04 | Availability and slot generation | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit), rest with its first consumer |
-| 24 | P05 | Public free times | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit) |
-| 25 | P06 | Free times on the page | `feat(scheduling): generate slots and show free times on the page` | - | done (this commit) |
-| 26 | A01 | Accounts, sessions, memberships, audit | `feat(auth): add accounts, sessions, memberships and audit log` | - | planned |
-| 27 | A02 | Notification outboxes and account e-mails | `feat(notifications): add outbox, SMTP adapter and account e-mails` | - | planned |
-| 28 | A03 | Patient sign-up, verification, reset | `feat(auth): add patient sign-up, e-mail verification and reset` | - | planned |
+| 23 | P04 | Availability and slot generation | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`), rest with its first consumer |
+| 24 | P05 | Public free times | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`) |
+| 25 | P06 | Free times on the page | `feat(scheduling): generate slots and show free times on the page` | - | done (`c0dbca6`) |
+| 26 | A01 | Accounts, sessions, memberships, audit | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | accounts and sessions done (this commit), rest with B01 and A04 |
+| 27 | A02 | Notification outboxes and account e-mails | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | account e-mails done (this commit), practice messages with E09 and N01 |
+| 28 | A03 | Patient sign-up, verification, reset | `feat(auth): add accounts, sessions, sign-up and account e-mails` | - | done (this commit) |
 | 29 | A04 | Staff invitations, MFA, sessions, practice creation | `feat(auth): add staff invitations, TOTP MFA and session control` | - | planned |
 | 30 | A05 | Web authentication flows | `feat(web): add sign-in, sign-up, verification and two-factor flows` | D16 | planned |
 | 31 | A06 | Mobile authentication flows | `feat(mobile): add sign-in, sign-up and secure session storage` | D16 | planned |
@@ -777,6 +777,16 @@ Acceptance:
   grep -nE '`sub`, `role`|@Roles\(' .claude/skills/health-data-security/SKILL.md .claude/skills/nestjs-feature/SKILL.md
   ```
 
+As built (one commit with the account e-mails of A02 and with A03, the lean order of 2026-11-05): the accounts and sessions a patient needs to sign up and sign in. No membership can exist before something creates one, so these move, each with its acceptance checks:
+
+- Memberships, `practice_access`, `integration_outbox`, `IntegrationRelay`, `revocation_journal`, `@PracticeScoped('id')`, `GET /me/practices` and the practice's `audit_events` → B01 for patients, A04 for staff, whichever comes first. `expectAuthMatrix` grows with them; until then `test/e2e/authz-matrix.e2e-spec.ts` proves the 401 of every protected operation and the integration spec the answers of an account.
+- `mfa_recovery_codes`, the `amr` of a second factor, support access and its settings → A04.
+- The architecture test on `health` fields in platform tables → with the first platform table that holds one; the new tables hold none.
+
+In this commit: `users`, `sessions` (one row per refresh token, with its family), `account_tokens`, `account_consents` and `account_notifications` in the platform database; `node:crypto` argon2id instead of a native package; EdDSA access tokens through `jose`, from a 32-byte seed in the secret store; `AUTH_SIGNING_KEY_REFS` and `AUTH_SECRET_REF`, which staging and production refuse as `dev:` references; a refresh answered 401 without revoking anything within ten seconds of its rotation, so two tabs of one person do not sign each other out, and with a revoked family after that; `SessionAuthenticator` behind the `Authenticator` port, so `common/security` knows no module. The CSRF token is an HMAC of the session id and needs no storage. The list of known passwords is bundled as code (2,311 entries of at least ten characters from SecLists, MIT) and no call leaves the API: as a data file it never reached the image, which only the smoke test noticed.
+
+What the BLOCK of the security review changed: a sign-in needs a confirmed address, and fails like a wrong password without one (ADR 0004 §8), because signing up and then signing in told anyone whether an address had an account. The error text says so, and a reset also confirms the address. An attempt is counted before its password is checked, under a lock of the row, because guesses at the same moment all passed the wait on one count. Also fixed: a sign-in does not start after a reset took its password; at most three links of a kind an hour to one account while one of them works, also for requests at the same moment; a reset ends the other reset links; new addresses are ASCII, because the column's `lower()` turns look-alikes into another person's address; SMTP in staging and production is encrypted with the certificate checked; a logout without a cookie clears none. Moved, each to the item named: A04 refresh and revocation under a lock of the user's row, a count that decays, a family lifetime and a "password changed" e-mail; A05 the mailbox proof at confirmation and a notice for a known address, the privacy-notice version from configuration, the cookie prefix; M01 `verify-email` and `reset-password` as reserved slugs; PR01 retention of accounts that are never confirmed, sessions, tokens and outbox rows, and these tables in export and deletion; OPS01 shared throttler storage, an alert on token reuse, the writes of a known address that can be told by timing, and the data processing agreement of the mail provider.
+
 ### A02 — Notification outboxes and account e-mails
 
 **Commit:** `feat(notifications): add outbox, SMTP adapter and account e-mails` · **Depends on:** - · **Owner:** backend-engineer; ui-designer provides the templates
@@ -793,6 +803,8 @@ Acceptance:
 - Links use `PUBLIC_WEB_URL` even with a forged `Host` header; logs contain IDs and status only.
 - `grep -n 'After a successful commit, emit a domain event' .claude/skills/nestjs-feature/SKILL.md` finds nothing.
 
+As built (one commit with A01 and A03): the platform half. `account_notifications`, `AccountNotifications.enqueue`, `AccountOutbox.processDue` with a five-minute lease, retries after 1, 2, 4 and 8 minutes and `FAILED` after five attempts, a timer every `OUTBOX_POLL_SECONDS`; `EmailSender` with SMTP through `nodemailer`; templates E01 and E02 rendered at send time with `use-intl`. Without `SMTP_URL` e-mails wait and retry. An outbox row holds the id of its token and no token: the raw token is an HMAC of that id, so the database holds neither the token nor anything to send it with, and a link that is over by the time it could go out is not sent. Mailpit is part of both stacks and not a profile of its own: the menu must show a sign-up working, so its smoke test signs up in Arabic and English and finds both e-mails in Mailpit. The renderer takes a template, a locale, an address and a token, so no service, doctor, note or file can reach it. Moved: the `notifications` table, `NotificationOutbox`, the poller over practices and its checks → E09 and N01; E09 → A04; E10 → A04. The D1 engine stays open for the practice messages.
+
 ### A03 — Patient sign-up, e-mail verification and reset
 
 **Commit:** `feat(auth): add patient sign-up, e-mail verification and reset` · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews
@@ -807,6 +819,8 @@ Acceptance:
 - BR-09 tests pass; `POST /auth/password/forgot` with a forged `Host` header produces a link on `PUBLIC_WEB_URL`.
 - An integration test covers sign-up → verification → reset with the in-memory `EmailSender`.
 
+As built (one commit with A01 and A02): `POST /auth/verify-email/resend` joins the routes, because a link that is over needs a way to a new one. The forged `Host` is tested on the way that creates a link, for a known account. `account_consents` holds the privacy-notice version. "Writes no row in any practice database" moves to B01, the first item with a practice table for a patient; `AuthModule` imports the platform database only. The e-mail links lead nowhere until A05 builds their pages (`/[locale]/verify-email`, `/[locale]/reset-password`).
+
 ### A04 — Staff invitations, TOTP MFA, sessions and practice creation
 
 **Commit:** `feat(auth): add staff invitations, TOTP MFA and session control` · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews
@@ -817,6 +831,8 @@ Scope:
 - Support access (ADR 0005 §9.4), active only with `SUPPORT_ACCESS_ENABLED` (D8, question 4): an admin invites a support user with a reason, a role (default `STAFF`) and an expiry of at most `SUPPORT_ACCESS_MAX_HOURS`; acceptance creates a membership with `kind = SUPPORT` and `expires_at`; both steps are audited and flagged in the practice's audit log.
 - TOTP mandatory for every staff membership, with hashed recovery codes (platform); session list and `POST /auth/sessions/revoke-all` (E10 token in the body); audit events for sign-in, MFA and role changes in the right log.
 - Operator commands in `src/cli.ts`: `practice:create --slug --name-ar --name-en --market --time-zone --default-locale [--cluster]` (registry row through the column grant `INSERT (id, market, name)` that this item's platform migration adds, so the status defaults to `PROVISIONING` and no routing is set; the slug; a platform audit event with the operator principal from the task's cloud identity, locally `local:<OS user>`, never a command-line flag; prints the `medibooker-db provision` command) and `practice:invite-admin <practiceId> --email`.
+
+From the security review of A01 to A03: lock the user's row in refresh and in revoking a family, so that no session outlives a reset; let the failure count decay, because one guess an hour keeps an account waiting; give a family an absolute lifetime; send a "password changed" e-mail (BR-21).
 
 Acceptance:
 
@@ -832,6 +848,8 @@ Acceptance:
 **Commit:** `feat(web): add sign-in, sign-up, verification and two-factor flows` · **Depends on:** D16 · **Owner:** web-engineer
 
 Scope: `(auth)` screens (PW1, sign-up 09 and 12, W3, W4, forgot password 13); with D16 option A the personal details and insurance (screens 10–11) move to B04's "Your details for <practice>" step, with option B they stay in the sign-up and save to the account profile; cookie session and CSRF header in `api.client.ts`; proxy redirects for `(patient)` and `(practice)` with the return path in the fragment through `safeReturnPath`; the practice segment in portal and dashboard routes (default per D3); the practice switcher from `GET /me/practices`; the `theme` cookie; dashboard logout after 15 minutes of inactivity with a warning dialog; logout clears the query cache; the P06 placeholder is replaced; verification, reset and invitation pages read tokens and the practice id from the fragment.
+
+From the security review of A01 to A03: an attacker's password must not become valid through the owner's click, so the confirmation asks for the password (`POST /auth/verify-email` with `{ token, password }`), and a known address gets a notice instead of silence; this must be closed before B01 lets anyone book. The API compares `privacyNoticeVersion` with a configured version. Test in a browser that another site's form cannot clear the session cookies, and decide the cookie prefix together with the page addresses. Sign-up says that the link in the e-mail comes before the first sign-in, and the sign-in error offers `POST /auth/verify-email/resend`.
 
 Acceptance:
 
@@ -900,6 +918,8 @@ Acceptance: RNTL flow tests, including the details step at the first booking in 
 **Commit:** `feat(practice): add practice page and theme settings for admins` · **Depends on:** D3 · **Owner:** backend-engineer and web-engineer
 
 Scope: `GET`/`PATCH /practices/{practiceId}/settings/listing` (platform database only, through `platform_app`'s column grant of P01: name per locale, slug change through `practice_slugs` with the old slug retired, `PRACTICE_SLUG_TAKEN`, reserved words, publish and unpublish; platform audit; clears the route cache entry); `GET`/`PATCH …/settings/practice-page` (practice database only: about, directions, sections, legal links; practice audit); `GET`/`PATCH …/settings/theme` (`generateBrandScale` in `@medibooker/design-tokens`, `THEME_COLOR_INVALID`, `adjusted`; practice database); screens W19 (live preview with the same generator) and W20, saving the two parts through their own operations.
+
+From the security review of A01 to A03: `verify-email` and `reset-password` are reserved slugs.
 
 Acceptance: admin-only (another role → 403; another practice → 404); the property test passes for random valid hex values; practice B claiming A's retired slug → 409 `PRACTICE_SLUG_TAKEN`; the old slug redirects with 308 on the web; unpublishing makes the public page 404 on the next request in the same instance and within `PUBLIC_ROUTE_CACHE_MS` in another; a slug change writes a `platform_audit_events` row and a page change an `audit_events` row in the practice database, each in the transaction of its change; Playwright and axe in `ar` and `en`.
 
@@ -1027,6 +1047,8 @@ Scope:
 - `DELETE /me`: deactivate at once, revoke all sessions and delete the user's device tokens, account tokens and notification preferences (platform); a saga (`account_deletions` with one step per practice, through `runInPractice`) unlinks the account from patient profiles and family links in each practice database and stops its notifications, while the records stay for each practice's retention duty (BR-14); each finished step deletes that practice's `practice_access` rows of the user; the platform account is anonymised after the platform retention period, once every step has finished.
 - Retention periods as configuration, including those of `account_exports` and `account_deletions` (ADR 0005 §1.1), and of past slots and provider absences, which nothing deletes yet and whose `ON DELETE RESTRICT` blocks erasing a staff row (review of P05).
 
+From the security review of A01 to A03: purge accounts that are never confirmed, ended sessions, used tokens and sent outbox rows; `users`, `sessions`, `account_tokens`, `account_consents` and `account_notifications` are part of export and deletion; decide what `user:<id>` in `platform_audit_events` means after a deletion.
+
 Acceptance: the export contains only own and managed data from every practice of the index; a family link revoked in a practice while the index row is still active keeps the managed patient out of that practice's part; when two practices are exported concurrently, each part's `practiceId` matches the `practice_identity` its step read; a practice that is not `ACTIVE` or behind the schema keeps its step pending, and the export completes after it returns; each deletion step is idempotent (run twice, same result); after deactivation no device token, account token or notification preference of the user remains, and after each step none of its `practice_access` rows for that practice; a failing step retries with backoff and raises an alert; the user row is anonymised only after every step finished; audit events are written in both databases; `grep -n 'GET /me/export' .claude/skills/health-data-security/SKILL.md .claude/skills/api-contract/SKILL.md` finds nothing.
 
 ## Release and operations
@@ -1080,6 +1102,8 @@ Scope:
 - An edge proxy with TLS 1.2+, HSTS (`includeSubDomains`, `preload` decided here), per-IP rate limits and bot rules for the public page; its access log records the route template or drops the path segments after `/practices/`, truncates client addresses, and holds no query strings or cookies; it sets `X-Request-Id` itself, replacing any client value ([02 §4](02-api.md#4-request-pipeline-and-core-abstractions)); API and web reachable only through it.
 - The e-mail provider's bounce callback through the `provider_messages` mechanism of N03; the runbooks for `MIGRATION_STATE_UNKNOWN` (decided with `verify`), break-glass and the PITR restore; the Socket.IO adapter if more than one API instance runs, with TLS to its store.
 - Monitoring and alerts: runner failures and `verify` drift; practices behind `PRACTICE_SCHEMA_REQUIRED` or outside `MARKETS`; a database ACL other than owner and app role; backup age per practice and restore-drill results; connections against `max_connections` and per role against `CONNECTION LIMIT`; transaction-ID age (`age(datfrozenxid)`) per database; size per practice database and cluster disk; long-running and idle-in-transaction sessions; WAL archiving failures; relay lag and the oldest due outbox row; stuck saga steps; client creations, evictions and `acquire()` waits per instance; 503 rate per practice; 5xx spikes; latency (p95 per route template); uptime checks of the public page, the API and the web; failed logins; refresh-token reuse. The practice id is a label only on per-practice alerts; the others use top-k, so the number of series stays bounded.
+
+From the security review of A01 to A03: shared throttler storage, because the limits multiply with instances; an alert on a reused refresh token; platform audit rows that allow tracing a wave of attempts; equal work for a known and an unknown address on `register`, `login`, `forgot` and `resend`; the data processing agreement and region of the mail provider (D10).
 
 Acceptance: a staging deploy from a digest with approval runs both migration steps and `verify`, and its summary shows every practice at the target version; a deliberately failing fixture migration in one staging practice leaves the others migrated, answers 503 only for that practice and raises the alert; a practice created in staging through `practice:create` is provisioned and serves its public page, and its audit row records the authenticated task principal; `pg_stat_ssl` shows `ssl = true` for every API and task connection; the restore sample and the PITR drill pass and are documented; alerts fire in a drill (5xx spike, failed logins, migration failure, an idle-in-transaction session, an archive failure, a practice database whose `CONNECT` is open to `PUBLIC`); a break-glass drill leaves rows in both audit logs and its session is gone at expiry; a forged `X-Forwarded-For` at the edge does not change the rate-limit key, and the edge log holds no practice or patient id; a practice app credential from the secret store cannot connect to another practice database; security-reviewer verdict APPROVE.
 

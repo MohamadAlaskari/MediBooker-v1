@@ -74,8 +74,8 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
     app.use(apiHeaders);
   }
 
-  // 6. CORS only for an explicit allowlist; the web is same-origin behind the proxy. A01 decides
-  //    `credentials` together with cookies and CSRF.
+  // 6. CORS only for an explicit allowlist; the web is same-origin behind the proxy, and its
+  //    cookies are SameSite=Strict, so no other origin gets `credentials`.
   if (env.CORS_ORIGINS.length > 0) {
     app.enableCors({
       origin: env.CORS_ORIGINS,

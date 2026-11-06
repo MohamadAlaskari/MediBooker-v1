@@ -52,6 +52,8 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
     .setOpenAPIVersion('3.1.0')
     .setTitle('MediBooker API')
+    .addBearerAuth()
+    .addCookieAuth('mb_access')
     .setVersion('1')
     .build();
   const document = SwaggerModule.createDocument(app, config, {

@@ -26,6 +26,16 @@ function answering(routes: Routes): typeof fetch {
   });
 }
 
+/** The name of a smoke run in these tests, which is part of the address it signs up with. */
+const RUN_ID = 'test';
+const mailAddress = (locale: string): string => `smoke-${RUN_ID}-${locale}@example.test`;
+const mailSearchUrl = (mailUrl: string, locale: string): string =>
+  `${mailUrl}/api/v1/search?query=${encodeURIComponent(`to:${mailAddress(locale)}`)}`;
+const mailFound = (locale: string) => ({
+  status: 200,
+  body: `{"messages":[{"To":[{"Address":"${mailAddress(locale)}"}]}]}`,
+});
+
 const freeTimesUrl = (apiUrl: string): string =>
   `${apiUrl}/api/v1/public/practices/al-noor/availability?serviceId=${DEMO_SERVICE}`;
 
@@ -44,7 +54,7 @@ function limitCountingDown(): () => Route {
 
 /** Everything a healthy stack answers, by the URLs of its checks. */
 function healthyRoutes(mode: 'dev' | 'prod'): Routes {
-  const { apiProbeUrl, webProbeUrl, webUrl, apiUrl } = STACKS[mode];
+  const { apiProbeUrl, webProbeUrl, webUrl, apiUrl, mailUrl } = STACKS[mode];
   const page = (direction: string) => ({
     status: 200,
     body: `<html dir="${direction}">`,
@@ -54,6 +64,10 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
     [`${apiProbeUrl}/health/live`]: { status: 200 },
     [`${apiProbeUrl}/health/ready`]: { status: 200 },
     [`${webProbeUrl}/healthz`]: { status: 200 },
+    [`${mailUrl}/livez`]: { status: 200 },
+    [`${apiUrl}/api/v1/auth/register`]: { status: 202 },
+    [mailSearchUrl(mailUrl, 'ar')]: mailFound('ar'),
+    [mailSearchUrl(mailUrl, 'en')]: mailFound('en'),
     [`${webUrl}/`]: { status: 307, headers: { location: '/en' } },
     [`${webUrl}/en`]: page('ltr'),
     [`${webUrl}/ar`]: page('rtl'),
@@ -123,6 +137,29 @@ describe('runChecks', () => {
       headers: { 'Accept-Language': 'en' },
     });
   });
+
+  it('sends the method and the body of a check', async () => {
+    const fetchImpl = answering({ 'http://test/a': { status: 200 } });
+    await runChecks([{ ...check, method: 'POST', body: '{}' }], fetchImpl);
+    expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]).toMatchObject({ method: 'POST', body: '{}' });
+  });
+
+  it('asks again for what happens in the background, until it has happened', async () => {
+    const statuses = [500, 500, 200, 500];
+    const fetchImpl = answering({
+      'http://test/a': () => ({ status: statuses.shift() ?? 500 }),
+    });
+    const [result] = await runChecks([{ ...check, attempts: 5 }], fetchImpl, 0);
+    expect(result?.ok).toBe(true);
+    expect(statuses).toEqual([500]);
+  });
+
+  it('gives up after its attempts', async () => {
+    const fetchImpl = answering({ 'http://test/a': { status: 500 } });
+    const [result] = await runChecks([{ ...check, attempts: 2 }], fetchImpl, 0);
+    expect(result?.ok).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('a fresh database without demo practices', () => {
@@ -138,7 +175,7 @@ describe('a fresh database without demo practices', () => {
   });
 
   it('fails the smoke test, which needs the data', async () => {
-    const results = await runChecks(smokeChecks(STACKS.prod, false), answering(routes));
+    const results = await runChecks(smokeChecks(STACKS.prod, false, RUN_ID), answering(routes));
     expect(allPassed(results)).toBe(false);
   });
 });
@@ -146,7 +183,7 @@ describe('a fresh database without demo practices', () => {
 describe('the checks of a healthy stack', () => {
   it.each(['dev', 'prod'] as const)('%s passes the smoke test', async (mode) => {
     const results = await runChecks(
-      smokeChecks(STACKS[mode], false),
+      smokeChecks(STACKS[mode], false, RUN_ID),
       answering(healthyRoutes(mode)),
     );
     expect(results.filter(({ ok }) => !ok)).toEqual([]);
@@ -169,9 +206,25 @@ describe('the checks of a healthy stack', () => {
 describe('what the smoke test catches', () => {
   async function failuresWith(mode: 'dev' | 'prod', overrides: Routes): Promise<readonly string[]> {
     const routes = { ...healthyRoutes(mode), ...overrides };
-    const results = await runChecks(smokeChecks(STACKS[mode], false), answering(routes));
+    const results = await runChecks(smokeChecks(STACKS[mode], false, RUN_ID), answering(routes), 0);
     return results.filter(({ ok }) => !ok).map(({ problem }) => problem);
   }
+
+  it('a sign-up whose e-mail never arrives', async () => {
+    expect(
+      await failuresWith('dev', {
+        [mailSearchUrl(STACKS.dev.mailUrl, 'ar')]: { status: 200, body: '{"messages":[]}' },
+      }),
+    ).toEqual(['Keine E-Mail im Mailpit']);
+  });
+
+  it('a sign-up the API does not take', async () => {
+    expect(
+      await failuresWith('prod', {
+        [`${STACKS.prod.apiUrl}/api/v1/auth/register`]: { status: 500 },
+      }),
+    ).toEqual(['Status 500 statt 202', 'Status 500 statt 202']);
+  });
 
   it('a proxy that lets a forged address open its own limit', async () => {
     expect(
@@ -349,7 +402,7 @@ describe('what the smoke test catches', () => {
 
   it('a practice that is missing, with what to do', async () => {
     const results = await runChecks(
-      smokeChecks(STACKS.dev, false),
+      smokeChecks(STACKS.dev, false, RUN_ID),
       answering({
         ...healthyRoutes('dev'),
         'http://localhost:3001/api/v1/public/practices/al-noor': { status: 404 },

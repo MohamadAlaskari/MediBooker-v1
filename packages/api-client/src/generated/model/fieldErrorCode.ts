@@ -18,4 +18,5 @@ export const FieldErrorCode = {
   TOO_SMALL: 'TOO_SMALL',
   TOO_LARGE: 'TOO_LARGE',
   UNKNOWN_FIELD: 'UNKNOWN_FIELD',
+  PASSWORD_BREACHED: 'PASSWORD_BREACHED',
 } as const;

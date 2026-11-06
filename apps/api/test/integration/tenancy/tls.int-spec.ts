@@ -279,6 +279,9 @@ describe('TLS to the practice databases (ADR 0005 §4.9, §11.11)', () => {
         TRUST_PROXY_HOPS: '1',
         RATE_LIMIT_PER_MINUTE: '1000',
         MARKETS: 'SA',
+        PUBLIC_WEB_URL: 'https://web.example.test',
+        AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
+        AUTH_SECRET_REF: 'hosted:auth-secret',
         PLATFORM_DATABASE_URL: platformUrl.toString(),
         // Blank is unset, as staging requires; the overridden SecretStore resolves the references.
         SECRET_STORE: '',

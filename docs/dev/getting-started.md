@@ -20,6 +20,7 @@ It first asks for the mode, then shows the list: build, start, stop, restart, li
 | Backend | <http://localhost:3001/api/v1/public/practices/al-noor> | <http://localhost:8080/api/v1/public/practices/al-noor> |
 | Swagger | <http://localhost:3001/api/docs> | Off; on with `OPENAPI_UI_ENABLED=true` in `.env.prod`: <http://localhost:8081/api/docs> |
 | Health | <http://localhost:3001/health/live>, <http://localhost:3001/health/ready>, <http://localhost:3000/healthz> | <http://localhost:8081/health/live>, <http://localhost:8081/health/ready>, <http://localhost:8082/healthz> |
+| E-mails (Mailpit: nothing leaves this machine) | <http://localhost:8025> | <http://localhost:8083> |
 | Database | `localhost:5432` | Only inside its Docker network |
 
 The two stacks share nothing and publish different ports, so both can run at once. Prod is the production build on this machine, not a deployment: hosting is still open ([ADR 0010](../adr/0010-container-images-and-delivery.md)).

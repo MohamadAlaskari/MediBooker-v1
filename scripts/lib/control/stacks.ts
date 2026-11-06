@@ -22,6 +22,8 @@ export interface Stack {
   readonly webProbeUrl: string;
   /** The compose profile of the running application; undefined when it needs none. */
   readonly appProfile: string | undefined;
+  /** Where the e-mails of this stack end up: nothing leaves the machine. */
+  readonly mailUrl: string;
   /** The services that keep running and can be restarted. */
   readonly runningServices: readonly string[];
   /** The services a log or a shell can be asked for. */
@@ -38,9 +40,10 @@ export const STACKS: Readonly<Record<Mode, Stack>> = {
     apiUrl: 'http://localhost:3001',
     apiProbeUrl: 'http://localhost:3001',
     webProbeUrl: 'http://localhost:3000',
+    mailUrl: 'http://localhost:8025',
     appProfile: 'app',
-    runningServices: ['api', 'web'],
-    services: ['api', 'web', 'db', 'migrate', 'seed'],
+    runningServices: ['api', 'web', 'mailpit'],
+    services: ['api', 'web', 'mailpit', 'db', 'migrate', 'seed'],
   },
   prod: {
     mode: 'prod',
@@ -51,9 +54,10 @@ export const STACKS: Readonly<Record<Mode, Stack>> = {
     apiUrl: 'http://localhost:8080',
     apiProbeUrl: 'http://localhost:8081',
     webProbeUrl: 'http://localhost:8082',
+    mailUrl: 'http://localhost:8083',
     appProfile: undefined,
-    runningServices: ['api', 'web', 'proxy'],
-    services: ['proxy', 'api', 'web', 'db', 'migrate'],
+    runningServices: ['api', 'web', 'proxy', 'mailpit'],
+    services: ['proxy', 'api', 'web', 'mailpit', 'db', 'migrate'],
   },
 };
 
@@ -82,6 +86,7 @@ export function linksOf(stack: Stack, swaggerEnabled: boolean): readonly Link[] 
       target: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`,
     },
     swagger,
+    { label: 'E-Mails (Mailpit)', target: stack.mailUrl },
     { label: 'Health API, lebt', target: `${stack.apiProbeUrl}/health/live` },
     { label: 'Health API, bereit', target: `${stack.apiProbeUrl}/health/ready` },
     { label: 'Health Web', target: `${stack.webProbeUrl}/healthz` },

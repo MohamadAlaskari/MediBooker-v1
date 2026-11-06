@@ -23,6 +23,8 @@
     "slots:generate": "node --enable-source-maps dist/cli/generate-slots.js"
   },
   "dependencies": {
+    "@medibooker/design-tokens": "workspace:*",
+    "@medibooker/i18n": "workspace:*",
     "@nestjs-cls/transactional": "catalog:",
     "@nestjs-cls/transactional-adapter-prisma": "catalog:",
     "@nestjs/common": "catalog:",
@@ -36,13 +38,16 @@
     "class-transformer": "catalog:",
     "class-validator": "catalog:",
     "helmet": "catalog:",
+    "jose": "catalog:",
     "nestjs-cls": "catalog:",
     "nestjs-pino": "catalog:",
+    "nodemailer": "catalog:",
     "pg": "catalog:",
     "pino": "catalog:",
     "pino-http": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
+    "use-intl": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -56,6 +61,7 @@
     "@swc/core": "catalog:",
     "@testcontainers/postgresql": "catalog:",
     "@types/node": "catalog:",
+    "@types/nodemailer": "catalog:",
     "@types/pg": "catalog:",
     "@types/supertest": "catalog:",
     "@vitest/coverage-v8": "catalog:",

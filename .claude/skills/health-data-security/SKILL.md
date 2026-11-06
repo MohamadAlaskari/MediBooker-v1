@@ -45,18 +45,18 @@ Data residency is decided per market before infrastructure is built: one deploym
 ## 3. Authentication
 
 - Passwords: argon2id with at least the OWASP parameters (m = 19 MiB, t = 2, p = 1). Minimum length 10 for patients and 12 for staff, check against known breached passwords, no composition rules, allow paste and password managers.
-- E-mail verification before the first booking. Verification and reset tokens are single-use, stored hashed, expire after 30 minutes.
-- Login: one generic error ("Email or password is incorrect" / "البريد الإلكتروني أو كلمة المرور غير صحيحة"), rate limits per IP and per account with exponential backoff. Register and password reset give the same response whether the account exists or not.
+- E-mail verification before the first sign-in, and so before the first booking. Verification and reset tokens are single-use, stored hashed, expire after 30 minutes.
+- Login: one generic error, also for an address that is not confirmed ("The e-mail address or the password is not correct, or the address is not confirmed yet." / "البريد الإلكتروني أو كلمة المرور غير صحيحة، أو لم يتم تأكيد البريد الإلكتروني بعد."), because a sign-in that worked before confirming would reveal which addresses have an account. An attempt is counted before its password is checked, under a lock of the account's row, so a burst of guesses cannot pass the wait. Rate limits per IP and per account with exponential backoff. Register and password reset give the same response whether the account exists or not.
 - MFA (TOTP) is mandatory for Staff, Doctor and Admin. Recovery codes are stored hashed.
-- Tokens: short-lived access JWT (≤ 15 min, asymmetric signature, claims `iss`, `aud`, `sub`, `role`, `sid`). Opaque random refresh token (256 bit), stored as a SHA-256 hash in `Session`, rotated on every use; reuse of an old refresh token revokes the whole token family. Signing keys come from the secret store and survive restarts (v1 generated a new secret at every start).
+- Tokens: short-lived access JWT (≤ 15 min, asymmetric signature, claims `iss`, `aud`, `sub`, `sid`, `amr` and a `kid`; no role, because a role changes and belongs to one practice). Opaque random refresh token (256 bit), stored as a SHA-256 hash in `Session`, rotated on every use; reuse of an old refresh token revokes the whole token family. Signing keys come from the secret store and survive restarts (v1 generated a new secret at every start).
 - Web: tokens only in `HttpOnly; Secure; SameSite=Strict` cookies, plus CSRF protection. Nothing in `localStorage`.
 - Mobile: tokens in Keychain/Keystore (`expo-secure-store`). Biometric unlock is optional.
-- Logout and password change revoke sessions. Admins can revoke all sessions of a user.
+- Logout and password change revoke sessions. A practice admin disables a membership, effective on the next request; revoking all sessions is an account-level action of the user.
 
 ## 4. Authorization
 
 - A global guard denies by default. `@Public()` is an explicit, reviewed exception.
-- Two checks on every request: the role (`@Roles(...)`) and ownership or scope in the service ("this appointment belongs to this patient").
+- Two checks on every request: the role, which comes from the active membership in the resolved practice (`@PracticeScoped('id', { staffRoles })`, from B01 and A04) and never from the token, and ownership or scope in the service ("this appointment belongs to this patient").
 - The user's identity comes only from the verified token (`@CurrentUser()`), never from the body, query or path. v1 trusted IDs sent by the client.
 - Resources of other users return 404, not 403, so their existence is not revealed.
 - IDs are UUIDs, never sequential numbers.

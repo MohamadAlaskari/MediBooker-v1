@@ -98,6 +98,8 @@ services:
       LOG_PRETTY: 'true'
       OPENAPI_UI_ENABLED: 'true'
       TRUST_PROXY_HOPS: 0
+      PUBLIC_WEB_URL: http://localhost:3000
+      SMTP_URL: smtp://mailpit:1025
       SECRET_STORE: dev
       DEV_SECRET_SEED: ${DEV_SECRET_SEED:?copy .env.example to .env}
       DATABASE_CLUSTER_ENDPOINTS: '{"local":"db:5432"}'
@@ -129,6 +131,13 @@ services:
           path: ./apps/api/package.json
         - action: rebuild
           path: ./pnpm-lock.yaml
+
+  # Catches every e-mail of this stack: nothing leaves this machine.
+  mailpit:
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    profiles: [app]
+    ports:
+      - 127.0.0.1:8025:8025
 
   web:
     <<: *dev-image

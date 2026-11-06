@@ -151,6 +151,9 @@ describe('PracticeResolver', () => {
       PLATFORM_DATABASE_URL:
         'postgresql://platform_app:pw@db.internal.test:5432/medibooker_platform?sslmode=verify-full&sslrootcert=/ca.pem',
       MARKETS: 'DE',
+      PUBLIC_WEB_URL: 'https://web.example.test',
+      AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
+      AUTH_SECRET_REF: 'hosted:auth-secret',
     });
     expect(
       await resolverWith(registryRow(), staging).resolver.resolve(PRACTICE_A, 'request'),

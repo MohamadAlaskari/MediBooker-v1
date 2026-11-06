@@ -118,6 +118,29 @@ const clusterEndpoints = z
   });
 
 /** ISO 3166-1 alpha-2 codes in upper case, as `practices.market` stores them. */
+/**
+ * `smtps://`, or STARTTLS the server cannot skip. No other option: nodemailer also reads
+ * `tls.rejectUnauthorized`, which turns the certificate check off, and `logger`, which would write
+ * the links in e-mails past our log rules.
+ */
+function isEncryptedSmtp(value: string): boolean {
+  const url = new URL(value);
+  const encrypted = url.protocol === 'smtps:' || url.searchParams.get('requireTLS') === 'true';
+  return encrypted && [...url.searchParams.keys()].every((key) => key === 'requireTLS');
+}
+
+/** A reference only the development store resolves: refused where that store is. */
+function isDevReference(reference: string): boolean {
+  return reference.startsWith('dev:');
+}
+
+const webOrigin = z.string().refine(isOrigin, { params: { reason: 'not_an_origin' } });
+
+const signingKeyRefs = z
+  .string()
+  .transform((value) => value.split(',').map((reference) => reference.trim()))
+  .pipe(z.array(z.string().min(1)).min(1));
+
 const markets = z.string().transform((value, ctx): readonly string[] => {
   const codes = listOf(value);
   if (!codes.every((code) => /^[A-Z]{2}$/.test(code))) {
@@ -161,6 +184,18 @@ const envObject = z.object({
   DEV_SECRET_SEED: z.string().optional(),
   // F04: required in staging and production (refinement below).
   MARKETS: markets.default([]),
+  // A01: references into the secret store. The first signing key signs and all of them verify, so
+  // a key can be replaced without signing anyone out.
+  AUTH_SIGNING_KEY_REFS: signingKeyRefs.default(['dev:auth-signing-key']),
+  AUTH_SECRET_REF: z.string().min(1).default('dev:auth-secret'),
+  // A02: the address every link in an e-mail is built from, never a request's Host. Required in
+  // staging and production (refinement below).
+  PUBLIC_WEB_URL: webOrigin.optional(),
+  // A02: smtp://host:port. Unset: e-mails wait and retry instead of being lost.
+  SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
+  MAIL_FROM: z.string().min(1).default('MediBooker <no-reply@medibooker.invalid>'),
+  // A02: how often the outbox looks for due e-mails; 0 turns the timer off (tests).
+  OUTBOX_POLL_SECONDS: integer(0, 3600).default(5),
   // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler) and
   // by Node when a module loads, never by the API: their output goes to stderr, outside pino, with
   // request URLs and query strings. Allowed in local and ci only (refinement below); not in Env.
@@ -259,6 +294,31 @@ const envSchema = envObject
       if (isDeployed && parsed('MARKETS') && env.MARKETS.length === 0) {
         reject('MARKETS', 'required_in_staging_and_production');
       }
+      if (isDeployed && parsed('PUBLIC_WEB_URL')) {
+        if (env.PUBLIC_WEB_URL === undefined) {
+          reject('PUBLIC_WEB_URL', 'required_in_staging_and_production');
+        } else if (!env.PUBLIC_WEB_URL.startsWith('https://')) {
+          reject('PUBLIC_WEB_URL', 'https_required_in_staging_and_production');
+        }
+      }
+      if (
+        isDeployed &&
+        parsed('SMTP_URL') &&
+        env.SMTP_URL !== undefined &&
+        !isEncryptedSmtp(env.SMTP_URL)
+      ) {
+        reject('SMTP_URL', 'tls_required_in_staging_and_production');
+      }
+      if (
+        isDeployed &&
+        parsed('AUTH_SIGNING_KEY_REFS') &&
+        env.AUTH_SIGNING_KEY_REFS.some(isDevReference)
+      ) {
+        reject('AUTH_SIGNING_KEY_REFS', 'dev_reference_only_in_local_and_ci');
+      }
+      if (isDeployed && parsed('AUTH_SECRET_REF') && isDevReference(env.AUTH_SECRET_REF)) {
+        reject('AUTH_SECRET_REF', 'dev_reference_only_in_local_and_ci');
+      }
       if (env.APP_ENV !== 'production') return;
       if (parsed('OPENAPI_UI_ENABLED') && env.OPENAPI_UI_ENABLED) {
         reject('OPENAPI_UI_ENABLED', 'not_allowed_in_production');
@@ -274,8 +334,9 @@ const envSchema = envObject
     // every invalid key; each reads only keys that parsed.
     { when: () => true },
   )
-  .transform(({ TRUST_PROXY_HOPS, DATABASE_CLUSTER_ENDPOINTS, ...env }) => ({
+  .transform(({ TRUST_PROXY_HOPS, DATABASE_CLUSTER_ENDPOINTS, PUBLIC_WEB_URL, ...env }) => ({
     ...withoutDebugSwitches(env),
+    PUBLIC_WEB_URL: PUBLIC_WEB_URL ?? 'http://localhost:3000',
     TRUST_PROXY_HOPS: TRUST_PROXY_HOPS ?? 0,
     DATABASE_CLUSTER_ENDPOINTS:
       DATABASE_CLUSTER_ENDPOINTS ?? (new Map() as ReadonlyMap<string, ClusterEndpoint>),

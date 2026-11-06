@@ -71,6 +71,7 @@ describe('the links', () => {
       'http://localhost:3001/health/live',
       'http://localhost:3001/health/ready',
       'http://localhost:3000/healthz',
+      'http://localhost:8025',
     ]) {
       expect(text).toContain(url);
     }

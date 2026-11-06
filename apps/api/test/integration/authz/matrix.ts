@@ -1,11 +1,29 @@
 /**
  * The registry of every API operation (02 §11, 06): a new operation is a reviewed change to this
- * file, checked against the OpenAPI document by `src/openapi/document.spec.ts`. A01 adds
- * `AUTHZ_MATRIX` for the protected operations, and P02's `CROSS_PRACTICE` follows with them.
+ * file, checked against the OpenAPI document by `src/openapi/document.spec.ts`. P02's
+ * `CROSS_PRACTICE` follows with the first practice-scoped operation.
  */
+
+/**
+ * The operationIds that need a sign-in, with the answers each caller gets; every one answers an
+ * anonymous caller 401 (`test/e2e/authz-matrix.e2e-spec.ts`). Roles join when memberships do (B01
+ * for patients, A04 for staff).
+ */
+export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>> = {
+  getMe: { account: 200 },
+  updateMe: { account: 200 },
+};
 
 /** The operationIds that answer without sign-in. */
 export const PUBLIC_OPERATIONS: readonly string[] = [
+  'register',
+  'verifyEmail',
+  'resendVerification',
+  'login',
+  'refresh',
+  'logout',
+  'forgotPassword',
+  'resetPassword',
   'listPublicPractices',
   'getPublicPractice',
   'getPublicAvailability',

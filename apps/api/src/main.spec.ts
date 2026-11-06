@@ -30,6 +30,9 @@ function deployedEnv(port: number): NodeJS.ProcessEnv {
     PLATFORM_DATABASE_URL:
       'postgresql://platform_app:pw@db.internal.test:5432/medibooker_platform?sslmode=verify-full&sslrootcert=/run/secrets/ca.pem',
     MARKETS: 'SA',
+    PUBLIC_WEB_URL: 'https://web.example.test',
+    AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
+    AUTH_SECRET_REF: 'hosted:auth-secret',
     SECRET_STORE: '',
     DEV_SECRET_SEED: '',
     DATABASE_CLUSTER_ENDPOINTS: '',

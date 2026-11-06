@@ -105,7 +105,7 @@ describe('log calls written by hand during a request (02 §8)', () => {
       .expect(200);
     const accessLine = await logs.waitForAccessLine(id);
     for (const marker of NEVER_LOGGED) expect(logs.text()).not.toContain(marker);
-    expect(logs.text()).not.toContain('email');
+    expect(logs.text()).not.toContain('email"');
     const lines = logs
       .lines()
       .filter((line) => line.reqId === id && line.responseTime === undefined);

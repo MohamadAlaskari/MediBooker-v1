@@ -1,6 +1,6 @@
 // The platform database medibooker_platform (ADR 0005 §1.1): only what has to exist outside a
 // practice. F04 adds the practice registry, the database clusters and the platform audit log.
-// Conventions: 02 §9. Every field carries a class comment (health-data-security §1); hosts,
+// A01 adds the accounts, their sessions and their e-mails. Conventions: 02 §9. Every field carries a class comment (health-data-security §1); hosts,
 // endpoints and secret references are never logged or returned (02 §8).
 
 generator client {
@@ -166,4 +166,165 @@ model PlatformAuditEvent {
   approvalRef String?              @map("approval_ref")
 
   @@map("platform_audit_events")
+}
+
+/// What a single-use token of an account proves.
+enum AccountTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@map("account_token_purpose")
+}
+
+/// Which account e-mail a row of the outbox sends.
+enum AccountNotificationTemplate {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@map("account_notification_template")
+}
+
+/// Where a queued account e-mail stands.
+enum AccountNotificationStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("account_notification_status")
+}
+
+/// One account per person on the platform (ADR 0004). What a person may do in a practice comes from
+/// their membership or patient profile there, in that practice's own database (ADR 0005).
+model User {
+  /// class: personal
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal (case-insensitive)
+  email            String    @unique @db.Citext
+  /// class: secret (argon2id, never logged or returned)
+  passwordHash     String    @map("password_hash")
+  /// class: personal
+  emailVerifiedAt  DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  /// class: personal (the language of e-mails to this person)
+  locale           String
+  /// class: personal (failed sign-ins in a row; the reason for lockedUntil)
+  failedLoginCount Int       @default(0) @map("failed_login_count") @db.SmallInt
+  /// class: personal
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(3)
+  /// class: personal
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions      Session[]
+  tokens        AccountToken[]
+  consents      AccountConsent[]
+  notifications AccountNotification[]
+
+  @@map("users")
+}
+
+/// One refresh token. Rotating it adds a row to its family, and reusing an old one revokes the whole
+/// family (ADR 0004). The id is the `sid` of the access tokens issued with it.
+model Session {
+  /// class: personal
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId    String    @map("user_id") @db.Uuid
+  /// class: personal (one sign-in and everything rotated from it)
+  familyId  String    @map("family_id") @db.Uuid
+  /// class: secret (SHA-256 of the refresh token, which is stored nowhere)
+  tokenHash String    @unique @map("token_hash")
+  /// class: personal (how the person signed in)
+  amr       String[]
+  /// class: personal
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  /// class: personal (this token was replaced by a newer one of its family)
+  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
+  /// class: personal
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("sessions")
+}
+
+/// A single-use token of an account, valid for 30 minutes (ADR 0004). The token itself is derived
+/// from the id with a secret, so neither a row nor the outbox holds anything that could be used.
+model AccountToken {
+  /// class: personal
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId    String              @map("user_id") @db.Uuid
+  /// class: personal
+  purpose   AccountTokenPurpose
+  /// class: secret (SHA-256 of the token)
+  tokenHash String              @unique @map("token_hash")
+  /// class: personal
+  expiresAt DateTime            @map("expires_at") @db.Timestamptz(3)
+  /// class: personal
+  usedAt    DateTime?           @map("used_at") @db.Timestamptz(3)
+  /// class: personal
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications AccountNotification[]
+
+  @@index([userId])
+  @@map("account_tokens")
+}
+
+/// What a person agreed to on the platform, and in which version of its text. A history.
+model AccountConsent {
+  /// class: personal
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId      String   @map("user_id") @db.Uuid
+  /// class: personal (for example PRIVACY_NOTICE)
+  type        String
+  /// class: personal
+  textVersion String   @map("text_version")
+  /// class: personal
+  givenAt     DateTime @map("given_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account_consents")
+}
+
+/// An account or security e-mail to send: queued in the transaction of its reason, and rendered only
+/// when it is sent, from what the account says then. It holds no text, no address and no token.
+model AccountNotification {
+  /// class: personal
+  id             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId         String                      @map("user_id") @db.Uuid
+  /// class: public
+  template       AccountNotificationTemplate
+  /// class: personal (one e-mail per reason)
+  dedupeKey      String                      @unique @map("dedupe_key")
+  /// class: personal
+  accountTokenId String?                     @map("account_token_id") @db.Uuid
+  /// class: public
+  status         AccountNotificationStatus   @default(PENDING)
+  /// class: public
+  attempts       Int                         @default(0) @db.SmallInt
+  /// class: public (also the lease of a run that is sending it)
+  nextAttemptAt  DateTime                    @map("next_attempt_at") @db.Timestamptz(3)
+  /// class: public
+  sentAt         DateTime?                   @map("sent_at") @db.Timestamptz(3)
+  /// class: public
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountToken AccountToken? @relation(fields: [accountTokenId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accountTokenId])
+  @@index([nextAttemptAt], map: "account_notifications_due_idx", where: raw("(status = 'PENDING'::account_notification_status)"))
+  @@map("account_notifications")
 }

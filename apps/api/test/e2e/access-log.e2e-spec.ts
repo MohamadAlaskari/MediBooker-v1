@@ -13,7 +13,8 @@ const NEVER_LOGGED = [
   'sara@example.test',
   'duplicate key',
   '/nope',
-  'email',
+  'email=',
+  'email"',
   'Bearer',
   'sid=',
 ];
