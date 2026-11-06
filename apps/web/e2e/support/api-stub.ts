@@ -7,6 +7,8 @@ import { createServer, type ServerResponse } from 'node:http';
 import { PRACTICES } from './practices.ts';
 
 const PATH = /^\/api\/v1\/public\/practices\/([^/]+)$/;
+// A Map: the slug comes from the URL, and `__proto__` is no practice.
+const PRACTICE_BY_SLUG = new Map(Object.entries(PRACTICES));
 const forwardedFor = new Set<string>();
 
 function problem(response: ServerResponse, status: number, code: string): void {
@@ -40,7 +42,7 @@ const server = createServer((request, response) => {
     problem(response, 503, 'SERVICE_UNAVAILABLE');
     return;
   }
-  const practice = PRACTICES[slug];
+  const practice = PRACTICE_BY_SLUG.get(slug);
   if (practice === undefined) {
     problem(response, 404, 'NOT_FOUND');
     return;

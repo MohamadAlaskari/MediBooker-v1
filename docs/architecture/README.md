@@ -81,7 +81,7 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | F06 Next.js web skeleton | Committed (`c80aa43`) |
 | X05 and X03 Design tokens and generated API client | Committed (`099be7b`) |
 | F05, first part: Docker images, dev and prod stacks, control menu | Committed (`027e10f`) |
-| X04, X06, X07 and P03 Texts, web shell, first components and the public practice page | Done (one commit) |
+| X04, X06, X07 and P03 Texts, web shell, first components and the public practice page | Committed (`8c1da1a`) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

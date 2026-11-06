@@ -102,6 +102,7 @@ test.describe('the public practice page (08 P03)', () => {
     expect((await request.get('/en/nobody')).status()).toBe(404);
     expect((await request.get('/en/UPPER')).status()).toBe(404);
     expect((await request.get('/en/a%2Fb')).status()).toBe(404);
+    expect((await request.get('/en/constructor')).status()).toBe(404);
   });
 
   test('sends a retired slug to the current address for good', async ({ request }) => {

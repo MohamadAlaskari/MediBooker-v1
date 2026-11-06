@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (this commit), P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -36,16 +36,16 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 12 | X03 | Generated API client | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
-| 13 | X04 | Shared ICU catalogues | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (this commit) |
+| 13 | X04 | Shared ICU catalogues | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (`8c1da1a`) |
 | 14 | X05 | Design and motion tokens | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
-| 15 | X06 | Web shell | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (this commit), rest with its first consumer |
-| 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): render the public practice page with i18n, theme and SEO` | - | first components done (this commit), rest with their first consumer |
+| 15 | X06 | Web shell | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (`8c1da1a`), rest with its first consumer |
+| 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): render the public practice page with i18n, theme and SEO` | - | first components done (`8c1da1a`), rest with their first consumer |
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
 | 18 | X09 | Mobile UI kit | `feat(mobile): add design-system UI kit v1` | - | planned |
 | 19 | X10 | Android emulator smoke test | `ci(mobile): add Android emulator smoke test for Hermes and RTL` | - | planned |
 | 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
-| 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (this commit), sitemap follows |
+| 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (`8c1da1a`), sitemap follows |
 | 23 | P04 | Availability and slot generation | `feat(scheduling): add availability rules and DST-safe slot generation` | - | planned |
 | 24 | P05 | Public free times | `feat(scheduling): expose public free times per practice` | - | planned |
 | 25 | P06 | Free times on the page | `feat(web): show free times on the practice page` | - | planned |
