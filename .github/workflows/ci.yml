@@ -326,12 +326,43 @@ jobs:
       - name: Run the integration tests
         run: pnpm test:integration
 
+  # The web app in a real browser, against its production build (03 §14).
+  e2e-web:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install the browser
+        run: pnpm --filter @medibooker/web exec playwright install --with-deps chromium
+
+      - name: Run the end-to-end tests
+        run: pnpm test:e2e
+
+      - name: Upload the end-to-end report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report-${{ github.run_attempt }}
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
+
   # The only required status check (ADR 0009). Keep its job id and name ci-ok, and add every new
   # job to needs (scripts/ci-config.test.ts checks it).
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [config-lint, quality, security, secrets-history, sbom, integration]
+    needs: [config-lint, quality, security, secrets-history, sbom, integration, e2e-web]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}

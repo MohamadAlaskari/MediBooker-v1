@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (this commit), F06, X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (this commit), X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -31,10 +31,10 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
 | 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | committed (`284776c`) |
 | 7 | F05 | API images and delivery pipeline | `build(docker): add API images, compose stack and GHCR publishing` | U5 | planned |
-| 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | planned |
+| 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | done (this commit) |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
-| 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | done (this commit) |
-| 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | done (this commit) |
+| 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
+| 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 12 | X03 | Generated API client | `feat(api-client): generate typed client, query hooks, zod and mocks` | - | planned |
 | 13 | X04 | Shared ICU catalogues | `feat(i18n): add shared ICU catalogues for Arabic and English` | D1 | planned |
 | 14 | X05 | Design and motion tokens | `feat(design-tokens): build design and motion tokens from Figma` | - | planned |
@@ -405,6 +405,8 @@ Acceptance:
 - The web image runs as `node`, becomes healthy, and is at most 150 MB compressed; `docker compose --profile app up` serves port 8080 with `/api/*` proxied, and the `@smoke` project passes there.
 - The proxy chooses the request id: a request to port 8080 with a client `X-Request-Id` (a valid UUID) is answered with a different id ([02 §4](02-api.md#4-request-pipeline-and-core-abstractions)).
 - `grep -rn "middleware.ts" .claude/skills/react-web-feature/SKILL.md` finds nothing.
+
+As built (lean mode): `output: 'standalone'`, the web Dockerfile, the compose `web` and `proxy` services and the `images` job move to F05, so the e2e tests run `next start`; the React Compiler in Vitest and the `server-only` alias wait for the first component test (X06). The reserved-slug list moves to M01, the first code that writes a slug. A 404 for a language we lack renders `global-not-found.tsx` (`experimental.globalNotFound`), because the root layouts live under `[locale]`. `eslint-plugin-jsx-a11y` runs on ESLint 10 although it does not declare it.
 
 ### F07 — Expo SDK 58 mobile skeleton
 

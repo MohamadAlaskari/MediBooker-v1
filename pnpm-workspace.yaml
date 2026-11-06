@@ -26,6 +26,7 @@ trustPolicyExclude:
   - prisma@7.10.1
 
 catalog:
+  '@axe-core/playwright': 4.14.0
   '@eslint/js': 10.0.1
   '@nestjs-cls/transactional': 4.0.2
   '@nestjs-cls/transactional-adapter-prisma': 2.0.2
@@ -36,9 +37,11 @@ catalog:
   '@nestjs/swagger': 12.1.0
   '@nestjs/testing': 12.3.2
   '@nestjs/throttler': 6.7.1
+  '@next/eslint-plugin-next': 16.4.5
   # The TLS integration spec generates a CA and a server certificate at run time; Node has no
   # X.509 generation API (F04, a devDependency of the API).
   '@peculiar/x509': 3.1.0
+  '@playwright/test': 1.64.1
   # prisma, @prisma/client and @prisma/adapter-pg move together. 7.10.1 is the newest stable
   # release: npm's latest tag points at 8.0.0-rc.30 (ADR 0006).
   '@prisma/adapter-pg': 7.10.1
@@ -48,9 +51,12 @@ catalog:
   '@testcontainers/postgresql': 12.2.1
   '@types/node': 26.6.6
   '@types/pg': 8.23.1
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
   '@types/supertest': 7.2.1
   '@vitest/coverage-v8': 5.1.0
   '@vitest/eslint-plugin': 1.6.28
+  babel-plugin-react-compiler: 1.0.0
   # Watch mode of `nest start --watch` (@swc/cli's optional peer). Not 6.x: @swc/cli 0.8.2 accepts
   # only ^5.0.0 (ADR 0006 version table).
   chokidar: 5.0.0
@@ -60,17 +66,22 @@ catalog:
   eslint-config-prettier: 10.1.8
   eslint-import-resolver-typescript: 4.4.5
   eslint-plugin-import-x: 4.17.1
+  eslint-plugin-jsx-a11y: 6.10.2
+  eslint-plugin-react-hooks: 7.1.1
   globals: 17.14.0
   helmet: 8.3.0
   lefthook: 2.2.2
   nestjs-cls: 7.0.2
   nestjs-pino: 5.3.1
+  next: 16.4.5
   pg: 8.23.1
   pino: 10.4.0
   pino-http: 11.0.0
   pino-pretty: 13.2.0
   prettier: 3.9.10
   prisma: 7.10.1
+  react: 19.3.1
+  react-dom: 19.3.1
   reflect-metadata: 0.2.2
   rxjs: 7.8.2
   supertest: 7.3.1

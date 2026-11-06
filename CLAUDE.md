@@ -13,10 +13,10 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 | `.claude/agents/` | Project subagents (the team) | Active |
 | `.claude/skills/` | Project skills (how we work) | Active |
 | `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
-| `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules) | Active |
+| `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules); `@medibooker/i18n` (locales, direction, negotiation) | Active |
 | `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans (`scan-secrets.ts`), CI-configuration test (`ci-config.test.ts`), generated-file check (`check-drift.ts`) | Active |
 | `.github/` | GitHub Actions: workflows `ci.yml` (only required check `ci-ok`), `codeql.yml`, `scheduled.yml`; composite actions `setup` and `gitleaks`; actionlint config; pull request template. `renovate.json` sits at the root — `docs/adr/0009-ci-branch-model-and-supply-chain.md` | Active |
-| `apps/` | `api` (NestJS 12, since F03), `db-migrate` (database CLI `medibooker-db`, since F04); `web` (Next.js) and `mobile` (Expo) follow | Built feature by feature along `docs/architecture/08-roadmap.md` |
+| `apps/` | `api` (NestJS 12, since F03), `db-migrate` (database CLI `medibooker-db`, since F04), `web` (Next.js, since F06); `mobile` (Expo) follows | Built feature by feature along `docs/architecture/08-roadmap.md` |
 
 When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 
@@ -114,13 +114,14 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Check the `.gitleaksignore` pin | `node scripts/scan-secrets.ts pin` |
 | Scan the full git history for secrets, as CI does | `node scripts/scan-secrets.ts history` |
 | Lint the workflows and validate `renovate.json` (Docker; before a commit that changes `.github/` or `renovate.json`) | commands in `docs/dev/getting-started.md` (images from `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE` in `ci.yml`) |
-| Create the local environment file (once; `.env` is gitignored) | `cp .env.example .env` |
-| Dev server (API on http://localhost:3001; values come from the root `.env`) | `pnpm dev` |
+| Create the local environment files (once; both are gitignored) | `cp .env.example .env` and `cp apps/web/.env.example apps/web/.env.local` |
+| Dev servers (API on http://localhost:3001 with values from the root `.env`, web on http://localhost:3000) | `pnpm dev` |
 | Start the local PostgreSQL (`compose.yaml`; Docker Desktop must run) | `pnpm db:up` |
 | Apply all migrations (platform and every practice database) | `pnpm db:migrate` |
 | Seed the synthetic practices | `pnpm db:seed` |
 | Reset the local databases | `pnpm db:reset` |
 | Integration tests (Docker, Testcontainers; run before a commit that changes database code) | `pnpm test:integration` |
+| Web end-to-end tests in a real browser, against the production build (once: `pnpm --filter @medibooker/web exec playwright install chromium`) | `pnpm test:e2e` |
 | Check the migration rules | `pnpm check:migrations` |
 | Write the OpenAPI document `apps/api/openapi.json` (after a DTO or route change) | `pnpm generate` |
 | Fail when a generated file differs from git | `pnpm check:drift` |
@@ -131,4 +132,4 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Ignore the Turborepo cache | `pnpm lint --force` |
 | Reinstall missing or stale git hooks | `pnpm exec lefthook install` |
 
-Commits follow Conventional Commits with a header of at most 72 characters; the `commit-msg` hook enforces it. Never use `--no-verify` or `LEFTHOOK=0` locally (`pnpm verify` fails while `LEFTHOOK` is `0` or `false` outside CI); inline `gitleaks:allow` comments are ignored. CI runs on GitHub Actions and `ci-ok` is the only required check; start the next roadmap item only after the pushed commit's `ci-ok` is green (`docs/architecture/08-roadmap.md`). Setup details: `docs/dev/getting-started.md`. E2e commands are added with the web app.
+Commits follow Conventional Commits with a header of at most 72 characters; the `commit-msg` hook enforces it. Never use `--no-verify` or `LEFTHOOK=0` locally (`pnpm verify` fails while `LEFTHOOK` is `0` or `false` outside CI); inline `gitleaks:allow` comments are ignored. CI runs on GitHub Actions and `ci-ok` is the only required check; start the next roadmap item only after the pushed commit's `ci-ok` is green (`docs/architecture/08-roadmap.md`). Setup details: `docs/dev/getting-started.md`.

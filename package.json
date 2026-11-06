@@ -16,6 +16,7 @@
     "test": "turbo run test test:root",
     "test:root": "vitest run --coverage",
     "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
     "check:migrations": "node scripts/check-migrations.ts",
     "generate": "pnpm --filter @medibooker/api generate",
     "check:drift": "pnpm generate && node scripts/check-drift.ts",

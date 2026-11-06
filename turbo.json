@@ -24,6 +24,10 @@
     "db:generate": {
       "outputs": ["src/generated/**"]
     },
+    "test:e2e": {
+      "cache": false,
+      "passThroughEnv": ["PLAYWRIGHT_*"]
+    },
     "test:integration": {
       "cache": false,
       "passThroughEnv": ["DOCKER_*", "TESTCONTAINERS_*"]

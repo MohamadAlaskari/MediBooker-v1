@@ -11,8 +11,8 @@ Framework: **Next.js with the App Router** (ADR 0003), self-hosted as a Node.js 
 
 ```
 apps/web/
-  middleware.ts               locale (ar default, en), CSP nonce, sign-in redirect for (patient) and (practice)
-  app/
+  src/proxy.ts                locale (ar default, en), CSP nonce; sign-in redirect for (patient) and (practice) from A05
+  src/app/
     [locale]/
       layout.tsx              <html lang dir>, practice theme (--brand-*) and fonts, set on the server
       (public)/[slug]/        public practice page: server component, generateMetadata with hreflang, JSON-LD;
