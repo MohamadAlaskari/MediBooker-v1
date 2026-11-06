@@ -169,6 +169,14 @@ model PlatformAuditEvent {
 }
 
 /// What a single-use token of an account proves.
+enum InsuranceType {
+  PUBLIC
+  PRIVATE
+  SELF_PAY
+
+  @@map("insurance_type")
+}
+
 enum AccountTokenPurpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
@@ -219,8 +227,39 @@ model User {
   tokens        AccountToken[]
   consents      AccountConsent[]
   notifications AccountNotification[]
+  profile       AccountProfile?
 
   @@map("users")
+}
+
+/// What a person enters at sign-up (D16 option B, RT-90): one entry, copied into a practice when
+/// the person joins it (B01). It may be entered before the address is confirmed, so what it holds
+/// is unverified until then. The insurance number is encrypted, and only its end is readable.
+model AccountProfile {
+  /// class: personal
+  userId                   String        @id @map("user_id") @db.Uuid
+  /// class: personal
+  firstName                String        @map("first_name")
+  /// class: personal
+  lastName                 String        @map("last_name")
+  /// class: personal
+  dateOfBirth              DateTime      @map("date_of_birth") @db.Date
+  /// class: personal (a contact number; a verified phone is another thing, ADR 0005 §1.3)
+  phone                    String?
+  /// class: personal
+  insuranceType            InsuranceType @map("insurance_type")
+  /// class: personal
+  insuranceProvider        String?       @map("insurance_provider")
+  /// class: secret (encrypted with FieldCipher, bound to this person)
+  insuranceNumberEncrypted String?       @map("insurance_number_encrypted")
+  /// class: personal (the last characters, so that a person recognises it)
+  insuranceNumberEnd       String?       @map("insurance_number_end")
+  /// class: personal
+  updatedAt                DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account_profiles")
 }
 
 /// One refresh token. Rotating it adds a row to its family, and reusing an old one revokes the whole

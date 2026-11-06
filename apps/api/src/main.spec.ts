@@ -33,6 +33,7 @@ function deployedEnv(port: number): NodeJS.ProcessEnv {
     PUBLIC_WEB_URL: 'https://web.example.test',
     AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
     AUTH_SECRET_REF: 'hosted:auth-secret',
+    FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
     SECRET_STORE: '',
     DEV_SECRET_SEED: '',
     DATABASE_CLUSTER_ENDPOINTS: '',

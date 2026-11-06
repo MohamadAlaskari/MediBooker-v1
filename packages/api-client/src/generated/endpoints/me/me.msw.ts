@@ -20,13 +20,19 @@ import type {
 
 import type {
   AccountDto,
-  UpdateAccountDto
+  ProfileDto,
+  UpdateAccountDto,
+  UpdateProfileDto
 } from '../../model';
 
 
 export const getGetMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
 
 export const getUpdateMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
+
+export const getGetProfileResponseMock = (overrideResponse: Partial<Extract<ProfileDto, object>> = {}): ProfileDto => ({dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
+
+export const getUpdateProfileResponseMock = (overrideResponse: Partial<Extract<ProfileDto, object>> = {}): ProfileDto => ({dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
 
 export const getGetMeMockHandler = (overrideResponse?: AccountDto | ((info: Parameters<HttpResponseResolver>[0]) => Promise<AccountDto> | AccountDto), options?: RequestHandlerOptions) => {
@@ -52,7 +58,44 @@ export const getUpdateMeMockHandler = (overrideResponse?: AccountDto | ((info: P
       })
   }, options)
 }
+
+export const getGetProfileMockHandler = (overrideResponse?: ProfileDto | ((info: Parameters<HttpResponseResolver>[0]) => Promise<ProfileDto> | ProfileDto), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/me/profile', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetProfileResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getUpdateProfileMockHandler = (overrideResponse?: ProfileDto | ((info: Parameters<HttpResponseResolver<PathParams, UpdateProfileDto>>[0]) => Promise<ProfileDto> | ProfileDto), options?: RequestHandlerOptions) => {
+  return http.put<PathParams, UpdateProfileDto>('*/api/v1/me/profile', async (info: Parameters<HttpResponseResolver<PathParams, UpdateProfileDto>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getUpdateProfileResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getDeleteUnconfirmedAccountMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete('*/api/v1/me/unconfirmed', async (info: Parameters<HttpResponseResolver>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
 export const getMeMock = () => [
   getGetMeMockHandler(),
-  getUpdateMeMockHandler()
+  getUpdateMeMockHandler(),
+  getGetProfileMockHandler(),
+  getUpdateProfileMockHandler(),
+  getDeleteUnconfirmedAccountMockHandler()
 ]

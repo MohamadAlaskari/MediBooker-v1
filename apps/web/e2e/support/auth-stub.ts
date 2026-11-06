@@ -21,6 +21,7 @@ const refreshTokens = new Map<string, string>();
 /** A link's token and what it may do, once. */
 const links = new Map<string, { email: string; purpose: 'confirm' | 'reset' }>();
 const newestLink = new Map<string, string>();
+const profiles = new Map<string, Record<string, unknown>>();
 
 function respond(response: ServerResponse, status: number, body?: unknown): void {
   response.writeHead(status, { 'Content-Type': 'application/json' });
@@ -218,6 +219,39 @@ async function handleRoute(
   problem(response, 404, 'NOT_FOUND');
 }
 
+async function handleProfile(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '') ?? '';
+  if (!accounts.has(owner)) {
+    problem(response, 401, 'UNAUTHENTICATED');
+    return;
+  }
+  if (request.method === 'GET') {
+    const profile = profiles.get(owner);
+    if (profile === undefined) problem(response, 404, 'NOT_FOUND');
+    else respond(response, 200, profile);
+    return;
+  }
+  if (!hasCsrfHeader(request)) {
+    problem(response, 403, 'FORBIDDEN');
+    return;
+  }
+  const { insuranceNumber, ...details } = await bodyOf(request);
+  if (details.dateOfBirth === '2030-01-01') {
+    problem(response, 400, 'VALIDATION_FAILED', [{ field: 'dateOfBirth', code: 'INVALID_VALUE' }]);
+    return;
+  }
+  const known = profiles.get(owner)?.insuranceNumberEnd ?? null;
+  const profile = {
+    phone: null,
+    insuranceProvider: null,
+    ...details,
+    insuranceNumberEnd:
+      details.insuranceType === 'SELF_PAY' ? null : (insuranceNumber?.slice(-4) ?? known),
+  };
+  profiles.set(owner, profile);
+  respond(response, 200, profile);
+}
+
 /** Takes the requests about accounts, and answers whether it did. */
 export function handleAccounts(
   pathname: string,
@@ -241,6 +275,28 @@ export function handleAccounts(
   if (pathname === '/__end-sessions') {
     endSessions(email);
     respond(response, 204);
+    return true;
+  }
+  if (pathname === '/api/v1/me/unconfirmed') {
+    const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '') ?? '';
+    const account = accounts.get(owner);
+    if (account === undefined) {
+      problem(response, 401, 'UNAUTHENTICATED');
+    } else if (account.verified) {
+      problem(response, 409, 'CONFLICT');
+    } else if (!hasCsrfHeader(request)) {
+      problem(response, 403, 'FORBIDDEN');
+    } else {
+      accounts.delete(owner);
+      profiles.delete(owner);
+      endSessions(owner);
+      clearSession(response);
+      respond(response, 204);
+    }
+    return true;
+  }
+  if (pathname === '/api/v1/me/profile') {
+    void handleProfile(request, response);
     return true;
   }
   if (pathname === '/api/v1/me') {

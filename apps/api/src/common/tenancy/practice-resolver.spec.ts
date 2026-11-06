@@ -154,6 +154,7 @@ describe('PracticeResolver', () => {
       PUBLIC_WEB_URL: 'https://web.example.test',
       AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
       AUTH_SECRET_REF: 'hosted:auth-secret',
+      FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
     });
     expect(
       await resolverWith(registryRow(), staging).resolver.resolve(PRACTICE_A, 'request'),

@@ -50,14 +50,16 @@ Extend this list; never reuse a code with a different meaning.
 | Method and path | Roles | Purpose | Rules |
 |---|---|---|---|
 | POST /auth/register | public | Patient sign-up; ASCII addresses only, the same answer for a known address | BR-10 |
-| POST /auth/verify-email | public | Confirm the e-mail address | BR-09 |
+| POST /auth/verify-email | public | Confirm the e-mail address, with the token and the password of the account | BR-09 |
 | POST /auth/verify-email/resend | public | A new link; the same answer whether the account exists or not | BR-09 |
 | POST /auth/login | public | Login, also before the address is confirmed (RT-89); returns an MFA challenge for staff roles | |
 | POST /auth/mfa/verify | MFA pending | Second factor | |
 | POST /auth/refresh | refresh token | Rotate tokens | |
 | POST /auth/logout | any | Revoke the session | |
 | POST /auth/password/forgot, POST /auth/password/reset | public | Password reset | |
-| GET, PATCH /me | any | Own account and profile | |
+| GET, PATCH /me | any | Own account | |
+| GET, PUT /me/profile | any | Own details and insurance (D16 option B); 404 until entered; the insurance number only by its end | BR-10 |
+| DELETE /me/unconfirmed | any | Delete an own account that was never confirmed; otherwise 409 | RT-90 |
 | GET /me/export, DELETE /me | patient | DSGVO export and deletion | BR-14 |
 | GET /me/appointments?scope=upcoming\|past | patient | Own appointments | |
 | GET /services | public | Bookable services | BR-08 |

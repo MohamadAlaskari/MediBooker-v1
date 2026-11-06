@@ -45,6 +45,23 @@ async function signUp(page: Page, locale: 'ar' | 'en', email: string): Promise<v
   await page.getByRole('button', { name: texts(locale).signUp.submit }).click();
 }
 
+/** Screens 10 and 11, up to the insurance. */
+async function enterPerson(page: Page, locale: 'ar' | 'en'): Promise<void> {
+  const t = texts(locale).details;
+  await page.getByLabel(t.firstName, { exact: true }).fill('Sara');
+  await page.getByLabel(t.lastName, { exact: true }).fill('Ahmed');
+  await page.getByLabel(t.dateOfBirth, { exact: true }).fill('1990-05-14');
+  await page.getByRole('button', { name: t.continue }).click();
+  await expect(page.getByRole('heading', { name: t.insuranceTitle })).toBeVisible();
+}
+
+async function enterInsurance(page: Page, locale: 'ar' | 'en'): Promise<void> {
+  const t = texts(locale).details;
+  await page.getByLabel(t.insuranceProvider, { exact: true }).fill('Al Noor Insurance');
+  await page.getByLabel(t.insuranceNumber, { exact: true }).fill('AN-4821-77');
+  await page.getByRole('button', { name: t.continue }).click();
+}
+
 async function signIn(page: Page, locale: 'ar' | 'en', email: string, password = PASSWORD) {
   await emailField(page, locale).fill(email);
   await passwordField(page, locale).fill(password);
@@ -70,6 +87,10 @@ test.describe('signing up (08 A05)', () => {
     const email = newAddress(testInfo);
     await page.goto(`/${locale}/sign-up`);
     await signUp(page, locale, email);
+
+    await expect(page).toHaveURL(`/${locale}/sign-up/details`);
+    await enterPerson(page, locale);
+    await enterInsurance(page, locale);
 
     await expect(page).toHaveURL(`/${locale}/check-inbox`);
     await expect(page.getByRole('heading', { name: t.checkInbox.title })).toBeVisible();
@@ -154,6 +175,115 @@ test.describe('signing up (08 A05)', () => {
     await expect(page.getByText(texts(locale).verifyEmail.noLinkBody)).toBeVisible();
     await page.goto(`/${locale}/reset-password`);
     await expect(page.getByText(texts(locale).reset.noLinkBody)).toBeVisible();
+  });
+});
+
+test.describe('the details of a person (D16)', () => {
+  async function atDetails(page: Page, testInfo: TestInfo): Promise<'ar' | 'en'> {
+    const locale = localeOf(testInfo);
+    await page.goto(`/${locale}/sign-up`);
+    await signUp(page, locale, newAddress(testInfo));
+    await expect(page).toHaveURL(`/${locale}/sign-up/details`);
+    return locale;
+  }
+
+  test('asks a self-payer for no insurance', async ({ page }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    const t = texts(locale).details;
+    await enterPerson(page, locale);
+    await expect(page.getByLabel(t.insuranceNumber, { exact: true })).toBeVisible();
+    await page.locator('[data-slot="radio-group"] label').filter({ hasText: t.SELF_PAY }).click();
+    await expect(page.getByLabel(t.insuranceNumber, { exact: true })).toBeHidden();
+    await page.getByRole('button', { name: t.continue }).click();
+    await expect(page).toHaveURL(`/${locale}/check-inbox`);
+  });
+
+  test('asks for what an insured person left out, in their language', async ({
+    page,
+  }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    const t = texts(locale).details;
+    await page.getByRole('button', { name: t.continue }).click();
+    await expect(page.getByLabel(t.firstName, { exact: true })).toBeFocused();
+    await expect(page.getByText(messages[locale].validation.REQUIRED).first()).toBeVisible();
+
+    await enterPerson(page, locale);
+    await page.getByRole('button', { name: t.continue }).click();
+    await expect(page.getByLabel(t.insuranceProvider, { exact: true })).toBeFocused();
+    await expect(page).toHaveURL(`/${locale}/sign-up/details`);
+  });
+
+  test('goes back to the step the API found wrong', async ({ page }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    const t = texts(locale).details;
+    await page.getByLabel(t.firstName, { exact: true }).fill('Sara');
+    await page.getByLabel(t.lastName, { exact: true }).fill('Ahmed');
+    await page.getByLabel(t.dateOfBirth, { exact: true }).fill('2030-01-01');
+    await page.getByRole('button', { name: t.continue }).click();
+    await enterInsurance(page, locale);
+    await expect(page.getByRole('heading', { name: t.title })).toBeVisible();
+    await expect(page.getByText(messages[locale].validation.INVALID_VALUE)).toBeVisible();
+  });
+
+  test('can be left and finished later, and then changed', async ({ page }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    const account = texts(locale).account;
+    const t = texts(locale).details;
+    await page.goto(`/${locale}/account`);
+    await page.getByRole('link', { name: account.completeAction }).click();
+    await enterPerson(page, locale);
+    await page.getByLabel(t.insuranceProvider, { exact: true }).fill('Al Noor Insurance');
+    await page.getByLabel(t.insuranceNumber, { exact: true }).fill('AN-4821-77');
+    await page.getByRole('button', { name: t.save }).click();
+    await expect(page).toHaveURL(`/${locale}/account`);
+    await expect(page.getByText('Sara Ahmed')).toBeVisible();
+
+    await page.getByRole('link', { name: account.changeDetails }).click();
+    await page.getByLabel(t.firstName, { exact: true }).fill('Salma');
+    await page.getByRole('button', { name: t.continue }).click();
+    // The number stays out of the form: only its end is known here.
+    await expect(page.getByLabel(t.insuranceNumber, { exact: true })).toHaveValue('');
+    await expect(page.getByRole('main')).toContainText('4821-77'.slice(-4));
+    await page.getByRole('button', { name: t.save }).click();
+    await expect(page.getByText('Salma Ahmed')).toBeVisible();
+  });
+
+  test('keeps nothing of them in web storage', async ({ page }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    await enterPerson(page, locale);
+    const stored = await page.evaluate(() => localStorage.length + sessionStorage.length);
+    expect(stored).toBe(0);
+  });
+
+  test('lets who mistyped delete the account, after asking once more', async ({
+    page,
+  }, testInfo) => {
+    const locale = await atDetails(page, testInfo);
+    const account = texts(locale).account;
+    await page.goto(`/${locale}/account`);
+    await page.getByRole('button', { name: account.wrongAddress }).click();
+    await page.getByRole('button', { name: account.keepAccount }).click();
+    await expect(page.getByRole('heading', { name: account.title })).toBeVisible();
+
+    await page.getByRole('button', { name: account.wrongAddress }).click();
+    await page.getByRole('button', { name: account.deleteAccount }).click();
+    await expect(page).toHaveURL(`/${locale}/sign-up`);
+    await page.goto(`/${locale}/account`);
+    await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in`));
+  });
+
+  test('offers no such deletion once the address is confirmed', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const t = texts(locale);
+    const email = await existingAccount(testInfo);
+    await page.goto(`/${locale}/verify-email#token=${await linkOf(email, 'confirm')}`);
+    await passwordField(page, locale).fill(PASSWORD);
+    await page.getByRole('button', { name: t.verifyEmail.submit }).click();
+    await expect(page.getByRole('heading', { name: t.verifyEmail.doneTitle })).toBeVisible();
+    await page.goto(`/${locale}/sign-in`);
+    await signIn(page, locale, email);
+    await expect(page.getByText(t.account.confirmed)).toBeVisible();
+    await expect(page.getByRole('button', { name: t.account.wrongAddress })).toBeHidden();
   });
 });
 
@@ -324,6 +454,8 @@ test.describe('the way back from a practice page (08 A05)', () => {
     await page.getByRole('link', { name: t.signIn.createAccount }).click();
     await expect(page.getByRole('heading', { name: t.signUp.title })).toBeVisible();
     await signUp(page, locale, newAddress(testInfo));
+    await enterPerson(page, locale);
+    await enterInsurance(page, locale);
     await expect(page).toHaveURL(new RegExp(`/${locale}/check-inbox#next=`));
     await page.getByRole('link', { name: t.checkInbox.continue }).click();
     await expect(page).toHaveURL(practice);

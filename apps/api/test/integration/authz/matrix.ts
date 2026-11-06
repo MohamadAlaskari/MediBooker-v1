@@ -12,6 +12,9 @@
 export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>> = {
   getMe: { account: 200 },
   updateMe: { account: 200 },
+  deleteUnconfirmedAccount: { account: 204 },
+  getProfile: { account: 200 },
+  updateProfile: { account: 200 },
 };
 
 /** The operationIds that answer without sign-in. */

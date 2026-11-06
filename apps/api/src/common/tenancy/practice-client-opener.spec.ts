@@ -113,6 +113,7 @@ const STAGING = parseEnv({
   PUBLIC_WEB_URL: 'https://web.example.test',
   AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
   AUTH_SECRET_REF: 'hosted:auth-secret',
+  FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
 });
 
 describe('PracticeClientOpener (02 §5 item 3)', () => {

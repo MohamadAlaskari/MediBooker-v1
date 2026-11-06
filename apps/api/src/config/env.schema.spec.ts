@@ -21,6 +21,7 @@ const PRODUCTION: EnvSource = {
   PUBLIC_WEB_URL: 'https://web.example.test',
   AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
   AUTH_SECRET_REF: 'hosted:auth-secret',
+  FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
 };
 
 const STAGING: EnvSource = { ...PRODUCTION, APP_ENV: 'staging' };
@@ -85,6 +86,7 @@ describe('parseEnv', () => {
       MARKETS: [],
       AUTH_SIGNING_KEY_REFS: ['dev:auth-signing-key'],
       AUTH_SECRET_REF: 'dev:auth-secret',
+      FIELD_ENCRYPTION_KEY_REFS: ['dev:field-encryption-key'],
       PUBLIC_WEB_URL: 'http://localhost:3000',
       MAIL_FROM: 'MediBooker <no-reply@medibooker.invalid>',
       OUTBOX_POLL_SECONDS: 5,
@@ -618,6 +620,9 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
       ).toContain('AUTH_SIGNING_KEY_REFS (custom: dev_reference_only_in_local_and_ci)');
       expect(parseInvalid({ ...base, AUTH_SECRET_REF: undefined }).stderr).toContain(
         'AUTH_SECRET_REF (custom: dev_reference_only_in_local_and_ci)',
+      );
+      expect(parseInvalid({ ...base, FIELD_ENCRYPTION_KEY_REFS: undefined }).stderr).toContain(
+        'FIELD_ENCRYPTION_KEY_REFS (custom: dev_reference_only_in_local_and_ci)',
       );
     });
 

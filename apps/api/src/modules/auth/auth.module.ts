@@ -10,6 +10,7 @@ import { AuthService } from './auth.service.js';
 import { MeController } from './me.controller.js';
 import { SessionAuthenticator } from './session-authenticator.js';
 import { SignInAttempts } from './sign-in-attempts.js';
+import { UnconfirmedAccountsJob } from './unconfirmed-accounts.job.js';
 
 /** Accounts, sessions and their e-mails (ADR 0004). What a person may do in a practice follows. */
 @Module({
@@ -17,6 +18,7 @@ import { SignInAttempts } from './sign-in-attempts.js';
   controllers: [AuthController, MeController],
   providers: [
     SignInAttempts,
+    UnconfirmedAccountsJob,
     AccessTokens,
     AccountService,
     AuthService,

@@ -136,7 +136,7 @@ function isDevReference(reference: string): boolean {
 
 const webOrigin = z.string().refine(isOrigin, { params: { reason: 'not_an_origin' } });
 
-const signingKeyRefs = z
+const keyRefs = z
   .string()
   .transform((value) => value.split(',').map((reference) => reference.trim()))
   .pipe(z.array(z.string().min(1)).min(1));
@@ -186,8 +186,10 @@ const envObject = z.object({
   MARKETS: markets.default([]),
   // A01: references into the secret store. The first signing key signs and all of them verify, so
   // a key can be replaced without signing anyone out.
-  AUTH_SIGNING_KEY_REFS: signingKeyRefs.default(['dev:auth-signing-key']),
+  AUTH_SIGNING_KEY_REFS: keyRefs.default(['dev:auth-signing-key']),
   AUTH_SECRET_REF: z.string().min(1).default('dev:auth-secret'),
+  // D16: the keys of encrypted platform fields. The first encrypts and all decrypt.
+  FIELD_ENCRYPTION_KEY_REFS: keyRefs.default(['dev:field-encryption-key']),
   // A02: the address every link in an e-mail is built from, never a request's Host. Required in
   // staging and production (refinement below).
   PUBLIC_WEB_URL: webOrigin.optional(),
@@ -318,6 +320,13 @@ const envSchema = envObject
       }
       if (isDeployed && parsed('AUTH_SECRET_REF') && isDevReference(env.AUTH_SECRET_REF)) {
         reject('AUTH_SECRET_REF', 'dev_reference_only_in_local_and_ci');
+      }
+      if (
+        isDeployed &&
+        parsed('FIELD_ENCRYPTION_KEY_REFS') &&
+        env.FIELD_ENCRYPTION_KEY_REFS.some(isDevReference)
+      ) {
+        reject('FIELD_ENCRYPTION_KEY_REFS', 'dev_reference_only_in_local_and_ci');
       }
       if (env.APP_ENV !== 'production') return;
       if (parsed('OPENAPI_UI_ENABLED') && env.OPENAPI_UI_ENABLED) {

@@ -69,7 +69,7 @@ export function SignUpForm(): ReactNode {
                 setSignInFailed(isApiError(failure) && failure.status === 401);
               },
               onSuccess: () => {
-                router.replace(`/${locale}/check-inbox${fragment}`);
+                router.replace(`/${locale}/sign-up/details${fragment}`);
               },
             },
           );

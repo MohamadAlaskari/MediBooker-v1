@@ -3,7 +3,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-const STEPS = ['account', 'verify'] as const;
+const STEPS = ['account', 'details', 'verify'] as const;
 
 interface SignUpStepsProps {
   readonly current: (typeof STEPS)[number];
@@ -13,11 +13,15 @@ interface SignUpStepsProps {
 export function SignUpSteps({ current }: SignUpStepsProps): ReactNode {
   const t = useTranslations('auth.signUp');
   const position = STEPS.indexOf(current);
-  const labels = { account: t('stepAccount'), verify: t('stepVerify') };
+  const labels = {
+    account: t('stepAccount'),
+    details: t('stepDetails'),
+    verify: t('stepVerify'),
+  };
   return (
     <ol
       aria-label={t('steps', { current: position + 1, total: STEPS.length })}
-      className="mb-6 flex items-center gap-4"
+      className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2"
     >
       {STEPS.map((step, index) => (
         <li

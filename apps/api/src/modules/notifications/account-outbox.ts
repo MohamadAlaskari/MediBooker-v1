@@ -96,7 +96,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
   }
 
   private async send(id: string, attempts: number): Promise<boolean> {
-    const row = await this.platform.accountNotification.findUniqueOrThrow({
+    const row = await this.platform.accountNotification.findUnique({
       where: { id },
       select: {
         template: true,
@@ -104,11 +104,16 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
         accountToken: { select: { id: true, expiresAt: true, usedAt: true } },
       },
     });
+    // An account can go in the meantime, and its e-mails with it: nothing to send, or to record.
+    if (row === null) return false;
     const now = this.clock.now();
     const { accountToken: token } = row;
     // A link that cannot work any more helps nobody: the person asks for a new one.
     if (token?.usedAt !== null || Temporal.Instant.compare(instantOf(token.expiresAt), now) <= 0) {
-      await this.platform.accountNotification.update({ where: { id }, data: { status: 'FAILED' } });
+      await this.platform.accountNotification.updateMany({
+        where: { id },
+        data: { status: 'FAILED' },
+      });
       return false;
     }
     try {
@@ -119,7 +124,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
         await this.secrets.accountTokenOf(token.id),
       );
       await this.sender.send({ to: row.user.email, ...email });
-      await this.platform.accountNotification.update({
+      await this.platform.accountNotification.updateMany({
         where: { id },
         data: { status: 'SENT', sentAt: dbInstantOf(now) },
       });
@@ -127,7 +132,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
     } catch (error) {
       this.logger.warn({ err: error }, 'account e-mail not sent');
       const next = nextAttemptAfter(attempts, now);
-      await this.platform.accountNotification.update({
+      await this.platform.accountNotification.updateMany({
         where: { id },
         data: next === undefined ? { status: 'FAILED' } : { nextAttemptAt: dbInstantOf(next) },
       });

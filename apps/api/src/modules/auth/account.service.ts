@@ -78,7 +78,8 @@ export class AccountService {
     await this.txHost.withTransaction(async () => {
       const db = this.txHost.tx;
       const { count } = await db.user.createMany({
-        data: [{ email, passwordHash, locale }],
+        // Its age decides when an account nobody confirmed goes, so it comes from this clock.
+        data: [{ email, passwordHash, locale, createdAt: dbInstantOf(this.clock.now()) }],
         skipDuplicates: true,
       });
       if (count === 0) return;
@@ -179,7 +180,8 @@ export class AccountService {
   /**
    * A new password ends every session and every other link to choose one: whoever else was in is
    * out. Its link reached the mailbox, so it also confirms the address. That is the way back for an
-   * owner whose address someone else signed up with.
+   * owner whose address someone else signed up with, and so an account never confirmed starts anew:
+   * what it holds was entered by someone who never showed this mailbox, and may be someone else's.
    */
   async resetPassword(token: string, password: string): Promise<void> {
     assertNotBreached(password);
@@ -188,13 +190,33 @@ export class AccountService {
       const db = this.txHost.tx;
       const now = dbInstantOf(this.clock.now());
       const userId = await this.consumeToken(token, 'PASSWORD_RESET');
+      const account = await db.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { email: true, locale: true, emailVerifiedAt: true },
+      });
+      if (account.emailVerifiedAt === null) {
+        // The foreign keys take the details, consents, tokens and sessions along.
+        await db.user.delete({ where: { id: userId } });
+        const { id } = await db.user.create({
+          data: {
+            email: account.email,
+            locale: account.locale,
+            passwordHash,
+            emailVerifiedAt: now,
+            createdAt: now,
+          },
+          select: { id: true },
+        });
+        await this.audit.record({
+          actor: auditActorOf(id),
+          action: 'auth.password.reset',
+          outcome: 'SUCCEEDED',
+        });
+        return;
+      }
       await db.user.update({
         where: { id: userId },
         data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
-      });
-      await db.user.updateMany({
-        where: { id: userId, emailVerifiedAt: null },
-        data: { emailVerifiedAt: now },
       });
       await db.accountToken.updateMany({
         where: { userId, purpose: 'PASSWORD_RESET', usedAt: null },
@@ -207,6 +229,24 @@ export class AccountService {
       await this.audit.record({
         actor: auditActorOf(userId),
         action: 'auth.password.reset',
+        outcome: 'SUCCEEDED',
+      });
+    });
+  }
+
+  /**
+   * For who mistyped an address: an account nobody confirmed goes at once, with its details. Anything
+   * else is the deletion with its export and its practices (PR01).
+   */
+  async deleteUnconfirmed(userId: string): Promise<void> {
+    await this.txHost.withTransaction(async () => {
+      const { count } = await this.txHost.tx.user.deleteMany({
+        where: { id: userId, emailVerifiedAt: null },
+      });
+      if (count === 0) throw new DomainException('CONFLICT');
+      await this.audit.record({
+        actor: auditActorOf(userId),
+        action: 'auth.account.delete-unconfirmed',
         outcome: 'SUCCEEDED',
       });
     });

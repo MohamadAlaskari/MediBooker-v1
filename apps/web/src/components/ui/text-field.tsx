@@ -58,6 +58,8 @@ export function TextField({
         ref={inputRef}
         autoComplete={autoComplete}
         inputMode={inputMode}
+        // A browser's spell check can send what is typed to a service. Nothing here needs it.
+        spellCheck={false}
         className={cn(
           CONTROL,
           FOCUS_RING,

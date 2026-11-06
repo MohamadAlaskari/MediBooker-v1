@@ -7,9 +7,13 @@ describe('signInRedirect', () => {
       pathname: '/en/sign-in',
       hash: 'next=%2Fen%2Faccount',
     });
-    expect(signInRedirect('/ar/account/settings', false)).toEqual({
+    expect(signInRedirect('/ar/account/details', false)).toEqual({
       pathname: '/ar/sign-in',
-      hash: 'next=%2Far%2Faccount%2Fsettings',
+      hash: 'next=%2Far%2Faccount%2Fdetails',
+    });
+    expect(signInRedirect('/ar/sign-up/details', false)).toEqual({
+      pathname: '/ar/sign-in',
+      hash: 'next=%2Far%2Fsign-up%2Fdetails',
     });
   });
 
@@ -18,7 +22,14 @@ describe('signInRedirect', () => {
   });
 
   it('leaves every other page alone', () => {
-    for (const path of ['/en', '/en/sign-in', '/en/al-noor', '/en/accounting', '/xx/account']) {
+    for (const path of [
+      '/en',
+      '/en/sign-in',
+      '/en/sign-up',
+      '/en/al-noor',
+      '/en/accounting',
+      '/xx/account',
+    ]) {
       expect(signInRedirect(path, false)).toBeUndefined();
     }
   });

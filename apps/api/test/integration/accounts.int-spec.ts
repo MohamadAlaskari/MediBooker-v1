@@ -9,6 +9,8 @@ import { PlatformPrismaService } from '../../src/common/database/platform-prisma
 import { PlatformAudit } from '../../src/common/security/platform-audit.js';
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
 import { SignInAttempts } from '../../src/modules/auth/sign-in-attempts.js';
+import { AccountProfileService } from '../../src/modules/account-profile/account-profile.service.js';
+import { UnconfirmedAccountsJob } from '../../src/modules/auth/unconfirmed-accounts.job.js';
 import { AccountOutbox } from '../../src/modules/notifications/account-outbox.js';
 import { type Email, EmailSender } from '../../src/modules/notifications/email-sender.js';
 import { createTestApp } from '../support/create-test-app.js';
@@ -18,6 +20,7 @@ import { problemWithoutRequestId } from '../support/problem.js';
 
 const AUTH = '/api/v1/auth';
 const ME = '/api/v1/me';
+const PROFILE = `${ME}/profile`;
 const PASSWORD = 'synthetic correct horse battery';
 const NEW_PASSWORD = 'another synthetic passphrase here';
 /** On the bundled list of known passwords. */
@@ -282,7 +285,9 @@ describe('accounts on a real platform database', () => {
 
     it('refuses a look-alike of an address, which the column would take for the same', async () => {
       const body = { password: PASSWORD, locale: 'en', privacyNoticeVersion: PRIVACY_NOTICE };
-      const answer = await post('register', { ...body, email: 'kiK@example.test' }).expect(400);
+      const answer = await post('register', { ...body, email: 'ki\u212A@example.test' }).expect(
+        400,
+      );
       expect(answer.body).toMatchObject({ errors: [{ field: 'email', code: 'INVALID_FORMAT' }] });
     });
 
@@ -697,6 +702,17 @@ describe('accounts on a real platform database', () => {
       expect(await deliveryOf(email)).toEqual({ status: 'FAILED', attempts: 5 });
     });
 
+    it('takes it calmly when an account goes while its e-mail is leaving', async () => {
+      const email = await register();
+      const other = await register();
+      sender.send.mockImplementationOnce(async () => {
+        await platform().user.deleteMany({ where: { email } });
+        await platform().user.deleteMany({ where: { email: other } });
+      });
+      await expect(outbox().processDue()).resolves.toBeDefined();
+      expect(await platform().accountNotification.count({ where: { user: { email } } })).toBe(0);
+    });
+
     it('does not send a link that cannot work any more', async () => {
       const email = await register();
       clock.set(NOW.add({ minutes: 31 }));
@@ -734,6 +750,289 @@ describe('accounts on a real platform database', () => {
       const [message] = sent.filter(({ to }) => to === email);
       expect(message?.html).toContain('<html lang="ar" dir="rtl">');
       expect(message?.text).toContain('http://localhost:3000/ar/verify-email#token=');
+    });
+  });
+
+  describe('the details of an account (D16)', () => {
+    const DETAILS = {
+      firstName: 'Saralina',
+      lastName: 'Ahmed',
+      dateOfBirth: '1990-05-14',
+      phone: '012 555 0161',
+      insuranceType: 'PUBLIC',
+      insuranceProvider: 'Al Noor Insurance',
+      insuranceNumber: 'AN-4821-77',
+    };
+    const profile = (cookies: Cookies): request.Test =>
+      request(server()).get(PROFILE).set('Cookie', `mb_access=${cookies.access}`);
+    const save = (cookies: Cookies, body: object): request.Test =>
+      request(server())
+        .put(PROFILE)
+        .set('Cookie', `mb_access=${cookies.access}`)
+        .set('X-CSRF-Token', cookies.csrf)
+        .send(body);
+
+    it('keeps them, and never gives the insurance number back', async () => {
+      const { email, cookies } = await signedIn();
+      expect(await statusOf(profile(cookies))).toBe(404);
+
+      const saved = await save(cookies, DETAILS).expect(200);
+      const expected = {
+        firstName: 'Saralina',
+        lastName: 'Ahmed',
+        dateOfBirth: '1990-05-14',
+        phone: '012 555 0161',
+        insuranceType: 'PUBLIC',
+        insuranceProvider: 'Al Noor Insurance',
+        insuranceNumberEnd: '2177',
+      };
+      expect(saved.body).toEqual(expected);
+      expect((await profile(cookies).expect(200)).body).toEqual(expected);
+
+      const { id } = await platform().user.findUniqueOrThrow({ where: { email } });
+      const row = await platform().accountProfile.findUniqueOrThrow({ where: { userId: id } });
+      expect(row.insuranceNumberEncrypted).not.toContain('4821');
+    });
+
+    it('asks a self-payer for nothing, and keeps nothing of an insurance before', async () => {
+      const { cookies } = await signedIn();
+      await save(cookies, DETAILS).expect(200);
+      const saved = await save(cookies, {
+        firstName: 'Saralina',
+        lastName: 'Ahmed',
+        dateOfBirth: '1990-05-14',
+        insuranceType: 'SELF_PAY',
+      }).expect(200);
+      expect(saved.body).toMatchObject({
+        phone: null,
+        insuranceProvider: null,
+        insuranceNumberEnd: null,
+      });
+    });
+
+    it('keeps a known number when a person changes something else', async () => {
+      const { cookies } = await signedIn();
+      await save(cookies, DETAILS).expect(200);
+      const saved = await save(cookies, {
+        ...DETAILS,
+        insuranceNumber: undefined,
+        firstName: 'Salma',
+      }).expect(200);
+      expect(saved.body).toMatchObject({ firstName: 'Salma', insuranceNumberEnd: '2177' });
+    });
+
+    it('says which field is wrong', async () => {
+      const { cookies } = await signedIn();
+      const cases: readonly [object, string][] = [
+        [{ ...DETAILS, firstName: '' }, 'firstName'],
+        [{ ...DETAILS, dateOfBirth: '14.05.1990' }, 'dateOfBirth'],
+        [{ ...DETAILS, dateOfBirth: '2026-02-31' }, 'dateOfBirth'],
+        [{ ...DETAILS, dateOfBirth: '2030-01-01' }, 'dateOfBirth'],
+        [{ ...DETAILS, phone: 'call me' }, 'phone'],
+        [{ ...DETAILS, insuranceType: 'OTHER' }, 'insuranceType'],
+        [{ ...DETAILS, insuranceProvider: undefined }, 'insuranceProvider'],
+        [{ ...DETAILS, insuranceNumber: undefined }, 'insuranceNumber'],
+        [{ ...DETAILS, insuranceNumber: '<script>' }, 'insuranceNumber'],
+        [{ ...DETAILS, insuranceNumber: null }, 'insuranceNumber'],
+        [{ ...DETAILS, insuranceNumber: '12' }, 'insuranceNumber'],
+        [{ ...DETAILS, insuranceNumber: '      ' }, 'insuranceNumber'],
+        [{ ...DETAILS, firstName: '   ' }, 'firstName'],
+        [{ ...DETAILS, lastName: 'a\u0000b' }, 'lastName'],
+        [{ ...DETAILS, lastName: 'a\nb' }, 'lastName'],
+        [{ ...DETAILS, firstName: '\u202Eabc' }, 'firstName'],
+        [{ ...DETAILS, insuranceProvider: 'a\u0000b' }, 'insuranceProvider'],
+        [{ ...DETAILS, phone: '((((((' }, 'phone'],
+      ];
+      for (const [body, field] of cases) {
+        const answer = await save(cookies, body).expect(400);
+        const { errors } = answer.body as { errors: readonly { field: string }[] };
+        expect(new Set(errors.map((error) => error.field))).toEqual(new Set([field]));
+      }
+    });
+
+    it('takes digits of any script, as a keyboard types them', async () => {
+      const { cookies } = await signedIn();
+      expect(await statusOf(save(cookies, { ...DETAILS, phone: '٠١٢ ٥٥٥ ٠١٦١' }))).toBe(200);
+    });
+
+    it('needs the CSRF header, and writes only for the signed-in person', async () => {
+      const { cookies } = await signedIn();
+      const noHeader = request(server())
+        .put(PROFILE)
+        .set('Cookie', `mb_access=${cookies.access}`)
+        .send(DETAILS);
+      expect(await statusOf(noHeader)).toBe(403);
+      expect(await statusOf(save(cookies, { ...DETAILS, userId: 'someone' }))).toBe(400);
+    });
+
+    it('writes nothing for a session that a reset has just ended', async () => {
+      const { email, cookies } = await signedIn();
+      const { id } = await platform().user.findUniqueOrThrow({ where: { email } });
+      const [session] = await platform().session.findMany({ where: { userId: id } });
+      await platform().session.updateMany({
+        where: { userId: id },
+        data: { revokedAt: new Date(NOW.epochMilliseconds) },
+      });
+      const actor = { userId: id, sessionId: session?.id ?? '', amr: ['pwd'] };
+      await expect(
+        app.get(AccountProfileService).save(actor, DETAILS as never),
+      ).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+      expect(await platform().accountProfile.count({ where: { userId: id } })).toBe(0);
+      expect(await statusOf(save(cookies, DETAILS))).toBe(401);
+    });
+
+    it('puts no field of them into an e-mail', async () => {
+      const { email, cookies } = await signedIn();
+      await save(cookies, DETAILS).expect(200);
+      await post('verify-email/resend', { email }).expect(202);
+      await outbox().processDue();
+      const messages = sent.filter(({ to }) => to === email);
+      expect(messages.length).toBeGreaterThan(0);
+      for (const { subject, text, html } of messages) {
+        const body = `${subject}${text}${html}`;
+        // Whole values: a token is random text and may hold any short piece.
+        for (const value of [
+          'Saralina',
+          'Ahmed',
+          '1990-05-14',
+          '012 555 0161',
+          'Al Noor Insurance',
+        ]) {
+          expect(body).not.toContain(value);
+        }
+      }
+    });
+
+    it('hold nothing of them in the logs', async () => {
+      const { cookies } = await signedIn();
+      await save(cookies, DETAILS).expect(200);
+      await profile(cookies).expect(200);
+      const details = [
+        'Saralina',
+        'Ahmed',
+        '1990-05-14',
+        '012 555 0161',
+        'Al Noor Insurance',
+        'AN-4821-77',
+      ];
+      for (const value of details) expect(logs.text()).not.toContain(value);
+    });
+
+    describe('an account never confirmed', () => {
+      it('starts anew at a reset, because its mailbox was shown only now', async () => {
+        const { email, cookies } = await signedIn();
+        await save(cookies, DETAILS).expect(200);
+        const before = await platform().user.findUniqueOrThrow({ where: { email } });
+        await post('password/forgot', { email }).expect(202);
+        await post('password/reset', {
+          token: await resetToken(email),
+          password: NEW_PASSWORD,
+        }).expect(204);
+
+        const after = await platform().user.findUniqueOrThrow({ where: { email } });
+        expect(after.id).not.toBe(before.id);
+        expect(after.emailVerifiedAt).not.toBeNull();
+        expect(await platform().accountProfile.count({ where: { userId: before.id } })).toBe(0);
+        expect(await platform().accountConsent.count({ where: { userId: after.id } })).toBe(0);
+        expect(await statusOf(getMe(cookies))).toBe(401);
+
+        const owner = cookiesOf(await login(email, NEW_PASSWORD).expect(200));
+        expect(await statusOf(profile(owner))).toBe(404);
+      });
+
+      it('keeps its details at the reset of an account that was confirmed', async () => {
+        const email = await register();
+        await post('verify-email', {
+          token: await confirmationToken(email),
+          password: PASSWORD,
+        }).expect(204);
+        const cookies = cookiesOf(await login(email).expect(200));
+        await save(cookies, DETAILS).expect(200);
+        await post('password/forgot', { email }).expect(202);
+        await post('password/reset', {
+          token: await resetToken(email),
+          password: NEW_PASSWORD,
+        }).expect(204);
+        const owner = cookiesOf(await login(email, NEW_PASSWORD).expect(200));
+        expect((await profile(owner).expect(200)).body).toMatchObject({ firstName: 'Saralina' });
+      });
+
+      it('goes after 7 days with its details, and a confirmed one stays', async () => {
+        const job = app.get(UnconfirmedAccountsJob);
+        const { email: unconfirmed, cookies } = await signedIn();
+        await save(cookies, DETAILS).expect(200);
+        const confirmed = await register();
+        await post('verify-email', {
+          token: await confirmationToken(confirmed),
+          password: PASSWORD,
+        }).expect(204);
+
+        clock.set(NOW.add({ hours: 7 * 24 }));
+        await job.run();
+        expect(await platform().user.count({ where: { email: unconfirmed } })).toBe(1);
+
+        clock.set(NOW.add({ hours: 7 * 24, minutes: 1 }));
+        await job.run();
+        expect(await platform().user.count({ where: { email: unconfirmed } })).toBe(0);
+        expect(await platform().user.count({ where: { email: confirmed } })).toBe(1);
+      });
+
+      it('goes in batches, so a big backlog does not stop the deletion', async () => {
+        const job = app.get(UnconfirmedAccountsJob);
+        const created = new Date(NOW.subtract({ hours: 8 * 24 }).epochMilliseconds);
+        const prefix = `backlog-${String(addresses)}`;
+        await platform().user.createMany({
+          data: Array.from({ length: 501 }, (_, index) => ({
+            email: `${prefix}-${String(index)}@example.test`,
+            passwordHash: 'synthetic',
+            locale: 'en',
+            createdAt: created,
+          })),
+        });
+        await job.run();
+        const left = await platform().user.count({ where: { email: { startsWith: prefix } } });
+        expect(left).toBe(0);
+      });
+
+      it('can be deleted by who mistyped the address', async () => {
+        const { email, cookies } = await signedIn();
+        await save(cookies, DETAILS).expect(200);
+        const remove = (): request.Test =>
+          request(server())
+            .delete(`${ME}/unconfirmed`)
+            .set('Cookie', `mb_access=${cookies.access}`)
+            .set('X-CSRF-Token', cookies.csrf);
+        const answer = await remove().expect(204);
+        const cleared = answer.headers['set-cookie'] as unknown as string[];
+        expect(cleared.every((cookie) => cookie.includes('Max-Age=0'))).toBe(true);
+        expect(await platform().user.count({ where: { email } })).toBe(0);
+        expect(await statusOf(remove())).toBe(401);
+      });
+
+      it('is the only one this way can delete', async () => {
+        const email = await register();
+        await post('verify-email', {
+          token: await confirmationToken(email),
+          password: PASSWORD,
+        }).expect(204);
+        const cookies = cookiesOf(await login(email).expect(200));
+        const answer = await request(server())
+          .delete(`${ME}/unconfirmed`)
+          .set('Cookie', `mb_access=${cookies.access}`)
+          .set('X-CSRF-Token', cookies.csrf)
+          .expect(409);
+        expect(answer.body).toMatchObject({ code: 'CONFLICT' });
+        expect(await platform().user.count({ where: { email } })).toBe(1);
+      });
+
+      it('takes the CSRF header too', async () => {
+        const { email, cookies } = await signedIn();
+        const answer = request(server())
+          .delete(`${ME}/unconfirmed`)
+          .set('Cookie', `mb_access=${cookies.access}`);
+        expect(await statusOf(answer)).toBe(403);
+        expect(await platform().user.count({ where: { email } })).toBe(1);
+      });
     });
   });
 

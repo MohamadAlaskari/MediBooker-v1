@@ -31,3 +31,61 @@ export const UpdateMeResponse = zod.object({
   "locale": zod.enum(['ar', 'en'])
 })
 
+/**
+ * @summary The own details; 404 until they are entered
+ */
+export const GetProfileResponse = zod.object({
+  "dateOfBirth": zod.iso.date(),
+  "firstName": zod.string(),
+  "insuranceNumberEnd": zod.string().nullable().describe('The last characters of the number'),
+  "insuranceProvider": zod.string().nullable(),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']),
+  "lastName": zod.string(),
+  "phone": zod.string().nullable()
+})
+
+/**
+ * @summary Enter or change the own details and insurance
+ */
+export const updateProfileBodyDateOfBirthRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateProfileBodyFirstNameMax = 100;
+
+
+export const updateProfileBodyFirstNameRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const updateProfileBodyInsuranceNumberRegExp = new RegExp('^[\\p{L}\\p{Nd}][\\p{L}\\p{Nd} ./-]{5,39}$', 'u');
+export const updateProfileBodyInsuranceProviderMax = 100;
+
+
+export const updateProfileBodyInsuranceProviderRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const updateProfileBodyLastNameMax = 100;
+
+
+export const updateProfileBodyLastNameRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const updateProfileBodyPhoneRegExp = new RegExp('^\\+?(?=(?:[ ()-]*\\p{Nd}){6})[\\p{Nd} ()-]{6,20}$', 'u');
+
+
+export const UpdateProfileBody = zod.object({
+  "dateOfBirth": zod.iso.date().regex(updateProfileBodyDateOfBirthRegExp),
+  "firstName": zod.string().min(1).max(updateProfileBodyFirstNameMax).regex(updateProfileBodyFirstNameRegExp),
+  "insuranceNumber": zod.string().regex(updateProfileBodyInsuranceNumberRegExp).optional().describe('Needed unless self-paying or already known; left out, the known one stays'),
+  "insuranceProvider": zod.string().max(updateProfileBodyInsuranceProviderMax).regex(updateProfileBodyInsuranceProviderRegExp).optional().describe('Needed unless self-paying'),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']),
+  "lastName": zod.string().min(1).max(updateProfileBodyLastNameMax).regex(updateProfileBodyLastNameRegExp),
+  "phone": zod.string().regex(updateProfileBodyPhoneRegExp).optional()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "dateOfBirth": zod.iso.date(),
+  "firstName": zod.string(),
+  "insuranceNumberEnd": zod.string().nullable().describe('The last characters of the number'),
+  "insuranceProvider": zod.string().nullable(),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']),
+  "lastName": zod.string(),
+  "phone": zod.string().nullable()
+})
+
+/**
+ * @summary Delete an own account that was never confirmed: a mistyped address
+ */
+export const DeleteUnconfirmedAccountResponse = zod.void()
+
