@@ -91,8 +91,8 @@ U1 asked the user to rotate the credential or drop the database. On 2026-11-04 t
 |---|---|---|---|
 | D4 | Repository home and visibility | decided on 2026-11-04 by the user: option A, public for now | revisited before the first real practice data (OPS01) |
 | D5 | Visibility of the container images | client | F05 |
-| D1 | i18n library binding | client (changes a Proposed row) | X04 |
-| D2 | Caching of the public practice page | client (reading of ADR 0003) | P03 |
+| D1 | i18n library binding | decided 2026-11-06: B, next-intl (ADR 0013) | X04 |
+| D2 | Caching of the public practice page | decided 2026-11-06: A, not cached | P03 |
 | D3 | Address of the public practice page | client | M01 |
 | D16 | Where patients enter their personal details | client with the ui-designer | A05 |
 | D14 | Reception staff on the public page | client | not blocking; M03 builds option A |
@@ -108,11 +108,15 @@ U1 asked the user to rotate the credential or drop the database. On 2026-11-04 t
 
 ### D1. i18n library binding
 
+Decided by the client on 2026-11-06: B ([ADR 0013](../adr/0013-i18n-binding.md)).
+
 Option B changes the Proposed i18n row in `CLAUDE.md`. Needed before X04 (also X06, X08 and A02); ADR 0013 records it. Options and trade-offs: [05 §2.2](05-errors-i18n-tokens.md#22-binding-decision-d1).
 
 **Recommendation: B**, next-intl on the web, use-intl in the app and `use-intl/core` for e-mail, push and SMS texts. It formats ICU natively, gives cookie-free locale routing with hreflang and server-component support in the App Router, and one engine renders every text from the shared catalogue. The catalogue stays ICU JSON either way, so the choice changes only three bindings.
 
 ### D2. Caching of the public practice page
+
+Decided by the client on 2026-11-06: A, not cached. ADR 0003 records the reading.
 
 [ADR 0003](../adr/0003-web-framework-nextjs.md) #3 says the public page is "server-rendered and cached". Its #6 (per-request CSP nonces) makes every HTML response dynamic, and BR-24 requires a withdrawn staff consent to disappear at once. Needed before P03.
 

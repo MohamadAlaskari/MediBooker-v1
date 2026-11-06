@@ -6,7 +6,7 @@
 
 - Expo SDK 58 (`expo ~58.0.22`), React Native 0.88.1 (New Architecture, Hermes), React 19.3.0, Expo Router `~58.0.29`, TanStack Query.
 - react-native-reanimated 4.7.1 with react-native-worklets 0.13.0 for motion. GSAP and shadcn/ui are web-only.
-- i18n binding per decision D1: use-intl (option B, recommended) or react-i18next with i18next-icu (option A), on the shared ICU catalogue.
+- i18n binding: use-intl on the shared ICU catalogue (ADR 0013).
 - Native and SDK packages are added only with `npx expo install`; SDK upgrades follow §14.
 
 ## 2. Structure

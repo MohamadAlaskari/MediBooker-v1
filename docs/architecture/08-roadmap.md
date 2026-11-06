@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (this commit), P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -36,16 +36,16 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 12 | X03 | Generated API client | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
-| 13 | X04 | Shared ICU catalogues | `feat(i18n): add shared ICU catalogues for Arabic and English` | D1 | planned |
+| 13 | X04 | Shared ICU catalogues | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (this commit) |
 | 14 | X05 | Design and motion tokens | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
-| 15 | X06 | Web shell | `feat(web): add i18n, RTL, theming, fonts, motion and error routes` | D1 | planned |
-| 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): add shadcn/ui kit on React Aria mapped to design tokens` | - | planned |
+| 15 | X06 | Web shell | `feat(web): render the public practice page with i18n, theme and SEO` | D1 | done (this commit), rest with its first consumer |
+| 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): render the public practice page with i18n, theme and SEO` | - | first components done (this commit), rest with their first consumer |
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
 | 18 | X09 | Mobile UI kit | `feat(mobile): add design-system UI kit v1` | - | planned |
 | 19 | X10 | Android emulator smoke test | `ci(mobile): add Android emulator smoke test for Hermes and RTL` | - | planned |
 | 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
 | 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | committed (`b20f32c`) |
-| 22 | P03 | Public practice page | `feat(web): render public practice page with theme and SEO metadata` | D2 | planned |
+| 22 | P03 | Public practice page | `feat(web): render the public practice page with i18n, theme and SEO` | D2 | done (this commit), sitemap follows |
 | 23 | P04 | Availability and slot generation | `feat(scheduling): add availability rules and DST-safe slot generation` | - | planned |
 | 24 | P05 | Public free times | `feat(scheduling): expose public free times per practice` | - | planned |
 | 25 | P06 | Free times on the page | `feat(web): show free times on the practice page` | - | planned |
@@ -507,6 +507,8 @@ Acceptance:
 - `CI=true pnpm test:root` passes with a message key ending in `password` and a long label in the catalogue.
 - Recorded: with `pnpm dev` running, an edit to `ar.json` reaches the web app without a manual build.
 
+As built (one commit with X06, X07 and P03, ADR 0013): the catalogue with `common`, `app`, `a11y`, `errors`, `validation`, `errorPage` and `practicePage`, `formats`, `toFormattingLocale`, `isolateLtr`, the generator and the tests of 05 §2.3, among them the render-all test with `use-intl/core`. The `.gitleaks.toml` allowlist waits for the first key that needs it (A05), because the rule does not report labels with spaces. No `dev` script: `pnpm generate` and a rebuild of the image.
+
 ### X05 — Design and motion tokens from Figma variables
 
 **Commit:** `feat(design-tokens): build design and motion tokens from Figma` · **Depends on:** - · **Owner:** ui-designer (export, Motion collection) and web-engineer
@@ -544,6 +546,8 @@ Acceptance:
 - A lint fixture with `new Date()` under `src/app/` fails.
 - Dispatching `visual-baselines.yml` uploads the PNGs as an artifact.
 
+As built (one commit with X04, X07 and P03): the next-intl binding (ADR 0013), the fonts, Tailwind with `tokens.css`, `theme.css`, `lib/api.server.ts`, `lib/format.ts`, `error.tsx`, `not-found.tsx`, the skip link, `lib/motion/gsap.ts` and `no-system-clock` on pages. `proxy.ts` matches files at the top level by extension, which closes the review finding of F05. Wait for their first consumer: the query provider, `lib/api.client.ts`, `lib/errors.ts`, the focus on route change and `inlineX` (P06, A05), `visual-baselines.yml`. Component tests render with `renderToStaticMarkup`, so no DOM library is needed yet. React Aria reads the nonce from `<meta property="csp-nonce" nonce>` for the style it injects.
+
 ### X07 — Web UI kit: shadcn/ui on React Aria
 
 **Commit:** `feat(web): add shadcn/ui kit on React Aria mapped to design tokens` · **Depends on:** - · **Owner:** web-engineer, using the Figma pages Buttons, Form Controls, Badges & Avatars and Feedback
@@ -564,6 +568,8 @@ Acceptance:
 - Playwright: the kit page is axe-clean in `ar` and `en`, light and dark; a page that shows a toast has no CSP violation; at 390 px with long synthetic Arabic strings `document.documentElement.scrollWidth <= innerWidth` and no button or badge overflows; the focus outline colour equals the `border/focus` token.
 - `pnpm --filter @medibooker/web generate` twice leaves no diff.
 - `pnpm --filter @medibooker/web exec shadcn add button --dry-run` reports no change to existing files; `grep -rn 'npx shadcn' .claude/skills docs/adr` finds nothing.
+
+As built (one commit with X04, X06 and P03): `shadcn init --base aria --rtl` and `components.json`, `theme.css` with the variables of ADR 0007, and Button, Badge and Alert adapted to Figma and the tokens. `tokens/layout.json` gains `size.touch-target`, so `min-h-touch-target` exists; a class without a token generates nothing. The other components, the `dev/kit` page and the sonner hash come with their first consumer. When a component is added, map its classes to tokens: shadcn's defaults (`h-8`, `text-sm`, `px-2.5`) have none.
 
 ### X08 — Mobile shell: i18n, RTL, theme, fonts and version gate
 
@@ -682,6 +688,8 @@ Acceptance:
 - Component test: the open-now text in the practice zone with Arabic-Indic digits.
 - The same web image serves `robots.txt` with the run-time `PUBLIC_SITE_URL` under `APP_ENV=local` and `APP_ENV=staging`.
 - The page at 390 px has no horizontal overflow with long synthetic Arabic values.
+
+As built (one commit with X04, X06 and X07, decision D2: not cached): all sections of the page from the API, with `today` added to the DTO so the web reads no clock; the theme through `brandStyle` for presets and custom scales; section reveals with GSAP and ScrollTrigger; metadata with hreflang and canonical, escaped JSON-LD, `robots.ts`; links to https only; a slug that cannot be one never reaches the API. The end-to-end tests run against a stub of the API, in both directions, and also prove that the web passes the visitor's address on; the smoke test of the control menu proves the whole way to a practice's database and that the proxy replaces a forged address (RT-03), in the CI job `images`. A page that cannot reach the API is marked `noindex`; `robots.ts` keeps search engines out of `/api/`, the portal and the dashboard follow with A05. Left out until they have something to link to or show: Sign in (A05), the reception card (M03, D14). Follow in their own commit: `sitemap.ts` with `GET /public/practices`. Moved: the `webkit-ar-rtl` project and the `@visual` baselines, until the ui-designer reviews them; the logo as an image. Free times stay a placeholder until P06.
 
 ### P04 — Availability rules and DST-safe slot generation
 
@@ -885,6 +893,8 @@ Scope: `GET`/`PATCH /practices/{practiceId}/settings/listing` (platform database
 
 Acceptance: admin-only (another role → 403; another practice → 404); the property test passes for random valid hex values; practice B claiming A's retired slug → 409 `PRACTICE_SLUG_TAKEN`; the old slug redirects with 308 on the web; unpublishing makes the public page 404 on the next request in the same instance and within `PUBLIC_ROUTE_CACHE_MS` in another; a slug change writes a `platform_audit_events` row and a page change an `audit_events` row in the practice database, each in the transaction of its change; Playwright and axe in `ar` and `en`.
 
+From the reviews of P02 and P03: the write paths accept only `https://` for the legal links (the page already guards) and check the format of the practice's e-mail address, because the page links it as `mailto:` and `?bcc=` must not get in; publishing requires the legal links a market asks for (health-data-security §11c; the seeded practices have none).
+
 ### M02 — Services, opening hours and special days
 
 **Commit:** `feat(practice): manage services, opening hours and special days` · **Depends on:** - · **Owner:** backend-engineer and web-engineer
@@ -900,6 +910,8 @@ Acceptance: role-matrix tests; an overlap returns a field-level error from the c
 Scope: `GET`/`POST`/`PATCH …/staff` (admin); `GET`/`PATCH /practices/{practiceId}/me/public-profile` (consent given and withdrawn only by the person, with the text version, audited, effective at once; a withdrawal also writes its revocation event for `revocation_journal`); admins can hide a profile; the team list shows support memberships with their expiry and lets the admin revoke them (A04); screens W15 and W16; the reception appears as a team card without names (current design, D14); photos wait for R02.
 
 Acceptance: an admin cannot consent for someone else (403); the request right after a withdrawal returns the public page without the member; every give and withdraw writes a `staff_consents` row with `text_version` and an `AuditEvent`, and every withdrawal a `revocation_journal` entry; a revoked support membership answers 404 on its next request.
+
+From the review of P03: the write path checks `languages` as language codes (the page shows an invalid one as written); while D14 stays A, the public list leaves out members who are no providers; the consent text says that the listing is on the public internet and indexed by search engines, that our own withdrawal takes effect at once and that copies at third parties cannot be recalled at once (`noarchive` reduces them); the fields shown (title, name, specialty or position, languages) are aligned with health-data-security §1 and BR-24.
 
 ### M04 — Working hours, exceptions and slot management
 
@@ -1060,3 +1072,5 @@ Scope:
 - Monitoring and alerts: runner failures and `verify` drift; practices behind `PRACTICE_SCHEMA_REQUIRED` or outside `MARKETS`; a database ACL other than owner and app role; backup age per practice and restore-drill results; connections against `max_connections` and per role against `CONNECTION LIMIT`; transaction-ID age (`age(datfrozenxid)`) per database; size per practice database and cluster disk; long-running and idle-in-transaction sessions; WAL archiving failures; relay lag and the oldest due outbox row; stuck saga steps; client creations, evictions and `acquire()` waits per instance; 503 rate per practice; 5xx spikes; latency (p95 per route template); uptime checks of the public page, the API and the web; failed logins; refresh-token reuse. The practice id is a label only on per-practice alerts; the others use top-k, so the number of series stays bounded.
 
 Acceptance: a staging deploy from a digest with approval runs both migration steps and `verify`, and its summary shows every practice at the target version; a deliberately failing fixture migration in one staging practice leaves the others migrated, answers 503 only for that practice and raises the alert; a practice created in staging through `practice:create` is provisioned and serves its public page, and its audit row records the authenticated task principal; `pg_stat_ssl` shows `ssl = true` for every API and task connection; the restore sample and the PITR drill pass and are documented; alerts fire in a drill (5xx spike, failed logins, migration failure, an idle-in-transaction session, an archive failure, a practice database whose `CONNECT` is open to `PUBLIC`); a break-glass drill leaves rows in both audit logs and its session is gone at expiry; a forged `X-Forwarded-For` at the edge does not change the rate-limit key, and the edge log holds no practice or patient id; a practice app credential from the secret store cannot connect to another practice database; security-reviewer verdict APPROVE.
+
+From the review of P03: the web stays reachable only through the edge, because on its own port a forged `X-Forwarded-For` opens its own limit (here 8082, on loopback only); `trusted_proxies` and `TRUST_PROXY_HOPS` change together; the edge access log is personal data and needs a retention period; `robots.ts` disallows everything on staging hosts.

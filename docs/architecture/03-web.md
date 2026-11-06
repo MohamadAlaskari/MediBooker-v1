@@ -70,7 +70,7 @@ Server environment: `API_INTERNAL_URL`, `PUBLIC_SITE_URL`, `APP_ENV`, validated 
 
 2. Sets the policy on the response and forwards it, with `x-nonce`, as request headers, so Next applies the nonce to its own scripts and the layout to the brand `<style>`.
 3. Locale routing: F06 redirects paths without a locale prefix using `negotiateLocale(Accept-Language)`; X06 composes the i18n library's middleware. The e2e check "no CSP violations" proves the nonce survives the composition.
-4. The matcher excludes `api`, `_next`, `healthz` and file paths.
+4. The matcher excludes `/api/`, `/_next/`, `/healthz` and files at the top level by extension, so `/apifoo`, `/en/foo.bar` and `/en/x.png` are pages with the policy and a 404. A folder under `public/` needs its own exclusion.
 
 GSAP and React write styles through the CSSOM (`element.style`), which this policy allows. sonner 2.0.8 injects one fixed `<style>` element at load time without a nonce. X07 adds `pnpm --filter @medibooker/web generate`, which reads that stylesheet from the installed sonner, computes its SHA-256 and writes `src/generated/csp-hashes.ts` (committed and drift-checked); `buildCsp` adds the hash to `style-src`. A sonner update regenerates it, and the e2e check covers a page with a toast. If this proves brittle, the fallback is `pnpm patch sonner` to import `sonner/dist/styles.css` instead of injecting it.
 
@@ -117,7 +117,7 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 
 The catalogue, bidi rules and formatting helpers are shared ([05](05-errors-i18n-tokens.md)). The binding to Next.js depends on decision D1:
 
-- **Option B (recommended): next-intl 4.14.9.**
+- **Option B (chosen, ADR 0013): next-intl 4.14.9.** As built: the language comes from `next/root-params`; `src/proxy.ts` keeps its own redirect instead of next-intl's middleware; `routing.ts` and `navigation.ts` wait for the first client-side navigation (A05).
   - `src/i18n/routing.ts`: `defineRouting({ locales: LOCALES, defaultLocale: 'ar', localePrefix: 'always', localeCookie: false, alternateLinks: true })`; public pages stay cookie-free.
   - `src/i18n/request.ts`: messages and named formats from `@medibooker/i18n`, `timeZone: 'UTC'`.
   - `src/i18n/navigation.ts`: `createNavigation(routing)`; typed keys through the `AppConfig` augmentation.
@@ -161,7 +161,7 @@ Either way:
 
 - Variants and sizes follow the Figma components, not shadcn's defaults: touch targets of at least 44 × 44 px, the Arabic and English type scales, the `border/focus` ring.
 - Fonts: `next/font/local` with the variable woff2 files of `@fontsource-variable/inter` and `@fontsource-variable/noto-sans-arabic`; `--font-sans` is chosen per `:lang()`.
-- Practice brand: presets through `data-brand`. A custom scale is rendered as a nonce'd `<style>:root{--brand-50:…}</style>` by `brandStyle(scale)`, which accepts exactly 11 values matching `^#[0-9a-f]{6}$` and otherwise falls back to the Teal preset. A unit test feeds it `#000;}</style><script>`.
+- Practice brand: as built, presets and custom scales alike through `brandStyle` on a practice page, because the root layout does not know the practice; `data-brand` stays for pages that do. A custom scale is rendered as a nonce'd `<style>:root{--brand-50:…}</style>` by `brandStyle(scale)`, which accepts exactly 11 values matching `^#[0-9a-f]{6}$` and otherwise falls back to the Teal preset. A unit test feeds it `#000;}</style><script>`.
 
 ## 10. Motion
 

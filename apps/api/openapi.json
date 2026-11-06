@@ -267,6 +267,11 @@
             "example": "Asia/Riyadh",
             "type": "string"
           },
+          "today": {
+            "description": "Today's date in the practice's time zone",
+            "example": "2026-11-06",
+            "type": "string"
+          },
           "weekStart": {
             "description": "ISO weekday",
             "example": 7,
@@ -303,6 +308,7 @@
           "legalNoticeUrl",
           "privacyPolicyUrl",
           "theme",
+          "today",
           "openNow",
           "nextChangeAt",
           "openingHours",

@@ -1,6 +1,7 @@
 import { DEMO_PRACTICE, type Stack } from './stacks.ts';
 
-const TIMEOUT_MS = 5000;
+// A development server compiles a page on its first request.
+const TIMEOUT_MS = 30_000;
 
 interface Answer {
   readonly status: number;
@@ -100,6 +101,21 @@ function pageCheck(stack: Stack, locale: string, direction: string): Check {
   };
 }
 
+/** The web app reads the API: the whole way from the page to a practice's own database. */
+function practicePageCheck(stack: Stack): Check {
+  return {
+    name: 'Praxisseite zeigt die Praxis und ihre Suchdaten',
+    url: `${stack.webUrl}/en/${DEMO_PRACTICE}`,
+    hint: SEED_HINT,
+    verify: (answer) => {
+      const problem = hasStatus(200)(answer);
+      if (problem !== undefined) return problem;
+      if (!answer.text.includes('<h1')) return 'Keine Überschrift';
+      return answer.text.includes('application/ld+json') ? undefined : 'Keine Suchdaten';
+    },
+  };
+}
+
 /** Behind a proxy a redirect easily names the container's own address instead of the site. */
 function rootRedirectCheck(stack: Stack): Check {
   return {
@@ -128,9 +144,50 @@ function problemCheck(stack: Stack): Check {
   };
 }
 
+/**
+ * Two requests with two forged addresses (RT-03). The proxy replaces them, so both count against
+ * the one real visitor and the second has less left; otherwise each would open its own limit.
+ */
+function forgedAddressChecks(stack: Stack): readonly Check[] {
+  const url = `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`;
+  const remainingOf = ({ headers }: Answer): number | undefined => {
+    const remaining = headers.get('x-ratelimit-remaining');
+    return remaining === null ? undefined : Number(remaining);
+  };
+  let first: number | undefined;
+  return [
+    {
+      name: 'Rate-Limit antwortet auch bei gefälschter Adresse',
+      url,
+      headers: { 'X-Forwarded-For': '203.0.113.1' },
+      hint: SEED_HINT,
+      verify: (answer) => {
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        first = remainingOf(answer);
+        return first === undefined ? 'Keine Angabe zum Limit' : undefined;
+      },
+    },
+    {
+      name: 'Proxy ersetzt eine vom Besucher gefälschte Adresse',
+      url,
+      headers: { 'X-Forwarded-For': '203.0.113.2' },
+      hint: SEED_HINT,
+      verify: (answer) => {
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        const second = remainingOf(answer);
+        if (first === undefined || second === undefined) return 'Keine Angabe zum Limit';
+        return second < first ? undefined : 'Gefälschte Adresse öffnet ein eigenes Limit';
+      },
+    },
+  ];
+}
+
 /** The production stack keeps probes and the Swagger UI away from visitors. */
 function behindProxyChecks(stack: Stack, swaggerEnabled: boolean): readonly Check[] {
   return [
+    ...forgedAddressChecks(stack),
     {
       name: 'Proxy leitet /health/ready nicht weiter',
       url: `${stack.webUrl}/health/ready`,
@@ -170,6 +227,7 @@ export function smokeChecks(stack: Stack, swaggerEnabled: boolean): readonly Che
     demoPracticeCheck(stack),
     rootRedirectCheck(stack),
     pageCheck(stack, 'ar', 'rtl'),
+    practicePageCheck(stack),
     pageCheck(stack, 'en', 'ltr'),
     problemCheck(stack),
     ...(stack.mode === 'dev'

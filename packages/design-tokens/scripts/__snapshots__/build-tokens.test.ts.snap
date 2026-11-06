@@ -28,6 +28,7 @@ exports[`the build > keeps the variable names and the motion exports stable 1`] 
   "--spacing-10",
   "--spacing-12",
   "--spacing-16",
+  "--spacing-touch-target",
   "--radius-none",
   "--radius-sm",
   "--radius-md",

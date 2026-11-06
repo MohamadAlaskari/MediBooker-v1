@@ -1,7 +1,10 @@
 {
   "extends": "@medibooker/tsconfig/nextjs.json",
   "compilerOptions": {
-    "paths": { "@/*": ["./src/*"] }
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "next-env.d.ts",

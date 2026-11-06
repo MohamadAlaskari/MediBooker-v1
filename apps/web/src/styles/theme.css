@@ -1,0 +1,38 @@
+/* The variables of shadcn/ui mapped to our tokens (ADR 0007). No raw colour value belongs here. */
+:root {
+  --background: var(--color-bg-canvas);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-bg-surface);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-bg-surface-raised);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-bg-brand);
+  --primary-foreground: var(--color-text-on-brand);
+  --secondary: var(--color-bg-subtle);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-bg-subtle);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-bg-subtle);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-bg-danger);
+  --border: var(--color-border-default);
+  --input: var(--color-border-strong);
+  --ring: var(--color-border-focus);
+  --radius: var(--radius-md);
+}
+
+/* The MediBooker logo stays Teal in every practice theme (ADR 0002). */
+@theme inline {
+  --color-logo: var(--teal-600);
+}
+
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where([data-theme='system'], [data-theme='system'] *) {
+      @slot;
+    }
+  }
+}

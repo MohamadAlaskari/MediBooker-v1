@@ -199,6 +199,8 @@ describe('a Tailwind compile of the stylesheet', () => {
     'border-border-focus',
     'p-0',
     'p-4',
+    'min-h-touch-target',
+    'size-touch-target',
     'gap-2',
     'rounded-md',
     'rounded-full',

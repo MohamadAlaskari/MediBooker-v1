@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+@import '@medibooker/design-tokens/tokens.css';
+@import './theme.css';
+
+@layer base {
+  body {
+    background-color: var(--color-bg-canvas);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-default);
+    line-height: var(--text-body-default--line-height);
+  }
+
+  :focus-visible {
+    outline: var(--border-width-strong) solid var(--color-border-focus);
+    outline-offset: var(--border-width-strong);
+  }
+
+  /* Times line up in columns; Arabic text must not be tracked (design-system skill). */
+  .tabular-times {
+    font-variant-numeric: tabular-nums;
+  }
+}

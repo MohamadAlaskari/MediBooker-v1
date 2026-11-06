@@ -14,3 +14,5 @@ apps/api/openapi.json
 packages/api-client/src/generated/
 packages/design-tokens/css/tokens.css
 packages/design-tokens/src/generated/
+packages/i18n/locales.json
+packages/i18n/src/generated/

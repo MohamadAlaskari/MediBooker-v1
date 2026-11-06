@@ -30,6 +30,10 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Not the API, Next's own files, the container probe or any path with a file extension.
-  matcher: ['/((?!api|_next|healthz|.*\\..*).*)'],
+  // Not the API, Next's own files, the container probe or a file at the top level of the site.
+  // Anchored, so `/apifoo`, `/en/foo.bar` and `/en/x.png` are pages too: they get the policy and
+  // their 404, and no nonce a visitor chose.
+  matcher: [
+    '/((?!api/|_next/|healthz$|[^/]+\\.(?:ico|png|svg|jpg|webp|woff2|txt|xml|webmanifest)$).*)',
+  ],
 };

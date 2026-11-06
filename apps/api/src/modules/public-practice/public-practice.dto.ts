@@ -172,6 +172,12 @@ export class PublicPracticeDto {
   readonly theme!: PublicThemeDto;
 
   @ApiProperty({
+    description: "Today's date in the practice's time zone",
+    example: '2026-11-06',
+  })
+  readonly today!: string;
+
+  @ApiProperty({
     type: Boolean,
     nullable: true,
     description: 'Null when the practice hides its opening hours',

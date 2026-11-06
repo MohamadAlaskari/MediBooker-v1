@@ -328,7 +328,7 @@ Features import each other only through their `index.ts`.
 | react-hook-form · @hookform/resolvers | 7.91.0 · 7.0.1 | same | — |
 | @tanstack/react-query | 5.105.1 | 5.105.2 | 5.105.2 was published on 2026-11-02; X03 takes the newest version past the gate |
 | next-intl · use-intl | 4.14.9 | same | — (option B of decision D1) |
-| i18next · react-i18next · i18next-icu | 26.6.0 · 17.1.10 · 2.6.1 | 26.7.1 · 17.1.11 · 2.6.1 | Option A of D1; the two newer versions were published within the last day |
+| i18next · react-i18next · i18next-icu (not chosen, ADR 0013) | 26.6.0 · 17.1.10 · 2.6.1 | 26.7.1 · 17.1.11 · 2.6.1 | Option A of D1; the two newer versions were published within the last day |
 | @fontsource-variable/inter · /noto-sans-arabic | 5.3.0 | same | — |
 | vitest · @vitest/coverage-v8 · vite | 5.1.0 · 5.1.0 · 8.3.5 | same | — (5.1.0 since the F01 re-check of 2026-11-04, ADR 0006) |
 | yaml (F02, root devDependency of `scripts/ci-config.test.ts`) | 2.9.1 | same (checked 2026-11-05) | — (published 2026-09-11, no dependencies; no version has provenance, so `trustPolicy` sees no downgrade) |

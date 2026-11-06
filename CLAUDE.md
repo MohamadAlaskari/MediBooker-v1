@@ -46,7 +46,7 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 | Realtime | Socket.IO through a NestJS gateway | Proposed |
 | Web framework | Next.js (App Router), self-hosted Node.js container; public practice page server-rendered for search engines — `docs/adr/0003-web-framework-nextjs.md` | Confirmed (2026-11-01) |
 | Auth | Built-in in the NestJS API: argon2id, short-lived JWT + rotating refresh token, TOTP for staff; e-mail address required in v1, sign-in by phone number later — `docs/adr/0004-authentication.md` | Confirmed (2026-11-01) |
-| i18n | i18next with ICU messages (web + mobile); RTL via CSS logical properties / React Native I18nManager | Proposed |
+| i18n | next-intl on the web, use-intl in the app and for server texts, ICU messages from `@medibooker/i18n`; RTL via CSS logical properties / React Native I18nManager — `docs/adr/0013-i18n-binding.md` | Confirmed (2026-11-06) |
 | Fonts | Noto Sans Arabic (ar) + Inter (en), self-hosted | Proposed |
 | Target market(s) | Not fixed: drives privacy law, data residency, insurance model | Open |
 | Hosting | Region per target market (data residency); provider open | Open |

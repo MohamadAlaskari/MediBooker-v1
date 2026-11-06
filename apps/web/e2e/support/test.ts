@@ -7,14 +7,15 @@ import { test as base, expect } from '@playwright/test';
  */
 export const test = base.extend<{ pageChecks: undefined }>({
   pageChecks: [
-    async ({ page }, use) => {
+    async ({ page, javaScriptEnabled }, use) => {
       const violations: string[] = [];
       page.on('console', (message) => {
         if (message.text().includes('Content Security Policy')) violations.push(message.text());
       });
       await use(undefined);
       expect(violations).toEqual([]);
-      if (page.url() === 'about:blank') return;
+      // Axe runs in the page, so it needs JavaScript.
+      if (page.url() === 'about:blank' || !javaScriptEnabled) return;
       const { violations: axe } = await new AxeBuilder({ page }).analyze();
       const blocking = axe.filter(({ impact }) => impact === 'serious' || impact === 'critical');
       expect(blocking.map(({ id }) => id)).toEqual([]);

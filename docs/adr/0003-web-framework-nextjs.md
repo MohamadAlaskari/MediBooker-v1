@@ -18,6 +18,8 @@ The web app has three parts: the public practice page (no sign-in), the patient 
 
 Positive: one framework for SEO pages and the signed-in app; server-side theme and direction avoid flicker; good i18n routing.
 Negative: a Node.js server to run and monitor instead of static files; more concepts (server vs. client components, caching); the team must keep personal data out of shared caches.
+History: 2026-11-06 (decision D2, the client): #3 reads as "server-rendered and current on every request", not cached. Every page has its own CSP nonce (#6), and a withdrawn consent must disappear at once (BR-24). To be revisited when OPS01's metrics show the load.
+
 Follow-ups: `devops-engineer` adds the container, health check and caching headers; `web-engineer` sets up middleware (locale, CSP nonce), the route groups and the token export for the theme; decide the i18n library binding for server components (i18next is the proposed library).
 
 ## Alternatives considered

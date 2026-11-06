@@ -22,5 +22,14 @@
         "unit": "px"
       }
     }
+  },
+  "size": {
+    "$type": "dimension",
+    "touch-target": {
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      }
+    }
   }
 }

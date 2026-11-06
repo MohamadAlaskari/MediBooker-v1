@@ -73,6 +73,7 @@ export const GetPublicPracticeResponse = zod.object({
   "scale": zod.array(zod.string()).describe('Empty, or 11 steps with a custom colour')
 }),
   "timeZone": zod.string().describe('IANA zone: every wall-clock time here is local to it'),
+  "today": zod.string().describe('Today\'s date in the practice\'s time zone'),
   "weekStart": zod.number().describe('ISO weekday'),
   "weekendDays": zod.array(zod.number()).describe('ISO weekdays')
 })

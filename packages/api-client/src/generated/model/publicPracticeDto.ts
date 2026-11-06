@@ -58,6 +58,8 @@ export interface PublicPracticeDto {
   theme: PublicThemeDto;
   /** IANA zone: every wall-clock time here is local to it */
   timeZone: string;
+  /** Today's date in the practice's time zone */
+  today: string;
   /** ISO weekday */
   weekStart: number;
   /** ISO weekdays */

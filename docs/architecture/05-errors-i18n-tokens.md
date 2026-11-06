@@ -161,6 +161,8 @@ A `practiceId` field in a request body is therefore always `UNKNOWN_FIELD`: the 
 
 ### 2.2 Binding (decision D1)
 
+Decided on 2026-11-06: option B ([ADR 0013](../adr/0013-i18n-binding.md)).
+
 | Option | Packages | For | Against |
 |---|---|---|---|
 | A (CLAUDE.md, Proposed) | i18next, react-i18next, i18next-icu everywhere | one library and API on every platform; large ecosystem | ICU only through a plugin; no App Router integration: per-request instances and locale routing by hand |

@@ -73,6 +73,7 @@ export function toPublicPractice(
     defaultLocale,
     supportedLocales,
     timeZone,
+    today: now.toZonedDateTimeISO(timeZone).toPlainDate().toString(),
     weekStart: settings.weekStart,
     weekendDays: settings.weekendDays,
     numberingSystem: settings.numberingSystem,

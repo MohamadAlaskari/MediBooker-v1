@@ -14,6 +14,7 @@ export {
   elevation,
   motion,
   radius,
+  sizes,
   spacing,
   typography,
 } from './generated/tokens.js';

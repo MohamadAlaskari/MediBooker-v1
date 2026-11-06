@@ -8,7 +8,7 @@ With Docker Desktop and Node.js 26, nothing else: double-click `medibooker.cmd` 
 
 ## Status
 
-MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`), the web skeleton, the design tokens, the generated API client and the Docker stacks are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
+MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`), the web skeleton, the design tokens, the generated API client, the Docker stacks and the public practice page are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
 
 ## Repository
 

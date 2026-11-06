@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // The app's tsconfig preserves JSX for Next; the tests compile it themselves.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
     // A run that finds no test files fails instead of passing silently.

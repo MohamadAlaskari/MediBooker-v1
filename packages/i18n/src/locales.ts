@@ -1,5 +1,6 @@
-/** Mirrors `locales.json`, which config files read without a build (01 §3); a test keeps them equal. */
-export const LOCALES = ['ar', 'en'] as const;
+import { LOCALES } from './generated/catalog.js';
+
+export { LOCALES };
 
 export type Locale = (typeof LOCALES)[number];
 

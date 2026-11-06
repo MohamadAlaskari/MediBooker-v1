@@ -14,10 +14,23 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "catalog:",
+    "@fontsource-variable/noto-sans-arabic": "catalog:",
+    "@gsap/react": "catalog:",
+    "@medibooker/api-client": "workspace:*",
+    "@medibooker/design-tokens": "workspace:*",
     "@medibooker/i18n": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "cn": "catalog:",
+    "gsap": "catalog:",
+    "lucide-react": "catalog:",
     "next": "catalog:",
+    "next-intl": "catalog:",
     "react": "catalog:",
+    "react-aria-components": "catalog:",
     "react-dom": "catalog:",
+    "server-only": "catalog:",
+    "tw-animate-css": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -26,6 +39,7 @@
     "@medibooker/tsconfig": "workspace:*",
     "@next/eslint-plugin-next": "catalog:",
     "@playwright/test": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -33,6 +47,8 @@
     "eslint": "catalog:",
     "eslint-plugin-jsx-a11y": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",
+    "shadcn": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

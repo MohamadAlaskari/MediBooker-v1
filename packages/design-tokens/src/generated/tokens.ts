@@ -268,6 +268,11 @@ export const breakpoints = {
   "desktop": 1280
 } as const;
 
+/** Fixed sizes in px; nothing tappable is smaller than touchTarget. */
+export const sizes = {
+  "touchTarget": 44
+} as const;
+
 /** Shadow layers in px. */
 export const elevation = {
   "1": [

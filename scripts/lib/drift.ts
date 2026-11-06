@@ -4,6 +4,8 @@ export const GENERATED_FILES = [
   'packages/api-client/src/generated',
   'packages/design-tokens/css/tokens.css',
   'packages/design-tokens/src/generated/tokens.ts',
+  'packages/i18n/locales.json',
+  'packages/i18n/src/generated/catalog.ts',
 ] as const;
 
 /** A line per file git reports: changed by the generator, or never added. */

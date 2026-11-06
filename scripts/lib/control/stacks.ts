@@ -71,8 +71,9 @@ export function linksOf(stack: Stack, swaggerEnabled: boolean): readonly Link[] 
     ? { label: 'Swagger', target: `${stack.apiProbeUrl}/api/docs` }
     : { label: 'Swagger', target: `aus (in ${stack.envFile}: OPENAPI_UI_ENABLED=true)` };
   return [
-    { label: 'Web (Arabisch)', target: `${stack.webUrl}/ar` },
-    { label: 'Web (Englisch)', target: `${stack.webUrl}/en` },
+    { label: 'Praxisseite (Arabisch)', target: `${stack.webUrl}/ar/${DEMO_PRACTICE}` },
+    { label: 'Praxisseite (Englisch)', target: `${stack.webUrl}/en/${DEMO_PRACTICE}` },
+    { label: 'Startseite', target: `${stack.webUrl}/en` },
     {
       label: 'Backend (API)',
       target: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`,

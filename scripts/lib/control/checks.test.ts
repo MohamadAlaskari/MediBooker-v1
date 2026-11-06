@@ -8,11 +8,15 @@ interface Route {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
-function answering(routes: Readonly<Record<string, Route>>): typeof fetch {
+/** A route that answers differently each time, as a limit that counts down does. */
+type Routes = Readonly<Record<string, Route | (() => Route)>>;
+
+function answering(routes: Routes): typeof fetch {
   return vi.fn((input: string | URL | Request) => {
     const url = input instanceof Request ? input.url : String(input);
-    const route = routes[url];
-    if (route === undefined) return Promise.reject(new Error(`No route for ${url}`));
+    const entry = routes[url];
+    if (entry === undefined) return Promise.reject(new Error(`No route for ${url}`));
+    const route = typeof entry === 'function' ? entry() : entry;
     return Promise.resolve(
       new Response(route.body ?? '', {
         status: route.status,
@@ -22,8 +26,21 @@ function answering(routes: Readonly<Record<string, Route>>): typeof fetch {
   });
 }
 
+const DEMO_PRACTICE_ANSWER = { status: 200, body: '{"slug":"al-noor"}' };
+
+function limitCountingDown(): () => Route {
+  let remaining = 60;
+  return () => {
+    remaining -= 1;
+    return {
+      ...DEMO_PRACTICE_ANSWER,
+      headers: { 'x-ratelimit-remaining': String(remaining) },
+    };
+  };
+}
+
 /** Everything a healthy stack answers, by the URLs of its checks. */
-function healthyRoutes(mode: 'dev' | 'prod'): Readonly<Record<string, Route>> {
+function healthyRoutes(mode: 'dev' | 'prod'): Routes {
   const { apiProbeUrl, webProbeUrl, webUrl, apiUrl } = STACKS[mode];
   const page = (direction: string) => ({
     status: 200,
@@ -37,7 +54,11 @@ function healthyRoutes(mode: 'dev' | 'prod'): Readonly<Record<string, Route>> {
     [`${webUrl}/`]: { status: 307, headers: { location: '/en' } },
     [`${webUrl}/en`]: page('ltr'),
     [`${webUrl}/ar`]: page('rtl'),
-    [`${apiUrl}/api/v1/public/practices/al-noor`]: { status: 200, body: '{"slug":"al-noor"}' },
+    [`${webUrl}/en/al-noor`]: {
+      status: 200,
+      body: '<h1>Al Noor</h1><script type="application/ld+json">{}</script>',
+    },
+    [`${apiUrl}/api/v1/public/practices/al-noor`]: limitCountingDown(),
     [`${apiUrl}/api/v1/public/practices/gibt-es-nicht`]: {
       status: 404,
       headers: {
@@ -138,14 +159,37 @@ describe('the checks of a healthy stack', () => {
 });
 
 describe('what the smoke test catches', () => {
-  async function failuresWith(
-    mode: 'dev' | 'prod',
-    overrides: Readonly<Record<string, Route>>,
-  ): Promise<readonly string[]> {
+  async function failuresWith(mode: 'dev' | 'prod', overrides: Routes): Promise<readonly string[]> {
     const routes = { ...healthyRoutes(mode), ...overrides };
     const results = await runChecks(smokeChecks(STACKS[mode], false), answering(routes));
     return results.filter(({ ok }) => !ok).map(({ problem }) => problem);
   }
+
+  it('a proxy that lets a forged address open its own limit', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/api/v1/public/practices/al-noor': {
+          ...DEMO_PRACTICE_ANSWER,
+          headers: { 'x-ratelimit-remaining': '59' },
+        },
+      }),
+    ).toEqual(['Gefälschte Adresse öffnet ein eigenes Limit']);
+  });
+
+  it('an API that says nothing about its limit', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/api/v1/public/practices/al-noor': DEMO_PRACTICE_ANSWER,
+      }),
+    ).toEqual(['Keine Angabe zum Limit', 'Keine Angabe zum Limit']);
+  });
+
+  it('a limit that is used up says so, instead of blaming the proxy', async () => {
+    const problems = await failuresWith('prod', {
+      'http://localhost:8080/api/v1/public/practices/al-noor': { status: 429 },
+    });
+    expect(new Set(problems)).toEqual(new Set(['Status 429 statt 200']));
+  });
 
   it('a proxy that keeps the request id of the visitor', async () => {
     expect(
@@ -170,6 +214,19 @@ describe('what the smoke test catches', () => {
         },
       }),
     ).toEqual(['Keine Request-ID']);
+  });
+
+  it('a practice page that fails, or lacks its heading or search data', async () => {
+    const url = 'http://localhost:8080/en/al-noor';
+    expect(await failuresWith('prod', { [url]: { status: 500 } })).toEqual([
+      'Status 500 statt 200',
+    ]);
+    expect(await failuresWith('prod', { [url]: { status: 200, body: '<p>x</p>' } })).toEqual([
+      'Keine Überschrift',
+    ]);
+    expect(await failuresWith('prod', { [url]: { status: 200, body: '<h1>x</h1>' } })).toEqual([
+      'Keine Suchdaten',
+    ]);
   });
 
   it('a redirect to the address of the container', async () => {

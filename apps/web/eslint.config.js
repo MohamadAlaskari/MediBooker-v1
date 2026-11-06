@@ -1,4 +1,4 @@
-import { base, react, vitest } from '@medibooker/eslint-config';
+import { base, plugin, react, vitest } from '@medibooker/eslint-config';
 import nextPlugin from '@next/eslint-plugin-next';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
@@ -20,10 +20,26 @@ export default defineConfig(
     },
   },
   {
+    // A page shows the time of its practice, from the API: never the clock of this server (03 §8).
+    name: 'medibooker/web/practice-time',
+    files: ['src/app/**', 'src/features/**', 'src/lib/format.ts'],
+    ignores: ['**/*.test.*'],
+    plugins: { medibooker: plugin },
+    rules: { 'medibooker/no-system-clock': 'error' },
+  },
+  {
+    // The stub's practices hold colours as the API sends them: data, not styling.
+    name: 'medibooker/web/e2e-data',
+    files: ['e2e/support/practices.ts'],
+    plugins: { medibooker: plugin },
+    rules: { 'medibooker/no-hex-colors': 'off' },
+  },
+  {
     name: 'medibooker/web/next-conventions',
     // Next.js finds these files by name and calls their default exports.
     files: [
       'next.config.ts',
+      'postcss.config.mjs',
       'playwright.config.ts',
       'vitest.config.ts',
       'src/app/**',

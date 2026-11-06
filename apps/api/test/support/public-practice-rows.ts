@@ -164,6 +164,7 @@ export const PUBLIC_PRACTICE_KEY_PATHS = [
   'theme.preset',
   'theme.scale',
   'timeZone',
+  'today',
   'weekStart',
   'weekendDays',
 ];

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { API_STUB_PORT, WEB_PORT } from './e2e/support/ports.ts';
 
 const isCi = process.env.CI !== undefined && process.env.CI !== '';
 
@@ -16,7 +17,7 @@ export default defineConfig({
     ['html', { open: 'never' }],
     ['junit', { outputFile: 'reports/e2e-junit.xml' }],
   ],
-  use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
+  use: { baseURL: `http://localhost:${String(WEB_PORT)}`, trace: 'retain-on-failure' },
   projects: [
     {
       name: 'ar-rtl',
@@ -27,14 +28,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'en-GB', timezoneId: 'Europe/Berlin' },
     },
   ],
-  webServer: {
-    command: 'pnpm start',
-    url: 'http://localhost:3000/healthz',
-    reuseExistingServer: !isCi,
-    env: {
-      API_INTERNAL_URL: 'http://127.0.0.1:3001',
-      PUBLIC_SITE_URL: 'http://localhost:3000',
-      APP_ENV: 'ci',
+  // A stub stands in for the API, so every case exists on demand; the CI job images proves the
+  // whole way to a practice's database.
+  webServer: [
+    {
+      command: 'node e2e/support/api-stub.ts',
+      url: `http://127.0.0.1:${String(API_STUB_PORT)}/health`,
+      reuseExistingServer: !isCi,
+      env: { API_STUB_PORT: String(API_STUB_PORT) },
     },
-  },
+    {
+      command: `pnpm exec next start --port ${String(WEB_PORT)}`,
+      url: `http://localhost:${String(WEB_PORT)}/healthz`,
+      reuseExistingServer: !isCi,
+      env: {
+        API_INTERNAL_URL: `http://127.0.0.1:${String(API_STUB_PORT)}`,
+        PUBLIC_SITE_URL: `http://localhost:${String(WEB_PORT)}`,
+        APP_ENV: 'ci',
+      },
+    },
+  ],
 });

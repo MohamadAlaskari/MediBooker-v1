@@ -176,6 +176,9 @@ function buildCss(): string {
     ...entriesOf(dimension, 'spacing').map(
       ([path, value]) => `${varName(path)}: ${rem((value as Measure).value)};`,
     ),
+    ...entriesOf(layout, 'size').map(
+      ([path, value]) => `--spacing-${lastSegment(path)}: ${rem((value as Measure).value)};`,
+    ),
     ...entriesOf(dimension, 'radius').map(
       ([path, value]) => `${varName(path)}: ${px((value as Measure).value)};`,
     ),
@@ -360,6 +363,11 @@ function buildTs(): string {
     constant('radius', 'Corner radii in px.', measures(dimension, 'radius')),
     constant('borderWidth', 'Border widths in px.', measures(dimension, 'border-width')),
     constant('breakpoints', 'Web layout breakpoints in px.', measures(layout, 'breakpoint')),
+    constant(
+      'sizes',
+      'Fixed sizes in px; nothing tappable is smaller than touchTarget.',
+      measures(layout, 'size'),
+    ),
     constant('elevation', 'Shadow layers in px.', elevation),
     constant('typography', 'Text styles per locale, sizes in px.', {
       en: buildTypography(read('typography.english'), textStyles),

@@ -64,8 +64,8 @@ describe('the links', () => {
   it('development shows web, backend, Swagger and health', () => {
     const text = renderLinks(STACKS.dev, linksOf(STACKS.dev, true));
     for (const url of [
-      'http://localhost:3000/ar',
-      'http://localhost:3000/en',
+      'http://localhost:3000/ar/al-noor',
+      'http://localhost:3000/en/al-noor',
       'http://localhost:3001/api/v1/public/practices/al-noor',
       'http://localhost:3001/api/docs',
       'http://localhost:3001/health/live',
@@ -78,7 +78,7 @@ describe('the links', () => {
 
   it('production goes through the proxy and says when Swagger is off', () => {
     const text = renderLinks(STACKS.prod, linksOf(STACKS.prod, false));
-    expect(text).toContain('http://localhost:8080/en');
+    expect(text).toContain('http://localhost:8080/en/al-noor');
     expect(text).toContain('http://localhost:8080/api/v1/public/practices/al-noor');
     expect(text).toContain('http://localhost:8081/health/ready');
     expect(text).toContain('OPENAPI_UI_ENABLED=true');
