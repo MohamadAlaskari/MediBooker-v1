@@ -405,13 +405,13 @@ class TypedQueryDto {
 @Controller('input-rules')
 class InputRulesController {
   @Post('untyped') // test-only: a body the pipe would skip
-  untyped(@Body() body: UntypedBody): string {
-    return body.role;
+  untyped(@Body() body: UntypedBody): boolean {
+    return body.role === 'ADMIN';
   }
 
   @Get('typed') // test-only: a query with a class, and a single named value, which are fine
-  typed(@Query() query: TypedQueryDto, @Query('other') other: string): string {
-    return `${query.page ?? ''}${other}`;
+  typed(@Query() query: TypedQueryDto, @Query('other') other: string): boolean {
+    return query.page === other;
   }
 }
 
