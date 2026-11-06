@@ -68,6 +68,12 @@ describe('ensureEnvFile', () => {
   });
 });
 
+describe('ensureEnvFile without a template', () => {
+  it('reports the real problem instead of claiming the file exists', () => {
+    expect(() => ensureEnvFile(STACKS.dev, root)).toThrow(/ENOENT/);
+  });
+});
+
 describe('envValue', () => {
   it('reads a key, the last assignment wins, and other keys do not match', () => {
     const text = 'A=1\r\nAB=2\nA=3\n# A=4\n';

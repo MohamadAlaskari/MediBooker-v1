@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (this commit, the user's request of 2026-11-06), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -30,7 +30,7 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 5 | F02 | CI quality and security baseline | `ci: add GitHub Actions gates, secret scans and logging lint rules` | U2, U3 | committed (`11a2113`) |
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
 | 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | committed (`284776c`) |
-| 7 | F05 | API images and delivery pipeline | `feat(docker): add dev and prod stacks with a control menu` (images and stacks); the delivery pipeline follows | U5 | images and stacks done (this commit), delivery planned |
+| 7 | F05 | API images and delivery pipeline | `feat(docker): add dev and prod stacks with a control menu` (images and stacks); the delivery pipeline follows | U5 | images and stacks committed (`027e10f`), delivery planned |
 | 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | committed (`c80aa43`) |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
 | 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |

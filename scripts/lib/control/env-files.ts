@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { constants, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Stack } from './stacks.ts';
 
@@ -29,18 +29,22 @@ export function productionEnvFile(random: () => string): string {
  */
 export function ensureEnvFile(stack: Stack, root: string): boolean {
   const file = path.join(root, stack.envFile);
-  if (existsSync(file)) return false;
-  if (stack.mode === 'dev') {
-    copyFileSync(path.join(root, '.env.example'), file);
-  } else {
-    // Only for this user, and never over a file that appeared in the meantime.
-    writeFileSync(
-      file,
-      productionEnvFile(() => randomBytes(24).toString('hex')),
-      { mode: 0o600, flag: 'wx' },
-    );
+  try {
+    // Exclusive creation, not a check first: an existing file is never overwritten.
+    if (stack.mode === 'dev') {
+      copyFileSync(path.join(root, '.env.example'), file, constants.COPYFILE_EXCL);
+    } else {
+      writeFileSync(
+        file,
+        productionEnvFile(() => randomBytes(24).toString('hex')),
+        { mode: 0o600, flag: 'wx' },
+      );
+    }
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw error;
   }
-  return true;
 }
 
 /** The value of a key in an environment file's text; the last assignment wins, as in compose. */
@@ -55,6 +59,11 @@ export function envValue(text: string, key: string): string | undefined {
 /** Whether this stack serves the Swagger UI. */
 export function isSwaggerEnabled(stack: Stack, root: string): boolean {
   if (stack.mode === 'dev') return true;
-  const file = path.join(root, stack.envFile);
-  return existsSync(file) && envValue(readFileSync(file, 'utf8'), 'OPENAPI_UI_ENABLED') === 'true';
+  try {
+    const text = readFileSync(path.join(root, stack.envFile), 'utf8');
+    return envValue(text, 'OPENAPI_UI_ENABLED') === 'true';
+  } catch {
+    // Not written yet: the default is off.
+    return false;
+  }
 }
