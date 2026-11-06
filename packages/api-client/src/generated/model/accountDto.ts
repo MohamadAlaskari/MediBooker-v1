@@ -8,7 +8,7 @@ import type { AccountDtoLocale } from './accountDtoLocale';
 
 export interface AccountDto {
   email: string;
-  /** A sign-in needs a confirmed address, so this is true today */
+  /** Needed before the first booking (BR-09) */
   emailVerified: boolean;
   id: string;
   locale: AccountDtoLocale;

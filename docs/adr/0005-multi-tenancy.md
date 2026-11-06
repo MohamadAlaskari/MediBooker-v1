@@ -24,7 +24,7 @@ Constraints:
 
    | Area | Tables |
    |---|---|
-   | Accounts (ADR 0004) | `users` (with the verified phone), `sessions` with refresh-token families, `mfa_recovery_codes`, `account_tokens` (verification, reset, revoke-all), `consents` given to the platform (privacy notice), `notification_preferences`, `device_tokens`, `account_notifications` (outbox of account and security e-mails), `platform_audit_events` |
+   | Accounts (ADR 0004) | `users` (with the verified phone), `sessions` with refresh-token families, `mfa_recovery_codes`, `account_tokens` (verification, reset, revoke-all), `account_profiles` (D16 option B: personal details and insurance entered at sign-up), `consents` given to the platform (privacy notice), `notification_preferences`, `device_tokens`, `account_notifications` (outbox of account and security e-mails), `platform_audit_events` |
    | Practice registry | `practices`: id, status (§5), market, listing data (name per locale, `published_at`), routing (cluster, database name, `route_version`), secret-store references (`app_secret_ref`, `owner_secret_ref`, `field_key_ref`, `backup_key_ref`; never plaintext) and `schema_version`; `practice_slugs` (current and retired slugs in one uniqueness space); `database_clusters` (endpoint, TLS mode and CA reference, provisioner reference, database limit) |
    | Membership index | `practice_access`: user, practice, capacity (`STAFF` or `PATIENT`), staff role, `kind` and `expires_at` of a support membership, active flag, `source_version`, `updated_at`. Read at sign-in and by `/me` |
    | Coordination | `practice_job_runs` (claims of once-per-period jobs), `account_deletions` and `account_exports` (sagas), `practice_exports` (offboarding hand-over), `revocation_journal` (§8), `provider_messages` (provider callbacks) |
@@ -47,7 +47,7 @@ Constraints:
    | Revocations: membership removed, family link revoked, consent withdrawn, note entered in error | practice | `revocation_journal`: ids only | integration outbox; replayed after a restore (§8) |
    | Page content, theme, scheduling, appointments, clinical data, audit of changes inside the practice | practice | none | — |
 
-   Memberships and patient profiles are authoritative in the practice, so the authorization decision is made in the database that holds the data, in the same transaction as role changes and their audit rows. The index can only lag behind, and a lagging index fails closed (§3). A patient enters their details in every practice they use (D16).
+   Memberships and patient profiles are authoritative in the practice, so the authorization decision is made in the database that holds the data, in the same transaction as role changes and their audit rows. The index can only lag behind, and a lagging index fails closed (§3). A patient enters their details once, at sign-up, in the account profile; joining a practice copies them into its database, and from then on that copy is authoritative for that practice (D16, decided on 2026-11-06).
 
 4. **Consistency rules:**
    - A request writes one database in one transaction. There are no distributed transactions.
@@ -262,13 +262,13 @@ Why: the split into a platform database and practice databases fits either answe
 - Operational cost: many databases and roles, four secrets per practice (app, owner, field key, backup key; secret managers often charge per secret), per-practice backups, monitoring and TLS configuration per cluster, and autovacuum and catalog overhead per database. A cluster holds a bounded number of databases; OPS01 records the limit.
 - Privilege changes in practice migrations are small dynamic SQL blocks, because the app role's name differs per database.
 - Cross-practice reporting is harder: there is no SQL across practices, only fan-out or aggregated projections.
-- A person who uses practices in two markets has two accounts (pending D8, question 6), and a patient enters their details once per practice (D16).
+- A person who uses practices in two markets has two accounts (pending D8, question 6), and the personal details of an account profile lie outside the practice databases, and its copies can go stale (D16, RT-90).
 - More moving parts: the integration outbox and its relay, the revocation journal, job claims, sagas and the lifecycle commands.
 
 **Follow-ups:**
 
 - F04 builds both schemas, the connection manager with its budgets and TLS, `createPracticeDatabase()`, provisioning, the migration runner with its recovery and lint, `verify`, the operator audit and the isolation tests. A01 adds the index, memberships with support expiry and the relay; B01 field keys and the blind index; B03 the fan-out; PR01 the export job and the deletion saga; OPS02 backups, restore, move, rotation and offboarding; OPS01 the clusters, the secret store, the connection budget, the deploy order, break-glass and the alerts ([08-roadmap.md](../architecture/08-roadmap.md)).
-- The client's DPO decides the legal roles, reminder consent per practice and any cross-region placement (D8 and D11); the client confirms accounts per deployment (D8) and where patients enter their details (D16) ([09-risks-and-decisions.md](../architecture/09-risks-and-decisions.md)).
+- The client's DPO decides the legal roles, reminder consent per practice and any cross-region placement (D8 and D11); the client confirms accounts per deployment (D8), and the officer sees where patients enter their details (D16, RT-90) ([09-risks-and-decisions.md](../architecture/09-risks-and-decisions.md)).
 - Decide how the app chooses the deployment before a second market launches (D7).
 
 ## Alternatives considered

@@ -107,15 +107,8 @@ describe('accounts on a real platform database', () => {
   const login = (email: string, password = PASSWORD): request.Test =>
     post('login', { email, password });
 
-  /** An account as it is after its link in the e-mail. */
-  const confirmed = async (email = newAddress(), password = PASSWORD): Promise<string> => {
-    await register(email, password);
-    await post('verify-email', { token: await confirmationToken(email) }).expect(204);
-    return email;
-  };
-
   const signedIn = async (): Promise<{ email: string; cookies: Cookies }> => {
-    const email = await confirmed();
+    const email = await register();
     const response = await login(email).expect(200);
     return { email, cookies: cookiesOf(response) };
   };
@@ -156,18 +149,19 @@ describe('accounts on a real platform database', () => {
   describe('signing up (08 A03)', () => {
     it('sends a link that confirms the address once', async () => {
       const email = await register();
-      const token = await confirmationToken(email);
-      await post('verify-email', { token }).expect(204);
-
       const cookies = cookiesOf(await login(email).expect(200));
       const { id } = await platform().user.findUniqueOrThrow({ where: { email } });
       // Exactly these fields: nothing of the row reaches an answer by accident.
       expect((await getMe(cookies).expect(200)).body).toEqual({
         id,
         email,
-        emailVerified: true,
+        emailVerified: false,
         locale: 'en',
       });
+
+      const token = await confirmationToken(email);
+      await post('verify-email', { token }).expect(204);
+      expect((await getMe(cookies).expect(200)).body).toMatchObject({ emailVerified: true });
 
       const again = await post('verify-email', { token }).expect(400);
       expect(again.body).toMatchObject({ code: 'INVALID_TOKEN' });
@@ -210,14 +204,14 @@ describe('accounts on a real platform database', () => {
     });
 
     it('does not take over an account that exists', async () => {
-      const email = await confirmed();
+      const email = await register();
       await register(email, NEW_PASSWORD);
       expect(await statusOf(login(email, NEW_PASSWORD))).toBe(401);
       expect(await statusOf(login(email))).toBe(200);
     });
 
     it('treats an address the same in any case', async () => {
-      const email = await confirmed();
+      const email = await register();
       await register(email.toUpperCase(), NEW_PASSWORD);
       expect(await statusOf(login(email.toUpperCase()))).toBe(200);
       expect(await statusOf(login(email, NEW_PASSWORD))).toBe(401);
@@ -255,7 +249,7 @@ describe('accounts on a real platform database', () => {
 
   describe('signing in (08 A01)', () => {
     it('sets cookies a script cannot read and another site cannot send', async () => {
-      const response = await login(await confirmed()).expect(200);
+      const response = await login(await register()).expect(200);
       const cookies = response.headers['set-cookie'] as unknown as string[];
       expect(cookies).toHaveLength(3);
       for (const cookie of cookies) {
@@ -267,33 +261,25 @@ describe('accounts on a real platform database', () => {
       expect(JSON.stringify(response.body)).not.toContain('password');
     });
 
-    it('gives one answer for a wrong password, an unknown address and one not confirmed', async () => {
-      const wrong = await login(await confirmed(), NEW_PASSWORD).expect(401);
+    it('gives one answer for a wrong password and an unknown address', async () => {
+      const wrong = await login(await register(), NEW_PASSWORD).expect(401);
       const unknown = await login('nobody@example.test').expect(401);
-      const notConfirmed = await login(await register()).expect(401);
       expect(problemWithoutRequestId(wrong)).toEqual(problemWithoutRequestId(unknown));
-      expect(problemWithoutRequestId(wrong)).toEqual(problemWithoutRequestId(notConfirmed));
       expect(wrong.body).toMatchObject({ code: 'INVALID_CREDENTIALS' });
     });
 
-    it('does not tell by a sign-up and a sign-in whether an address was taken', async () => {
-      const taken = await confirmed();
-      const waiting = await register();
+    it('lets an address sign in before it is confirmed, which is the accepted risk RT-89', async () => {
+      const taken = await register();
       const free = newAddress();
       await register(taken, NEW_PASSWORD);
-      await register(waiting, NEW_PASSWORD);
       await register(free, NEW_PASSWORD);
-      const onTaken = await login(taken, NEW_PASSWORD);
-      const onWaiting = await login(waiting, NEW_PASSWORD);
-      const onFree = await login(free, NEW_PASSWORD);
-      expect(onTaken.status).toBe(401);
-      expect(problemWithoutRequestId(onTaken)).toEqual(problemWithoutRequestId(onWaiting));
-      expect(problemWithoutRequestId(onTaken)).toEqual(problemWithoutRequestId(onFree));
-      expect(onFree.headers['set-cookie']).toBeUndefined();
+      expect(await statusOf(login(taken, NEW_PASSWORD))).toBe(401);
+      const onFree = await login(free, NEW_PASSWORD).expect(200);
+      expect(onFree.body).toMatchObject({ account: { emailVerified: false } });
     });
 
     it('starts no session on a password that a reset has just replaced', async () => {
-      const email = await confirmed();
+      const email = await register();
       await post('password/forgot', { email }).expect(202);
       const token = await resetToken(email);
       const auth = app.get<{ countAttempt: (address: string) => Promise<unknown> }>(AuthService);
@@ -311,7 +297,7 @@ describe('accounts on a real platform database', () => {
     });
 
     it('lets at most five of a burst of guesses past the wait', async () => {
-      const email = await confirmed();
+      const email = await register();
       const answers = await Promise.all(
         Array.from({ length: 10 }, () => login(email, NEW_PASSWORD)),
       );
@@ -322,7 +308,7 @@ describe('accounts on a real platform database', () => {
     });
 
     it('makes an account wait after five failures, with the same answer, and then lets it in', async () => {
-      const email = await confirmed();
+      const email = await register();
       for (let failure = 0; failure < 5; failure += 1) await login(email, NEW_PASSWORD).expect(401);
 
       const right = await login(email).expect(401);
@@ -352,7 +338,7 @@ describe('accounts on a real platform database', () => {
     });
 
     it('gives the app its tokens in the answer, for a Bearer header without CSRF', async () => {
-      const email = await confirmed();
+      const email = await register();
       const response = await post('login', {
         email,
         password: PASSWORD,
@@ -525,11 +511,12 @@ describe('accounts on a real platform database', () => {
       await post('password/forgot', { email }).expect(202);
       const token = await resetToken(email);
       await post('password/reset', { token, password: NEW_PASSWORD }).expect(204);
-      expect(await statusOf(login(email, NEW_PASSWORD))).toBe(200);
+      const answer = await login(email, NEW_PASSWORD).expect(200);
+      expect(answer.body).toMatchObject({ account: { emailVerified: true } });
     });
 
     it('ends the other links to choose a password', async () => {
-      const email = await confirmed();
+      const email = await register();
       await post('password/forgot', { email }).expect(202);
       const first = await resetToken(email);
       await post('password/forgot', { email }).expect(202);
@@ -542,7 +529,7 @@ describe('accounts on a real platform database', () => {
     });
 
     it('sends at most three links an hour while one works, and one when none does', async () => {
-      const email = await confirmed();
+      const email = await register();
       const links = async (): Promise<number> => {
         await outbox().processDue();
         return sent.filter(({ to, subject }) => to === email && subject === RESET_SUBJECT).length;
@@ -563,7 +550,7 @@ describe('accounts on a real platform database', () => {
     });
 
     it('keeps the limit for requests at the same moment', async () => {
-      const email = await confirmed();
+      const email = await register();
       await Promise.all(
         Array.from({ length: 5 }, () => post('password/forgot', { email }).expect(202)),
       );
@@ -721,11 +708,7 @@ describe('accounts on a real platform database', () => {
         where: { actor: `user:${user.id}` },
         orderBy: { occurredAt: 'asc' },
       });
-      expect(rows.map(({ action }) => action)).toEqual([
-        'auth.register',
-        'auth.email.verify',
-        'auth.login',
-      ]);
+      expect(rows.map(({ action }) => action)).toEqual(['auth.register', 'auth.login']);
       expect(JSON.stringify(rows)).not.toContain(email);
       await expect(platform().$executeRaw`DELETE FROM platform_audit_events`).rejects.toThrow();
       await expect(

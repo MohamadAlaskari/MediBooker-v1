@@ -99,12 +99,7 @@ export class AccountService {
       const userId = await this.consumeToken(token, 'EMAIL_VERIFICATION');
       await this.txHost.tx.user.update({
         where: { id: userId },
-        // Whoever tried to sign in before confirming has a count that says nothing.
-        data: {
-          emailVerifiedAt: dbInstantOf(this.clock.now()),
-          failedLoginCount: 0,
-          lockedUntil: null,
-        },
+        data: { emailVerifiedAt: dbInstantOf(this.clock.now()) },
       });
       await this.audit.record({
         actor: auditActorOf(userId),

@@ -29,7 +29,6 @@ export interface IssuedSession extends SessionCookieValues {
 interface SignInRow {
   readonly id: string;
   readonly password_hash: string;
-  readonly email_verified_at: Date | null;
   readonly failed_login_count: number;
   readonly locked_until: Date | null;
 }
@@ -38,7 +37,6 @@ interface SignInRow {
 interface SignInAttempt {
   readonly userId: string;
   readonly passwordHash: string;
-  readonly emailVerified: boolean;
   readonly waiting: boolean;
 }
 
@@ -47,9 +45,9 @@ const DUMMY_PASSWORD_HASH = hashPassword(randomBytes(REFRESH_TOKEN_BYTES).toStri
 
 /**
  * Sign-in, refresh and sign-out (ADR 0004). Every failure of a sign-in looks the same, whether the
- * address is unknown or not confirmed, the password wrong or the account waiting after too many
- * failures. An address that is not confirmed must fail like the others: otherwise signing up and
- * then signing in would tell anyone whether an address has an account.
+ * address is unknown, the password wrong or the account waiting after too many failures. An address
+ * need not be confirmed to sign in, only to book (BR-09), which leaves RT-89: signing up and then
+ * signing in tells whether an address has an account.
  */
 @Injectable()
 export class AuthService {
@@ -65,7 +63,7 @@ export class AuthService {
     const attempt = await this.countAttempt(email);
     const hash = attempt?.passwordHash ?? (await DUMMY_PASSWORD_HASH);
     const matches = await verifyPassword(hash, password);
-    if (attempt === undefined || attempt.waiting || !matches || !attempt.emailVerified) {
+    if (attempt === undefined || attempt.waiting || !matches) {
       await this.audit.record({
         actor: attempt === undefined ? ANONYMOUS_ACTOR : auditActorOf(attempt.userId),
         action: 'auth.login',
@@ -100,7 +98,7 @@ export class AuthService {
     return this.txHost.withTransaction(async () => {
       const db = this.txHost.tx;
       const [user] = await db.$queryRaw<SignInRow[]>`
-        SELECT id, password_hash, email_verified_at, failed_login_count, locked_until
+        SELECT id, password_hash, failed_login_count, locked_until
         FROM users
         WHERE email = ${email}::citext
         FOR UPDATE`;
@@ -122,7 +120,6 @@ export class AuthService {
       return {
         userId: user.id,
         passwordHash: user.password_hash,
-        emailVerified: user.email_verified_at !== null,
         waiting,
       };
     });

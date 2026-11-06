@@ -94,7 +94,7 @@ U1 asked the user to rotate the credential or drop the database. On 2026-11-04 t
 | D1 | i18n library binding | decided 2026-11-06: B, next-intl (ADR 0013) | X04 |
 | D2 | Caching of the public practice page | decided 2026-11-06: A, not cached | P03 |
 | D3 | Address of the public practice page | client | M01 |
-| D16 | Where patients enter their personal details | client with the ui-designer | A05 |
+| D16 | Where patients enter their personal details: decided on 2026-11-06, option B | the user | A05 |
 | D14 | Reception staff on the public page | client | not blocking; M03 builds option A |
 | D10 | E-mail, push, SMS and error-tracking providers | client with the DPO | N02, N03 |
 | D13 | Sharing and reading of clinical notes | client | R01 |
@@ -281,6 +281,8 @@ Product features P-02 (name, date of birth, phone) and P-03 (insurance with opti
 
 **Recommendation: A.**
 
+**Decision of 2026-11-06, by the user: B.** One entry at sign-up in an account profile, against the recommendation. The screens 10–11 stay in the sign-up and the Figma flow stays as it is. What follows for the API and the protection of a mistyped address is in [A05](08-roadmap.md#a05--web-authentication-flows), and the risk for the data protection officer in RT-90.
+
 ### Other open product questions
 
 No roadmap item waits for these: medical imaging (DICOM, out of scope), WhatsApp, quiet hours and a second reminder, the legal notice and privacy policy per market (each practice provides them), and sign-in by phone number (after the SMS provider, ADR 0004). They are listed in the [feature catalogue](../product/feature-catalog.md) and in [notifications.md](../product/notifications.md).
@@ -388,3 +390,5 @@ Summary: every issue is accepted as a whole, several in a variant named in the n
 | RT-86 | Events fired before commit | accepted | P04 | Variant: `emitAfterCommit` queues events in the request context; the transaction owner emits them after commit and drops them on rollback; only `common/events` imports the emitter (lint); P04 tests "after commit, never on rollback". |
 | RT-88 | What the public free times still allow to infer about staff | open: for the client's data protection officer, before real practice data | P05, M03 | The answers name no slot and no count. Left: "any doctor" minus the times of all public doctors shows a hidden provider's times where no public doctor is free; in a one-provider practice or service, "any doctor" is that person's free calendar; a chosen doctor's full template at the horizon minus the current free times estimates bookings per day; a rule with a single sensitive service tells someone who knows a patient's appointment time what was booked, so rules with several services reduce this. |
 | RT-87 | Entry points drift from `configureApp` | accepted | F03, X02 | `APP_OPTIONS` shared by `main.ts`, `createTestApp` and `generate.ts`; the `Env` object is passed to `AppModule.forRoot(env)`, so import order cannot bypass it. |
+| RT-89 | Signing up and then signing in tells whether an address has an account | accepted by the user on 2026-11-06, for the client's data protection officer before real patient data | A01, A03 | The security review asked that a sign-in need a confirmed address, because an answer of 200 means that the address was free, and 401 that it has an account. The user decided for a sign-up without a break. What limits it: five sign-ups a minute per client and three links an hour per account, and a free address gets an e-mail. On a platform for medical practices, that someone has an account can itself be sensitive, so the officer should see this. |
+| RT-90 | Personal details and insurance outside the practice databases | open: for the client's data protection officer, before real patient data | D16, A05 | The account profile of D16 option B holds name, date of birth, phone and insurance in the platform database, not in a database of a practice as the controller (D8). The number is encrypted, no service or appointment is stored with it, and it is entered before the address is confirmed, which the protections in A05 cover. The copies in the practices can go stale. |

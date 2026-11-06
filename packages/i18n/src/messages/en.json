@@ -26,7 +26,7 @@
     "NETWORK_ERROR": "We could not connect. Please check your connection and try again.",
     "TIMEOUT": "This is taking too long. Please try again.",
     "UNEXPECTED_RESPONSE": "We received an unexpected answer. Please try again in a moment.",
-    "INVALID_CREDENTIALS": "The e-mail address or the password is not correct, or the address is not confirmed yet.",
+    "INVALID_CREDENTIALS": "The e-mail address or the password is not correct.",
     "INVALID_TOKEN": "This link is no longer valid. Please request a new one."
   },
   "validation": {
@@ -140,7 +140,7 @@
     "verify": {
       "subject": "Please confirm your e-mail address",
       "heading": "Confirm your e-mail address",
-      "body": "You need a confirmed address to sign in and book appointments.",
+      "body": "You need a confirmed address to book appointments.",
       "action": "Confirm e-mail address"
     },
     "reset": {

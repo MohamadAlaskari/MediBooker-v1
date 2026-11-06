@@ -8,7 +8,7 @@
             "type": "string"
           },
           "emailVerified": {
-            "description": "A sign-in needs a confirmed address, so this is true today",
+            "description": "Needed before the first booking (BR-09)",
             "type": "boolean"
           },
           "id": {

@@ -121,7 +121,7 @@ export class AccountDto {
   @ApiProperty({ format: 'email' })
   readonly email!: string;
 
-  @ApiProperty({ description: 'A sign-in needs a confirmed address, so this is true today' })
+  @ApiProperty({ description: 'Needed before the first booking (BR-09)' })
   readonly emailVerified!: boolean;
 
   @ApiProperty({ enum: LOCALES })

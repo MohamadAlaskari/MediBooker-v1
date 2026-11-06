@@ -12,7 +12,7 @@ import * as zod from 'zod';
  */
 export const GetMeResponse = zod.object({
   "email": zod.email(),
-  "emailVerified": zod.boolean().describe('A sign-in needs a confirmed address, so this is true today'),
+  "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
   "locale": zod.enum(['ar', 'en'])
 })
@@ -26,7 +26,7 @@ export const UpdateMeBody = zod.object({
 
 export const UpdateMeResponse = zod.object({
   "email": zod.email(),
-  "emailVerified": zod.boolean().describe('A sign-in needs a confirmed address, so this is true today'),
+  "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
   "locale": zod.enum(['ar', 'en'])
 })
