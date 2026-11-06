@@ -5,6 +5,8 @@
  * medibooker_provisioner's credentials only, never the superuser's; the superuser only reads
  * catalogs here and drops the practices at the end.
  */
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   createDevSecretStore,
@@ -22,6 +24,15 @@ import { readServerLog } from '../support/server-log.js';
 import { withClient, type Row } from '../support/sql.js';
 
 const NEWEST_PRACTICE_MIGRATION = newestMigration(DEFAULT_PRISMA_ROOT, 'practice');
+
+/** Every practice migration, oldest first, as _prisma_migrations lists a provisioned database's. */
+const PRACTICE_MIGRATIONS = readdirSync(
+  path.join(DEFAULT_PRISMA_ROOT, 'prisma', 'practice', 'migrations'),
+  { withFileTypes: true },
+)
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => ({ name: entry.name, finished: true }))
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 describe('provisioning on a cluster prepared only by 01-cluster.sh (ADR 0005 §5.3)', () => {
   const cluster = inject('integrationCluster');
@@ -190,7 +201,7 @@ describe('provisioning on a cluster prepared only by 01-cluster.sh (ADR 0005 §5
       migrationErrorCode: null,
     });
     expect(state.content).toEqual({
-      migrations: [{ name: NEWEST_PRACTICE_MIGRATION, finished: true }],
+      migrations: PRACTICE_MIGRATIONS,
       identity: [{ id: 1, practice_id: practiceId }],
     });
     expect(await auditEvents(practiceId)).toEqual([
@@ -244,7 +255,7 @@ describe('provisioning on a cluster prepared only by 01-cluster.sh (ADR 0005 §5
       migrationErrorCode: null,
     });
     expect(completed.content).toEqual({
-      migrations: [{ name: NEWEST_PRACTICE_MIGRATION, finished: true }],
+      migrations: PRACTICE_MIGRATIONS,
       identity: [{ id: 1, practice_id: stoppedPracticeId }],
     });
     expect(await auditEvents(stoppedPracticeId)).toEqual([

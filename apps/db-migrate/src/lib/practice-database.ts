@@ -57,6 +57,39 @@ export async function createPracticeDatabase(
   return { created };
 }
 
+/** What provisioning knows about a practice beyond its identity (P01). */
+export interface PracticeBaseSettings {
+  /** `--time-zone`: an IANA zone. */
+  readonly timeZone?: string | undefined;
+  /** `--default-locale`: added to the supported locales when they lack it. */
+  readonly defaultLocale?: string | undefined;
+}
+
+/**
+ * Writes the given values into the `practice_settings` row that the migration inserted, on a
+ * connection to the practice database. A value that is not given stays as it is, so a rerun of
+ * provisioning without them changes nothing.
+ */
+export async function writePracticeSettings(
+  client: Client,
+  settings: PracticeBaseSettings,
+): Promise<void> {
+  const { timeZone, defaultLocale } = settings;
+  if (timeZone === undefined && defaultLocale === undefined) return;
+  await client.query(
+    `UPDATE practice_settings SET
+       time_zone = COALESCE($1::text, time_zone),
+       default_locale = COALESCE($2::text, default_locale),
+       supported_locales = CASE
+         WHEN COALESCE($2::text, default_locale) = ANY (supported_locales) THEN supported_locales
+         ELSE array_append(supported_locales, $2::text)
+       END,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1`,
+    [timeZone ?? null, defaultLocale ?? null],
+  );
+}
+
 /**
  * Writes the singleton `practice_identity` row (ADR 0005 §5.3, step 6) on a connection to the
  * practice database, once, and proves that the row names this practice: the connection manager

@@ -75,8 +75,9 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | F01 Monorepo workspace and shared tooling | Committed (`13044c5`) |
 | F03 NestJS API skeleton | Committed (`f2b699e`) |
 | F02 CI quality and security baseline | Committed (`11a2113`); the API skeleton (F03) came before CI (F02), as the user decided on 2026-11-04. Its post-push steps were done on 2026-11-05: `ci-ok` green, the `ci-ok` ruleset, the CodeQL triage, the first scheduled run |
-| F04 Platform and practice data layer | Done (the F04 commit) |
-| F05 – OPS01 | Planned, in the order of [08-roadmap.md](08-roadmap.md) |
+| F04 Platform and practice data layer | Committed (`284776c`) |
+| P01 and P02 Practice model and public practice endpoint | Done (one commit): the first functional feature |
+| Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).
 

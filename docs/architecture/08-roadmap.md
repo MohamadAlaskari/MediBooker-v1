@@ -11,6 +11,14 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 - **Skills and agent files** that describe the touched area are updated in the same commit, so the next agent does not build what this plan rejected. Items name the check where a convention changes.
 - **Scope discipline:** an item does not repeat work of an earlier item; F01 is the committed scaffold (`13044c5`) and the base for everything else.
 
+## Order since 2026-11-05 (lean mode)
+
+The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
+
+- Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
+- New order: P01+P02, X01+X02, F06, X03, X04, X05, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
+
 ## Overview
 
 | # | ID | Title | Commit header | Depends on | Status |
@@ -21,7 +29,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 | 4 | F03 | NestJS API skeleton | `feat(api): add NestJS 12 skeleton with config, logging and context` | - | committed (`f2b699e`) |
 | 5 | F02 | CI quality and security baseline | `ci: add GitHub Actions gates, secret scans and logging lint rules` | U2, U3 | committed (`11a2113`) |
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
-| 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | done (this commit) |
+| 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | committed (`284776c`) |
 | 7 | F05 | API images and delivery pipeline | `build(docker): add API images, compose stack and GHCR publishing` | U5 | planned |
 | 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | planned |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
@@ -35,8 +43,8 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
 | 18 | X09 | Mobile UI kit | `feat(mobile): add design-system UI kit v1` | - | planned |
 | 19 | X10 | Android emulator smoke test | `ci(mobile): add Android emulator smoke test for Hermes and RTL` | - | planned |
-| 20 | P01 | Practice aggregate data model | `feat(practice): model practice aggregate, services and staff members` | - | planned |
-| 21 | P02 | Public practice endpoints | `feat(practice): add public practice endpoints with open-now status` | - | planned |
+| 20 | P01 | Practice aggregate data model | `feat(practice): add practice model and public practice endpoint` | - | done (this commit) |
+| 21 | P02 | Public practice endpoints | `feat(practice): add practice model and public practice endpoint` | - | done (this commit) |
 | 22 | P03 | Public practice page | `feat(web): render public practice page with theme and SEO metadata` | D2 | planned |
 | 23 | P04 | Availability and slot generation | `feat(scheduling): add availability rules and DST-safe slot generation` | - | planned |
 | 24 | P05 | Public free times | `feat(scheduling): expose public free times per practice` | - | planned |
@@ -577,7 +585,7 @@ Acceptance:
 
 ### P01 — Practice aggregate data model
 
-**Commit:** `feat(practice): model practice aggregate, services and staff members` · **Depends on:** - · **Owner:** architect (schema), then backend-engineer
+**Commit:** `feat(practice): add practice model and public practice endpoint` (one commit with P02; the plan's header was `feat(practice): model practice aggregate, services and staff members`) · **Depends on:** - · **Owner:** architect (schema), then backend-engineer
 
 Scope: practice-schema tables without `practice_id`, with plain foreign keys, data-class comments and per-locale `jsonb` CHECKs, in one atomic practice migration that also runs `CREATE EXTENSION IF NOT EXISTS btree_gist`:
 
@@ -601,7 +609,15 @@ Acceptance:
 
 ### P02 — Public practice endpoints
 
-**Commit:** `feat(practice): add public practice endpoints with open-now status` · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews the `@Public()` endpoints
+**Commit:** `feat(practice): add practice model and public practice endpoint` (one commit with P01; the plan's header was `feat(practice): add public practice endpoints with open-now status`) · **Depends on:** - · **Owner:** backend-engineer; security-reviewer reviews the `@Public()` endpoints
+
+Deferred in lean mode (2026-11-05):
+
+- `GET /api/v1/public/practices` (the cursor list with `CursorQueryDto` and `CursorPage`) → P03, whose sitemap is its consumer.
+- The route cache (`PUBLIC_ROUTE_CACHE_MS`), the 100-practice crawl test, the two-instance test and `CLOCK_FIXED_AT` → later, when a measurement or the web e2e needs them.
+- The reserved-slug list and its web-route test → F06; OpenAPI and client regeneration → X02 and X03; problem+json → X01.
+
+As built: the route sets its limit of 60 requests per minute on the `default` throttler with `@Throttle` instead of a named `public` one, which keeps the plain `Retry-After` header and needs no `RATE_LIMIT_PUBLIC_PER_MINUTE`. Times in the response are wall-clock strings such as `09:00`. `staff_members.position` is text per locale like `specialty`. `weekend_days` has no column default, because Prisma 7.10.1 reports a `SMALLINT[]` default as drift on every run; the migration writes the first value. Since a slug now routes public requests, `platform_app` may only add a slug and set its `retired_at`; it can no longer repoint or delete one.
 
 Scope:
 

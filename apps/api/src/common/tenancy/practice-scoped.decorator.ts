@@ -1,10 +1,10 @@
 import { type ExecutionContext, SetMetadata } from '@nestjs/common';
 
 /**
- * How a route names its practice (02 §5): `id`, the path parameter `practiceId`. P02 adds `slug`;
- * A01 adds the index, membership and role checks to `id`.
+ * How a route names its practice (02 §5): `id`, the path parameter `practiceId`, or `slug`, the
+ * path parameter `slug` of a public route. A01 adds the index, membership and role checks to `id`.
  */
-export type PracticeScope = 'id';
+export type PracticeScope = 'id' | 'slug';
 
 const PRACTICE_SCOPE = 'medibooker:practiceScope';
 
@@ -22,5 +22,5 @@ export function practiceScopeOf(
   handler: ReturnType<ExecutionContext['getHandler']>,
 ): PracticeScope | undefined {
   const scope: unknown = Reflect.getMetadata(PRACTICE_SCOPE, handler);
-  return scope === 'id' ? scope : undefined;
+  return scope === 'id' || scope === 'slug' ? scope : undefined;
 }

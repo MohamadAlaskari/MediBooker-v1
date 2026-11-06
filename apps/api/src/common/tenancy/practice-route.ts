@@ -18,6 +18,20 @@ export interface PracticeRoute {
   readonly schemaVersion: string;
 }
 
+/** What the registry says about a published practice (P02): its current slug and public name. */
+export interface PracticeListing {
+  readonly slug: string;
+  /** Text per locale. */
+  readonly name: unknown;
+}
+
+const PRACTICE_SLUG = /^[a-z0-9-]{3,40}$/;
+
+/** Whether a path segment can be a slug at all: the form `practice_slugs` has a CHECK for. */
+export function isPracticeSlug(value: string | undefined): value is string {
+  return value !== undefined && PRACTICE_SLUG.test(value);
+}
+
 /** The practice of the current request or `runInPractice` call (02 §4, ADR 0005 §2.5). */
 export interface ResolvedPractice {
   readonly id: string;

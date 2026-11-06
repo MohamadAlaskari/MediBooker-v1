@@ -110,6 +110,10 @@ model Practice {
   migrationErrorCode String?        @map("migration_error_code")
   /// class: public (when the last physical copy expires after offboarding)
   purgedAt           DateTime?      @map("purged_at") @db.Timestamptz(3)
+  /// class: public (per locale; platform_app may change it)
+  name               Json           @default("{}")
+  /// class: public (null: the public page answers 404; platform_app may change it)
+  publishedAt        DateTime?      @map("published_at") @db.Timestamptz(3)
   /// class: public
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: public

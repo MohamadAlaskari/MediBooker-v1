@@ -20,6 +20,17 @@ describe('parseCommandLine', () => {
       ['provision', ID, '--cluster=eu-1', '--market=DE'],
       { kind: 'provision', practiceId: ID, market: 'DE', clusterId: 'eu-1' },
     ],
+    [
+      ['provision', ID, '--market', 'SA', '--time-zone', 'Asia/Riyadh', '--default-locale', 'ar'],
+      {
+        kind: 'provision',
+        practiceId: ID,
+        market: 'SA',
+        clusterId: undefined,
+        timeZone: 'Asia/Riyadh',
+        defaultLocale: 'ar',
+      },
+    ],
     [['verify'], { kind: 'verify', practiceId: undefined }],
     [['verify', '--practice', ID], { kind: 'verify', practiceId: ID }],
     [['roles', 'reconcile'], { kind: 'roles-reconcile', practiceId: undefined }],
@@ -44,6 +55,8 @@ describe('parseCommandLine', () => {
     [['provision', ID, '--market', 'SAU']],
     [['provision', ID, '--market', 'SA', '--cluster', 'Bad_Cluster']],
     [['provision', ID, '--market', 'SA', '--practice', ID]],
+    [['provision', ID, '--market', 'SA', '--time-zone', 'Not/AZone']],
+    [['provision', ID, '--market', 'SA', '--default-locale', 'Arabic']],
     [['verify', 'now']],
     [['verify', '--market', 'SA']],
     [['roles']],
@@ -64,7 +77,14 @@ describe('commandName', () => {
     expect(commandName({ kind: 'roles-reconcile', practiceId: undefined })).toBe('roles reconcile');
     expect(commandName({ kind: 'reset-local' })).toBe('reset-local');
     expect(
-      commandName({ kind: 'provision', practiceId: ID, market: 'SA', clusterId: undefined }),
+      commandName({
+        kind: 'provision',
+        practiceId: ID,
+        market: 'SA',
+        clusterId: undefined,
+        timeZone: undefined,
+        defaultLocale: undefined,
+      }),
     ).toBe('provision');
     expect(commandName({ kind: 'verify', practiceId: undefined })).toBe('verify');
   });

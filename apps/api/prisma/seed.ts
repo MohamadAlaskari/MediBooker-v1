@@ -1,8 +1,9 @@
 /**
  * `pnpm db:seed` (02 §9, 07 §2): provisions the two seed practices with the real provisioning
- * code, as medibooker_provisioner and never as the superuser, registers their current slugs and
- * keeps a migrated practice_template for the test copies. Deterministic, synthetic, fixed ids:
- * a second run changes no row count. Local and CI only; run by tsx after `pnpm db:migrate`.
+ * code, as medibooker_provisioner and never as the superuser, fills their databases, registers
+ * and publishes them, and keeps a migrated practice_template for the test copies. Deterministic,
+ * synthetic, fixed ids: a second run changes no row count. Local and CI only; run by tsx after
+ * `pnpm db:migrate`.
  * Prints JSON lines only, never a host, user, connection string or password.
  */
 import path from 'node:path';
@@ -31,15 +32,12 @@ import {
   provisionPractice,
 } from '@medibooker/db-migrate/testing';
 import { Client } from 'pg';
+import { fillPractice, SEED_PRACTICES } from './seed-practices.js';
 
-/**
- * The seed practices of 02 §9: `al-noor` in Riyadh (no DST, Friday and Saturday weekend) and
- * `lindenhof` in Berlin (DST). Names, time zones, locales and the practice data arrive with P01.
- */
-export const SEED_PRACTICES = [
-  { id: '00000000-0000-4000-8000-000000000001', slug: 'al-noor', market: 'SA' },
-  { id: '00000000-0000-4000-8000-000000000002', slug: 'lindenhof', market: 'DE' },
-] as const;
+export { SEED_PRACTICES } from './seed-practices.js';
+
+/** A fixed publication time: the seed never reads the clock, so its result is deterministic. */
+const SEED_PUBLISHED_AT = '2026-11-01T00:00:00.000Z';
 
 export interface SeedOptions {
   readonly appEnv: AppEnv;
@@ -79,7 +77,7 @@ async function withPlatform<T>(
   }
 }
 
-/** Whether the practice is ACTIVE at the newest practice migration already. */
+/** Whether the practice is ACTIVE at the newest practice migration and published already. */
 async function isCurrent(
   platformUrl: string,
   practiceId: string,
@@ -87,7 +85,8 @@ async function isCurrent(
 ): Promise<boolean> {
   return withPlatform(platformUrl, async (client) => {
     const result = await client.query<{ current: boolean }>(
-      "SELECT status = 'ACTIVE' AND schema_version = $2 AS current FROM practices WHERE id = $1",
+      `SELECT status = 'ACTIVE' AND schema_version = $2 AND published_at IS NOT NULL AS current
+       FROM practices WHERE id = $1`,
       [practiceId, newest],
     );
     return result.rows[0]?.current === true;
@@ -103,11 +102,26 @@ async function registerSlug(platformUrl: string, practiceId: string, slug: strin
   );
 }
 
+/** Publishes a practice under its name: the last step, so a run that stopped before is repeated. */
+async function publishPractice(
+  platformUrl: string,
+  practiceId: string,
+  name: Readonly<Record<string, string>>,
+): Promise<void> {
+  await withPlatform(platformUrl, (client) =>
+    client.query('UPDATE practices SET name = $2, published_at = $3 WHERE id = $1', [
+      practiceId,
+      name,
+      SEED_PUBLISHED_AT,
+    ]),
+  );
+}
+
 /**
  * Seeds one cluster with explicit connections, so the integration harness can run it against
- * its own cluster. A practice that is ACTIVE at the newest migration is left alone, so a second
- * run writes nothing, not even audit rows; a practice behind it is provisioned again, which
- * migrates it.
+ * its own cluster. A practice that is ACTIVE at the newest migration and published is left alone,
+ * so a second run writes nothing, not even audit rows; any other practice is provisioned and
+ * filled again, which migrates it and adds what is missing.
  */
 export async function seed(options: SeedOptions): Promise<SeedResult> {
   if (!isLocalOrCi(options.appEnv)) throw new ToolError('LOCAL_ONLY');
@@ -117,9 +131,11 @@ export async function seed(options: SeedOptions): Promise<SeedResult> {
   let provisioned = 0;
   for (const practice of SEED_PRACTICES) {
     if (!(await isCurrent(options.platformUrl, practice.id, newest))) {
-      await provisionPractice({
+      const provisionedPractice = await provisionPractice({
         practiceId: practice.id,
         market: practice.market,
+        timeZone: practice.timeZone,
+        defaultLocale: practice.defaultLocale,
         appEnv: options.appEnv,
         platformUrl: options.platformUrl,
         provisionerUrl: options.provisionerUrl,
@@ -130,9 +146,16 @@ export async function seed(options: SeedOptions): Promise<SeedResult> {
         migrationTimeoutMs,
         ...(options.output === undefined ? {} : { output: options.output }),
       });
+      const owner = await provisionedPractice.connectAsOwner();
+      try {
+        await fillPractice(owner, practice.data);
+      } finally {
+        await owner.end().catch(() => undefined);
+      }
+      await registerSlug(options.platformUrl, practice.id, practice.slug);
+      await publishPractice(options.platformUrl, practice.id, practice.name);
       provisioned += 1;
     }
-    await registerSlug(options.platformUrl, practice.id, practice.slug);
   }
   const template = await ensurePracticeTemplate({
     appEnv: options.appEnv,

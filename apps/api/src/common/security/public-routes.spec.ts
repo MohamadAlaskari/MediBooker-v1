@@ -295,9 +295,14 @@ describe('the route inventory', () => {
 });
 
 describe('public routes (02 §4)', () => {
-  it('are exactly GET /health/live and GET /health/ready: a new public route is a reviewed change to this list', async () => {
+  it('are exactly the practice page and the two health probes: a new public route is a reviewed change to this list', async () => {
     expect(await inventoryOf([AppModule.forRoot(parseEnv(TEST_ENV))])).toEqual({
       publicRoutes: [
+        {
+          handler: 'PublicPracticeController.practice',
+          method: 'GET',
+          path: '/api/v1/public/practices/:slug',
+        },
         { handler: 'HealthController.live', method: 'GET', path: '/health/live' },
         { handler: 'HealthController.ready', method: 'GET', path: '/health/ready' },
       ],

@@ -14,6 +14,8 @@ export type Command =
       readonly practiceId: string;
       readonly market: string;
       readonly clusterId: string | undefined;
+      readonly timeZone: string | undefined;
+      readonly defaultLocale: string | undefined;
     }
   | { readonly kind: 'verify'; readonly practiceId: string | undefined }
   | { readonly kind: 'roles-reconcile'; readonly practiceId: string | undefined }
@@ -22,18 +24,21 @@ export type Command =
 export const USAGE = [
   'medibooker-db migrate platform|all',
   'medibooker-db migrate practices [--practice <id>]',
-  'medibooker-db provision <practiceId> --market <CC> [--cluster <id>]',
+  'medibooker-db provision <practiceId> --market <CC> [--cluster <id>] [--time-zone <IANA>] [--default-locale <locale>]',
   'medibooker-db verify [--practice <id>]',
   'medibooker-db roles reconcile [--practice <id>]',
   'medibooker-db reset-local',
 ].join('; ');
 
 const MARKET = /^[A-Z]{2}$/;
+const LOCALE = /^[a-z]{2}$/;
 
 const OPTIONS = {
   practice: { type: 'string' },
   market: { type: 'string' },
   cluster: { type: 'string' },
+  'time-zone': { type: 'string' },
+  'default-locale': { type: 'string' },
 } as const;
 
 type OptionName = keyof typeof OPTIONS;
@@ -49,6 +54,16 @@ export function commandName(command: Command): string {
     case 'verify':
     case 'reset-local':
       return command.kind;
+  }
+}
+
+/** Whether the runtime knows this IANA time zone. */
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -77,12 +92,25 @@ function interpret(
     }
     return undefined;
   }
-  if (verb === 'provision' && rest.length === 0 && allows('market', 'cluster')) {
-    const { market, cluster } = values;
+  if (
+    verb === 'provision' &&
+    rest.length === 0 &&
+    allows('market', 'cluster', 'time-zone', 'default-locale')
+  ) {
+    const { market, cluster, 'time-zone': timeZone, 'default-locale': defaultLocale } = values;
     if (argument === undefined || !isPracticeId(argument)) return undefined;
     if (market === undefined || !MARKET.test(market)) return undefined;
     if (cluster !== undefined && !isClusterId(cluster)) return undefined;
-    return { kind: 'provision', practiceId: argument.toLowerCase(), market, clusterId: cluster };
+    if (timeZone !== undefined && !isTimeZone(timeZone)) return undefined;
+    if (defaultLocale !== undefined && !LOCALE.test(defaultLocale)) return undefined;
+    return {
+      kind: 'provision',
+      practiceId: argument.toLowerCase(),
+      market,
+      clusterId: cluster,
+      timeZone,
+      defaultLocale,
+    };
   }
   if (verb === 'verify' && argument === undefined && allows('practice')) {
     return { kind: 'verify', practiceId };

@@ -25,6 +25,31 @@ describe('the seed (08 F04)', () => {
     return counts;
   }
 
+  /** P01: every practice table has rows, and the registry names and publishes the practice. */
+  async function expectPublishedAndFilled(): Promise<void> {
+    const listings = await withClient(databases.platformOwnerUrl, async (platform) => {
+      const result = await platform.query<Row>(
+        `SELECT id, name, published_at IS NOT NULL AS published FROM practices ORDER BY id`,
+      );
+      return result.rows;
+    });
+    expect(listings).toEqual(SEED_PRACTICES.map(({ id, name }) => ({ id, name, published: true })));
+    for (const practice of SEED_PRACTICES) {
+      const { databaseName } = practiceNames(practice.id);
+      const counts = await rowCounts(databases.superuserUrl(databaseName));
+      expect(Object.entries(counts).filter(([, count]) => count === 0)).toEqual([]);
+      const settings = await withClient(databases.superuserUrl(databaseName), async (client) => {
+        const result = await client.query<Row>(
+          'SELECT time_zone AS "timeZone", default_locale AS "defaultLocale" FROM practice_settings',
+        );
+        return result.rows;
+      });
+      expect(settings).toEqual([
+        { timeZone: practice.timeZone, defaultLocale: practice.defaultLocale },
+      ]);
+    }
+  }
+
   it('08 F04 leaves every row count unchanged when it runs a second time', async () => {
     const options: SeedOptions = {
       appEnv: 'ci',
@@ -50,6 +75,7 @@ describe('the seed (08 F04)', () => {
         market,
       })),
     );
+    await expectPublishedAndFilled();
     const afterFirstRun = await allRowCounts();
 
     expect(await seed(options)).toEqual({ provisioned: 0, templateRefreshed: false });

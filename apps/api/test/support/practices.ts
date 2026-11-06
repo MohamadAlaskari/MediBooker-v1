@@ -39,6 +39,8 @@ export interface ProvisionOptions {
   readonly path?: PracticePath;
   /** ISO 3166-1 alpha-2; default `SA`. */
   readonly market?: string;
+  readonly timeZone?: string;
+  readonly defaultLocale?: string;
 }
 
 /**
@@ -125,6 +127,8 @@ export class PracticeDatabases {
     return provisionPractice({
       practiceId,
       market: options.market ?? 'SA',
+      timeZone: options.timeZone,
+      defaultLocale: options.defaultLocale,
       appEnv: 'ci',
       platformUrl: this.platformOwnerUrl,
       provisionerUrl: this.provisionerUrl,

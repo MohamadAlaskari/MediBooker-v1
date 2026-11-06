@@ -22,7 +22,12 @@ import { toErrorCode, ToolError, type ErrorCode } from '../lib/errors.ts';
 import { practiceNames, type PracticeNames } from '../lib/names.ts';
 import { elapsedMs, practiceLine } from '../lib/output.ts';
 import { chooseCluster, provisionedPractice, type ProvisionedPractice } from '../lib/placement.ts';
-import { createPracticeDatabase, writePracticeIdentity } from '../lib/practice-database.ts';
+import {
+  createPracticeDatabase,
+  writePracticeIdentity,
+  writePracticeSettings,
+  type PracticeBaseSettings,
+} from '../lib/practice-database.ts';
 import {
   activatePractice,
   insertPractice,
@@ -34,7 +39,7 @@ import {
 import { ensurePracticeRoles, type ConnectionLimits, type RolePasswords } from '../lib/roles.ts';
 import type { SecretStore } from '../lib/secret-store.ts';
 
-export interface ProvisionOptions extends PracticeCommandOptions {
+export interface ProvisionOptions extends PracticeCommandOptions, PracticeBaseSettings {
   readonly practiceId: string;
   /** ISO 3166-1 alpha-2; in staging and production it must be in MARKETS (ADR 0005 §7.2). */
   readonly market: string;
@@ -141,10 +146,11 @@ async function provisionSteps(
     await caFiles.dispose();
   }
 
-  // 6. The identity row, as the owner (the app role cannot write it).
-  await withConnection(pgConnectionConfig(access, owner, TOOL_APPLICATION_NAME), (client) =>
-    writePracticeIdentity(client, names.practiceId),
-  );
+  // 6. The identity row (the app role cannot write it) and the settings, as the owner.
+  await withConnection(pgConnectionConfig(access, owner, TOOL_APPLICATION_NAME), async (client) => {
+    await writePracticeIdentity(client, names.practiceId);
+    await writePracticeSettings(client, options);
+  });
 
   // 7. Routing is complete: ACTIVE.
   await activatePractice(platform, names.practiceId);
@@ -153,7 +159,8 @@ async function provisionSteps(
 }
 
 /**
- * `medibooker-db provision <practiceId> --market <CC> [--cluster <id>]` (ADR 0005 §5.3): one JSON
+ * `medibooker-db provision <practiceId> --market <CC> [--cluster <id>] [--time-zone <IANA>]
+ * [--default-locale <locale>]` (ADR 0005 §5.3): one JSON
  * line for the practice and a summary. Local seeding and the integration harness call it too.
  */
 export async function provision(options: ProvisionOptions): Promise<ProvisionResult> {

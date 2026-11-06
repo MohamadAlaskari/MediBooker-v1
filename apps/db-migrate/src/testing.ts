@@ -21,7 +21,12 @@ import { newestMigration } from './lib/migrations.ts';
 import { practiceNames, type PracticeNames } from './lib/names.ts';
 import { silentOutput, type OutputSink } from './lib/output.ts';
 import { chooseCluster, provisionedPractice, type ProvisionedPractice } from './lib/placement.ts';
-import { createPracticeDatabase, writePracticeIdentity } from './lib/practice-database.ts';
+import {
+  createPracticeDatabase,
+  writePracticeIdentity,
+  writePracticeSettings,
+  type PracticeBaseSettings,
+} from './lib/practice-database.ts';
 import {
   deletePractice,
   insertRoutedPractice,
@@ -40,7 +45,7 @@ export {
 } from './lib/template.ts';
 export { loadWorkspaceEnv } from './lib/workspace-env.ts';
 
-export interface ProvisionPracticeOptions {
+export interface ProvisionPracticeOptions extends PracticeBaseSettings {
   readonly practiceId: string;
   /** ISO 3166-1 alpha-2, for example SA or DE. */
   readonly market: string;
@@ -154,7 +159,10 @@ async function provisionFromTemplate(
   });
   await withConnection(
     urlConnectionConfig(deriveUrl(adminUrl, { database: names.databaseName })),
-    (copy) => grantCopiedObjects(copy, names),
+    async (copy) => {
+      await grantCopiedObjects(copy, names);
+      await writePracticeSettings(copy, options);
+    },
   );
   await withConnection(urlConnectionConfig(options.platformUrl), (platform) =>
     insertRoutedPractice(platform, {
@@ -192,6 +200,8 @@ export async function provisionPractice(
     practiceId: options.practiceId,
     market: options.market,
     clusterId: options.clusterId,
+    timeZone: options.timeZone,
+    defaultLocale: options.defaultLocale,
     provisionerUrl: options.provisionerUrl,
     markets: undefined,
     connectionLimits: options.connectionLimits ?? DEFAULT_CONNECTION_LIMITS,

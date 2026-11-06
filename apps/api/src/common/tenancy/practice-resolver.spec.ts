@@ -31,6 +31,74 @@ function resolverWith(
   return { resolver: new PracticeResolver(platform, env), findUnique };
 }
 
+/** A practice_slugs row as resolveSlug selects it. */
+function slugRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    practice: {
+      ...registryRow(),
+      name: { en: 'A practice' },
+      publishedAt: new Date('2026-11-01T00:00:00.000Z'),
+      slugs: [{ slug: 'current-slug' }],
+      ...overrides,
+    },
+  };
+}
+
+function slugResolverWith(row: Record<string, unknown> | null, env = parseEnv(TEST_ENV)) {
+  const findUnique = vi.fn().mockResolvedValue(row);
+  const platform = { practiceSlug: { findUnique } } as unknown as PlatformPrismaService;
+  return { resolver: new PracticeResolver(platform, env), findUnique };
+}
+
+describe('PracticeResolver.resolveSlug', () => {
+  it('serves a published practice with its current slug and name, also for a retired slug', async () => {
+    const { resolver, findUnique } = slugResolverWith(slugRow());
+    expect(await resolver.resolveSlug('retired-slug')).toEqual({
+      answer: 'SERVE',
+      route: expect.objectContaining({
+        id: PRACTICE_A,
+        schemaVersion: PRACTICE_SCHEMA_REQUIRED,
+      }) as unknown,
+      listing: { slug: 'current-slug', name: { en: 'A practice' } },
+    });
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: 'retired-slug' } }),
+    );
+  });
+
+  it('keeps the requested slug when the practice has no current one', async () => {
+    const { resolver } = slugResolverWith(slugRow({ slugs: [] }));
+    expect(await resolver.resolveSlug('only-slug')).toMatchObject({
+      listing: { slug: 'only-slug' },
+    });
+  });
+
+  it('answers NOT_FOUND for an unknown slug and for an unpublished practice', async () => {
+    expect(await slugResolverWith(null).resolver.resolveSlug('unknown')).toEqual({
+      answer: 'NOT_FOUND',
+    });
+    expect(
+      await slugResolverWith(slugRow({ publishedAt: null })).resolver.resolveSlug('hidden'),
+    ).toEqual({ answer: 'NOT_FOUND' });
+  });
+
+  it('applies the status table of public requests', async () => {
+    const provisioning = slugResolverWith(slugRow({ status: 'PROVISIONING' }));
+    expect(await provisioning.resolver.resolveSlug('slug')).toEqual({ answer: 'NOT_FOUND' });
+    const suspended = slugResolverWith(slugRow({ status: 'SUSPENDED' }));
+    expect(await suspended.resolver.resolveSlug('slug')).toEqual({
+      answer: 'UNAVAILABLE',
+      practiceId: PRACTICE_A,
+      reason: 'PRACTICE_STATUS_UNAVAILABLE',
+    });
+  });
+
+  it('answers NOT_FOUND for an unpublished practice whatever its status', async () => {
+    const { resolver } = slugResolverWith(slugRow({ status: 'SUSPENDED', publishedAt: null }));
+    expect(await resolver.resolveSlug('slug')).toEqual({ answer: 'NOT_FOUND' });
+  });
+});
+
 describe('PracticeResolver', () => {
   it('reads the registry row of the practice on every call', async () => {
     const { resolver, findUnique } = resolverWith(registryRow());

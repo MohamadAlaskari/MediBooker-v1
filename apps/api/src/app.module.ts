@@ -16,6 +16,7 @@ import { TimeModule } from './common/time/time.module.js';
 import { EnvModule } from './config/env.module.js';
 import type { Env } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
+import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
 
 export interface AppModuleOptions {
   /** Where logs go; only createTestApp sets it, to capture or discard them. Default: stdout. */
@@ -45,6 +46,7 @@ export class AppModule {
         PlatformDatabaseModule,
         TenancyModule,
         HealthModule,
+        PublicPracticeModule,
       ],
       providers: [
         // Global guards run in this order: rate limit first, then authentication.

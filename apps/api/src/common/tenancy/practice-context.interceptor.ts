@@ -18,11 +18,24 @@ import type { PracticeLease } from './practice-client.js';
 import { PracticeConnectionManager } from './practice-connection-manager.js';
 import { PracticeUnavailableError } from './practice-errors.js';
 import { PracticeResolver } from './practice-resolver.js';
-import { type PracticeRoute, resolvedPracticeOf } from './practice-route.js';
+import {
+  isPracticeSlug,
+  type PracticeListing,
+  type PracticePurpose,
+  type PracticeRoute,
+  resolvedPracticeOf,
+} from './practice-route.js';
 import { practiceScopeOf } from './practice-scoped.decorator.js';
 
 /** The `Retry-After` of a practice that cannot be served (05 §1.3), until X01's catalogue. */
 export const PRACTICE_RETRY_AFTER_SECONDS = 30;
+
+/** The practice of a request after its checks: its client's lease, and a public route's listing. */
+interface LeasedPractice {
+  readonly route: PracticeRoute;
+  readonly lease: PracticeLease;
+  readonly listing?: PracticeListing;
+}
 
 /** The part of an Express request this interceptor reads. */
 interface PracticeScopedRequest {
@@ -30,12 +43,13 @@ interface PracticeScopedRequest {
 }
 
 /**
- * Resolves the practice of a `@PracticeScoped('id')` route (02 §5): the path parameter
- * `practiceId` (404 unless it is a UUID), the registry row on every request, the status table for
- * signed-in requests (404 before any client is leased where it says so), the market check and
- * the schema guard, then a lease of the practice's client, stored in the request context and
- * released when the handler's result is complete, also after an error. A01 adds the index,
- * membership and role checks before the lease.
+ * Resolves the practice of a `@PracticeScoped()` route (02 §5): the path parameter `practiceId`
+ * (404 unless it is a UUID) or the public route's `slug` (404 unless it has a slug's form), the
+ * registry row on every request, the status table for the route's purpose (404 before any client
+ * is leased where it says so; for a slug also without a publication), the market check and the
+ * schema guard, then a lease of the practice's client, stored in the request context and released
+ * when the handler's result is complete, also after an error. A01 adds the index, membership and
+ * role checks before the lease.
  *
  * A PracticeUnavailableError is answered with 503 and `Retry-After` (until X01), as is a query
  * that fails in the handler because the practice's connection failed; that client is closed. Only
@@ -53,14 +67,21 @@ export class PracticeContextInterceptor implements NestInterceptor {
   }
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
-    if (practiceScopeOf(context.getHandler()) === undefined) return next.handle();
+    const scope = practiceScopeOf(context.getHandler());
+    if (scope === undefined) return next.handle();
     const http = context.switchToHttp();
     const response = http.getResponse<ServerResponse>();
-    const practiceId = http.getRequest<PracticeScopedRequest>().params?.practiceId;
-    if (!isUuid(practiceId)) throw new NotFoundException();
-    const { route, lease } = await this.leasePractice(practiceId.toLowerCase(), response);
+    const params = http.getRequest<PracticeScopedRequest>().params;
+    const { route, lease, listing } =
+      scope === 'slug'
+        ? await this.leaseBySlug(params?.slug, response)
+        : await this.leaseById(params?.practiceId, response);
     try {
-      this.cls.set('practice', { practice: resolvedPracticeOf(route), lease });
+      this.cls.set('practice', {
+        practice: resolvedPracticeOf(route),
+        lease,
+        ...(listing === undefined ? {} : { listing }),
+      });
       bindLogFields(this.logger, { practiceId: route.id });
     } catch (error) {
       lease.release();
@@ -74,20 +95,44 @@ export class PracticeContextInterceptor implements NestInterceptor {
     );
   }
 
-  private async leasePractice(
-    practiceId: string,
+  private async leaseById(
+    rawPracticeId: string | undefined,
     response: ServerResponse,
-  ): Promise<{ route: PracticeRoute; lease: PracticeLease }> {
+  ): Promise<LeasedPractice> {
+    if (!isUuid(rawPracticeId)) throw new NotFoundException();
+    const practiceId = rawPracticeId.toLowerCase();
     const resolution = await this.resolver.resolve(practiceId, 'request');
     if (resolution.answer === 'NOT_FOUND') throw new NotFoundException();
     if (resolution.answer === 'UNAVAILABLE') {
       throw this.unavailable(new PracticeUnavailableError(practiceId, resolution.reason), response);
     }
+    return this.lease(resolution.route, 'request', response);
+  }
+
+  private async leaseBySlug(
+    slug: string | undefined,
+    response: ServerResponse,
+  ): Promise<LeasedPractice> {
+    if (!isPracticeSlug(slug)) throw new NotFoundException();
+    const resolution = await this.resolver.resolveSlug(slug);
+    if (resolution.answer === 'NOT_FOUND') throw new NotFoundException();
+    if (resolution.answer === 'UNAVAILABLE') {
+      throw this.unavailable(
+        new PracticeUnavailableError(resolution.practiceId, resolution.reason),
+        response,
+      );
+    }
+    const leased = await this.lease(resolution.route, 'public', response);
+    return { ...leased, listing: resolution.listing };
+  }
+
+  private async lease(
+    route: PracticeRoute,
+    purpose: PracticePurpose,
+    response: ServerResponse,
+  ): Promise<LeasedPractice> {
     try {
-      return {
-        route: resolution.route,
-        lease: await this.connections.acquire(resolution.route, 'request'),
-      };
+      return { route, lease: await this.connections.acquire(route, purpose) };
     } catch (error) {
       if (error instanceof PracticeUnavailableError) throw this.unavailable(error, response);
       throw error;

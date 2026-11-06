@@ -1,5 +1,6 @@
-// A practice database practice_<id32> (ADR 0005 §1.2): everything one practice owns. F04 adds its
-// identity. The schema declares no practiceId: the database is the boundary (ADR 0005 §10), and
+// A practice database practice_<id32> (ADR 0005 §1.2): everything one practice owns. F04 added its
+// identity, P01 its settings, page, opening hours, special days, theme, services and team. The
+// schema declares no practiceId: the database is the boundary (ADR 0005 §10), and
 // practice_identity is the one table that names the practice (P01's architecture test exempts
 // it). Conventions: 02 §9; every field carries a class comment (health-data-security §1).
 
@@ -15,6 +16,26 @@ datasource db {
   provider = "postgresql"
 }
 
+/// How a practice's pages are coloured: a preset or a custom colour (BR-23, ADR 0002).
+enum ThemePreset {
+  TEAL
+  OCEAN
+  INDIGO
+  VIOLET
+  GRAPHITE
+  CUSTOM
+
+  @@map("theme_preset")
+}
+
+/// What a staff member consented to, always personally (BR-24).
+enum StaffConsentType {
+  PHOTO
+  PUBLIC_PROFILE
+
+  @@map("staff_consent_type")
+}
+
 /// The practice this database belongs to: a singleton row written by provisioning. The connection
 /// manager compares it with the registry before it serves a client (ADR 0005 §2.2), and the app
 /// role cannot change it (ADR 0005 §4.3).
@@ -25,4 +46,205 @@ model PracticeIdentity {
   practiceId String @unique @map("practice_id") @db.Uuid
 
   @@map("practice_identity")
+}
+
+/// The practice's country rules, contact data and booking parameters: a singleton row that the
+/// migration inserts and provisioning completes. Everything market-specific lives here, not in code.
+model PracticeSettings {
+  /// class: public (always 1; CHECK in the migration)
+  id                              Int      @id @default(1) @db.SmallInt
+  /// class: public (IANA zone; set by medibooker-db provision --time-zone)
+  timeZone                        String   @default("UTC") @map("time_zone")
+  /// class: public (set by medibooker-db provision --default-locale; one of supportedLocales)
+  defaultLocale                   String   @default("ar") @map("default_locale")
+  /// class: public
+  supportedLocales                String[] @default(["ar", "en"]) @map("supported_locales")
+  /// class: public (ISO weekday: 1 Monday to 7 Sunday)
+  weekStart                       Int      @default(1) @map("week_start") @db.SmallInt
+  /// class: public (ISO weekdays; the migration writes the first value)
+  weekendDays                     Int[]    @map("weekend_days") @db.SmallInt
+  /// class: public (latn or arab; CHECK in the migration)
+  numberingSystem                 String   @default("latn") @map("numbering_system")
+  /// class: public (h12 or h23; CHECK in the migration)
+  hourCycle                       String   @default("h23") @map("hour_cycle")
+  /// class: public (the practice's own number)
+  phone                           String?
+  /// class: public (the practice's own address)
+  email                           String?
+  /// class: public (per locale)
+  address                         Json     @default("{}")
+  /// class: public (BR-02)
+  maxFutureAppointmentsPerPatient Int      @default(2) @map("max_future_appointments_per_patient") @db.SmallInt
+  /// class: public (BR-03)
+  minLeadTimeMinutes              Int      @default(120) @map("min_lead_time_minutes")
+  /// class: public (BR-03)
+  maxHorizonDays                  Int      @default(90) @map("max_horizon_days") @db.SmallInt
+  /// class: public (BR-04)
+  cancellationDeadlineHours       Int      @default(24) @map("cancellation_deadline_hours") @db.SmallInt
+  /// class: public (BR-13)
+  reminderHoursBefore             Int      @default(24) @map("reminder_hours_before") @db.SmallInt
+  /// class: public
+  updatedAt                       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("practice_settings")
+}
+
+/// The texts and section flags of the public practice page (BR-22): a singleton row. Publication
+/// is not here but in the platform registry (practices.published_at).
+model PracticePage {
+  /// class: public (always 1; CHECK in the migration)
+  id               Int      @id @default(1) @db.SmallInt
+  /// class: public (per locale)
+  about            Json     @default("{}")
+  /// class: public (per locale)
+  directions       Json     @default("{}")
+  /// class: public
+  showServices     Boolean  @default(true) @map("show_services")
+  /// class: public
+  showTeam         Boolean  @default(true) @map("show_team")
+  /// class: public
+  showOpeningHours Boolean  @default(true) @map("show_opening_hours")
+  /// class: public
+  showDirections   Boolean  @default(true) @map("show_directions")
+  /// class: public
+  legalNoticeUrl   String?  @map("legal_notice_url")
+  /// class: public
+  privacyPolicyUrl String?  @map("privacy_policy_url")
+  /// class: public
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("practice_pages")
+}
+
+/// One interval in which the practice is open, in local wall-clock minutes (several per day are
+/// possible). Independent of the providers' availability rules. No overlap: EXCLUDE in the migration.
+model OpeningHours {
+  /// class: public
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: public (ISO weekday: 1 Monday to 7 Sunday; CHECK in the migration)
+  weekday  Int    @db.SmallInt
+  /// class: public (minutes after local midnight)
+  opensAt  Int    @map("opens_at") @db.SmallInt
+  /// class: public (minutes after local midnight, at most 1440)
+  closesAt Int    @map("closes_at") @db.SmallInt
+
+  @@map("opening_hours")
+}
+
+/// A date with other opening hours, or closed. Replaces that weekday's hours (BR-22).
+model SpecialDay {
+  /// class: public
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: public (a practice-local date)
+  date     DateTime @unique @db.Date
+  /// class: public (closed, or valid hours; CHECK in the migration)
+  closed   Boolean
+  /// class: public (minutes after local midnight)
+  opensAt  Int?     @map("opens_at") @db.SmallInt
+  /// class: public (minutes after local midnight, at most 1440)
+  closesAt Int?     @map("closes_at") @db.SmallInt
+  /// class: public (per locale)
+  label    Json     @default("{}")
+
+  @@map("special_days")
+}
+
+/// The practice's colour theme (BR-23): a singleton row. The brand scale is generated by the server
+/// (M01); CHECKs in the migration keep the colours safe to put into CSS. Initials are only text.
+model PracticeTheme {
+  /// class: public (always 1; CHECK in the migration)
+  id          Int         @id @default(1) @db.SmallInt
+  /// class: public
+  preset      ThemePreset @default(TEAL)
+  /// class: public (only with the preset CUSTOM)
+  customColor String?     @map("custom_color")
+  /// class: public (11 steps, only with the preset CUSTOM)
+  scale       String[]    @default([])
+  /// class: public (whether the contrast check changed the colour)
+  adjusted    Boolean     @default(false)
+  /// class: public (at most 2 characters, shown without a logo)
+  initials    String?
+  /// class: public
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("practice_themes")
+}
+
+/// A bookable service. Names, durations and descriptions are public on the practice page.
+model Service {
+  /// class: public
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: public (per locale)
+  name                  Json
+  /// class: public (per locale)
+  description           Json     @default("{}")
+  /// class: public (5 to 480; CHECK in the migration)
+  durationMinutes       Int      @map("duration_minutes") @db.SmallInt
+  /// class: public
+  isBookableOnline      Boolean  @default(true) @map("is_bookable_online")
+  /// class: public
+  allowedInsuranceTypes String[] @default([]) @map("allowed_insurance_types")
+  /// class: public
+  active                Boolean  @default(true)
+  /// class: public
+  sortOrder             Int      @default(0) @map("sort_order")
+  /// class: public
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: public
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("services")
+}
+
+/// A team member's profile. Personal data: it leaves the API only with an active PUBLIC_PROFILE
+/// consent and without hiddenAt (BR-24). The link to an account arrives with the memberships (A01).
+model StaffMember {
+  /// class: personal
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal (for example Dr.)
+  title      String?
+  /// class: personal
+  firstName  String    @map("first_name")
+  /// class: personal
+  lastName   String    @map("last_name")
+  /// class: personal (per locale)
+  position   Json      @default("{}")
+  /// class: personal
+  isProvider Boolean   @default(false) @map("is_provider")
+  /// class: personal (per locale)
+  specialty  Json      @default("{}")
+  /// class: personal
+  languages  String[]  @default([])
+  /// class: personal (an admin hid the profile; no admin can consent for someone)
+  hiddenAt   DateTime? @map("hidden_at") @db.Timestamptz(3)
+  /// class: personal
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  consents StaffConsent[]
+
+  @@map("staff_members")
+}
+
+/// A consent a staff member gave personally, and when it was withdrawn (BR-24). A history: a new
+/// row for every consent, and at most one active row per type.
+model StaffConsent {
+  /// class: personal
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  staffMemberId String           @map("staff_member_id") @db.Uuid
+  /// class: personal
+  type          StaffConsentType
+  /// class: personal (the consent text the person agreed to)
+  textVersion   String           @map("text_version")
+  /// class: personal
+  givenAt       DateTime         @map("given_at") @db.Timestamptz(3)
+  /// class: personal
+  withdrawnAt   DateTime?        @map("withdrawn_at") @db.Timestamptz(3)
+
+  staffMember StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Restrict)
+
+  @@unique([staffMemberId, type], map: "staff_consents_active_key", where: raw("(withdrawn_at IS NULL)"))
+  @@map("staff_consents")
 }

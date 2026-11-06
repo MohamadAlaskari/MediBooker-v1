@@ -93,6 +93,8 @@ async function main(args: readonly string[]): Promise<ExitCode> {
         practiceId: command.practiceId,
         market: command.market,
         clusterId: command.clusterId,
+        timeZone: command.timeZone,
+        defaultLocale: command.defaultLocale,
         provisionerUrl: env.provisionerUrl,
         markets: env.markets,
         connectionLimits: env.connectionLimits,
