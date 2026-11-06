@@ -121,19 +121,22 @@ export const RegisterBody = zod.object({
   "email": zod.email().max(registerBodyEmailMax).regex(registerBodyEmailRegExp),
   "locale": zod.enum(['ar', 'en']).describe('The language of e-mails to this person'),
   "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax),
-  "privacyNoticeVersion": zod.string().describe('The version of the privacy notice the person agreed to')
+  "privacyNoticeVersion": zod.enum(['2026-11']).describe('The version of the privacy notice the person agreed to: the current one')
 })
 
 export const RegisterResponse = zod.void()
 
 /**
- * @summary Confirm an e-mail address
+ * @summary Confirm an e-mail address, with the password of the account
  */
+export const verifyEmailBodyPasswordMax = 1024;
+
 export const verifyEmailBodyTokenMax = 256;
 
 
 
 export const VerifyEmailBody = zod.object({
+  "password": zod.string().max(verifyEmailBodyPasswordMax),
   "token": zod.string().max(verifyEmailBodyTokenMax)
 })
 

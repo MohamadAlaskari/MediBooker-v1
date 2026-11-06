@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1
  */
 import type { RegisterDtoLocale } from './registerDtoLocale';
+import type { RegisterDtoPrivacyNoticeVersion } from './registerDtoPrivacyNoticeVersion';
 
 export interface RegisterDto {
   /**
@@ -19,6 +20,6 @@ export interface RegisterDto {
      * @maxLength 1024
      */
   password: string;
-  /** The version of the privacy notice the person agreed to */
-  privacyNoticeVersion: string;
+  /** The version of the privacy notice the person agreed to: the current one */
+  privacyNoticeVersion: RegisterDtoPrivacyNoticeVersion;
 }

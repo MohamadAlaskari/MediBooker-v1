@@ -1,12 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { buildCsp } from './lib/csp';
 import { localeRedirectPath } from './lib/locale-redirect';
+import { SESSION_HINT_COOKIE } from './lib/session-hint';
+import { signInRedirect } from './lib/signed-in-redirect';
 
 const CSP_HEADER = 'Content-Security-Policy';
 
 /**
- * Runs on every page request (03 §4): sends a path without a locale to the visitor's language, and
- * gives every page a new nonce. The policy also goes on the request headers, because Next reads
+ * Runs on every page request (03 §4): sends a path without a locale to the visitor's language, a
+ * visitor without a sign-in away from a page for signed-in people, and gives every page a new
+ * nonce. The policy also goes on the request headers, because Next reads
  * the nonce for its own scripts from there.
  */
 export function proxy(request: NextRequest): NextResponse {
@@ -17,6 +20,13 @@ export function proxy(request: NextRequest): NextResponse {
   if (target !== undefined) {
     const url = request.nextUrl.clone();
     url.pathname = target;
+    return NextResponse.redirect(url, 307);
+  }
+  const signIn = signInRedirect(request.nextUrl.pathname, request.cookies.has(SESSION_HINT_COOKIE));
+  if (signIn !== undefined) {
+    const url = request.nextUrl.clone();
+    url.pathname = signIn.pathname;
+    url.hash = signIn.hash;
     return NextResponse.redirect(url, 307);
   }
   const nonce = btoa(crypto.randomUUID());

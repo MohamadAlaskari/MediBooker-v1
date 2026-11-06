@@ -56,10 +56,6 @@ test.describe('the free times on the practice page (08 P06)', () => {
       expect(url.search).toBe('');
       expect(new URLSearchParams(url.hash.slice(1)).get('next')).toBe(`/${locale}/al-noor`);
       expect(page.url()).not.toContain(SERVICE);
-      await expect(page.getByRole('main').getByRole('link')).toHaveAttribute(
-        'href',
-        `/${locale}/al-noor#free-times`,
-      );
     });
   }
 
@@ -176,17 +172,5 @@ test.describe('the free times on the practice page (08 P06)', () => {
     await expect(section.getByRole('link', { name: '+966 11 000 0000' })).toBeVisible();
     await expect(section).not.toContainText('Looking for free times');
     await context.close();
-  });
-});
-
-test.describe('the sign-in placeholder', () => {
-  test('never leads away from this site', async ({ page }) => {
-    await page.goto(`/en/sign-in#next=${encodeURIComponent('//evil.example/en/x')}`);
-    await expect(page.getByRole('main').getByRole('link')).toHaveAttribute('href', '/en');
-  });
-
-  test('is not for search engines', async ({ page }) => {
-    await page.goto('/en/sign-in');
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
   });
 });

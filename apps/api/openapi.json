@@ -31,6 +31,23 @@
         ],
         "type": "object"
       },
+      "ConfirmEmailDto": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
+      },
       "EmailDto": {
         "properties": {
           "email": {
@@ -708,7 +725,10 @@
             "type": "string"
           },
           "privacyNoticeVersion": {
-            "description": "The version of the privacy notice the person agreed to",
+            "description": "The version of the privacy notice the person agreed to: the current one",
+            "enum": [
+              "2026-11"
+            ],
             "type": "string"
           }
         },
@@ -754,18 +774,6 @@
         },
         "required": [
           "account"
-        ],
-        "type": "object"
-      },
-      "TokenDto": {
-        "properties": {
-          "token": {
-            "maxLength": 256,
-            "type": "string"
-          }
-        },
-        "required": [
-          "token"
         ],
         "type": "object"
       },
@@ -1298,7 +1306,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TokenDto"
+                "$ref": "#/components/schemas/ConfirmEmailDto"
               }
             }
           },
@@ -1359,7 +1367,7 @@
             "description": "An error, as application/problem+json"
           }
         },
-        "summary": "Confirm an e-mail address",
+        "summary": "Confirm an e-mail address, with the password of the account",
         "tags": [
           "auth"
         ]

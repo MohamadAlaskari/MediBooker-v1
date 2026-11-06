@@ -7,6 +7,7 @@
 
 export * from './accountDto';
 export * from './accountDtoLocale';
+export * from './confirmEmailDto';
 export * from './emailDto';
 export * from './errorCode';
 export * from './fieldErrorCode';
@@ -35,9 +36,9 @@ export * from './publicThemeDto';
 export * from './refreshDto';
 export * from './registerDto';
 export * from './registerDtoLocale';
+export * from './registerDtoPrivacyNoticeVersion';
 export * from './resetPasswordDto';
 export * from './sessionDto';
-export * from './tokenDto';
 export * from './tokensDto';
 export * from './updateAccountDto';
 export * from './updateAccountDtoLocale';

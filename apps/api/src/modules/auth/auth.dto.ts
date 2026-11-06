@@ -1,4 +1,4 @@
-import { LOCALES } from '@medibooker/i18n';
+import { LOCALES, PRIVACY_NOTICE_VERSION } from '@medibooker/i18n';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
@@ -13,7 +13,6 @@ import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './domain/password-poli
 
 const MAX_EMAIL_LENGTH = 254;
 const MAX_TOKEN_LENGTH = 256;
-const MAX_VERSION_LENGTH = 32;
 /**
  * ASCII for a new account. The column compares through `lower()`, which turns the Kelvin sign and
  * the dotted capital I into plain letters: a look-alike could take the address of its owner.
@@ -41,10 +40,11 @@ export class RegisterDto {
   @IsIn(LOCALES)
   readonly locale!: string;
 
-  @ApiProperty({ description: 'The version of the privacy notice the person agreed to' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(MAX_VERSION_LENGTH)
+  @ApiProperty({
+    enum: [PRIVACY_NOTICE_VERSION],
+    description: 'The version of the privacy notice the person agreed to: the current one',
+  })
+  @IsIn([PRIVACY_NOTICE_VERSION])
   readonly privacyNoticeVersion!: string;
 }
 
@@ -79,12 +79,18 @@ export class RefreshDto {
   readonly refreshToken?: string;
 }
 
-export class TokenDto {
+/** The password shows that whoever holds the mailbox is who signed up. */
+export class ConfirmEmailDto {
   @ApiProperty({ maxLength: MAX_TOKEN_LENGTH })
   @IsString()
   @MinLength(1)
   @MaxLength(MAX_TOKEN_LENGTH)
   readonly token!: string;
+
+  @ApiProperty({ maxLength: MAX_PASSWORD_LENGTH })
+  @IsString()
+  @MaxLength(MAX_PASSWORD_LENGTH)
+  readonly password!: string;
 }
 
 export class EmailDto {

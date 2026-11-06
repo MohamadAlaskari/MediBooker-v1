@@ -12,9 +12,10 @@ import {
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import { ACCESS_TOKEN_SECONDS, AccessTokens } from './access-tokens.js';
-import { lockedUntilAfter, refreshDecision } from './domain/auth.rules.js';
+import { refreshDecision } from './domain/auth.rules.js';
 import { hashPassword, verifyPassword } from './domain/password.js';
 import type { SessionCookieValues } from './session-cookies.js';
+import { SignInAttempts } from './sign-in-attempts.js';
 
 const REFRESH_TOKEN_BYTES = 32;
 const REFRESH_TOKEN_DAYS = 30;
@@ -23,21 +24,6 @@ const AMR_PASSWORD = 'pwd';
 
 export interface IssuedSession extends SessionCookieValues {
   readonly userId: string;
-}
-
-/** What a sign-in reads under the lock of the account's row. */
-interface SignInRow {
-  readonly id: string;
-  readonly password_hash: string;
-  readonly failed_login_count: number;
-  readonly locked_until: Date | null;
-}
-
-/** An attempt that has been counted. `waiting`: too many failures, so the password does not count. */
-interface SignInAttempt {
-  readonly userId: string;
-  readonly passwordHash: string;
-  readonly waiting: boolean;
 }
 
 /** Who signs in with an unknown address waits as long as who knows one: the same work is done. */
@@ -57,10 +43,11 @@ export class AuthService {
     private readonly tokens: AccessTokens,
     private readonly secrets: AuthSecrets,
     private readonly audit: PlatformAudit,
+    private readonly attempts: SignInAttempts,
   ) {}
 
   async login(email: string, password: string): Promise<IssuedSession> {
-    const attempt = await this.countAttempt(email);
+    const attempt = await this.attempts.count(email);
     const hash = attempt?.passwordHash ?? (await DUMMY_PASSWORD_HASH);
     const matches = await verifyPassword(hash, password);
     if (attempt === undefined || attempt.waiting || !matches) {
@@ -86,42 +73,6 @@ export class AuthService {
         outcome: 'SUCCEEDED',
       });
       return this.issue(attempt.userId, randomUUID(), [AMR_PASSWORD]);
-    });
-  }
-
-  /**
-   * Counts an attempt before its password is looked at, under the lock of the account's row. So
-   * guesses sent at the same moment cannot all pass the wait on one count. A success clears it.
-   */
-  private async countAttempt(email: string): Promise<SignInAttempt | undefined> {
-    const now = this.clock.now();
-    return this.txHost.withTransaction(async () => {
-      const db = this.txHost.tx;
-      const [user] = await db.$queryRaw<SignInRow[]>`
-        SELECT id, password_hash, failed_login_count, locked_until
-        FROM users
-        WHERE email = ${email}::citext
-        FOR UPDATE`;
-      if (user === undefined) return undefined;
-      const waiting =
-        user.locked_until !== null &&
-        Temporal.Instant.compare(instantOf(user.locked_until), now) > 0;
-      if (!waiting) {
-        const failures = user.failed_login_count + 1;
-        const until = lockedUntilAfter(failures, now);
-        await db.user.update({
-          where: { id: user.id },
-          data: {
-            failedLoginCount: failures,
-            ...(until === undefined ? {} : { lockedUntil: dbInstantOf(until) }),
-          },
-        });
-      }
-      return {
-        userId: user.id,
-        passwordHash: user.password_hash,
-        waiting,
-      };
     });
   }
 

@@ -129,9 +129,97 @@
       "bookingWith": "Online booking with"
     }
   },
-  "signIn": {
-    "title": "Sign in",
-    "body": "Online sign-in and booking start here soon. Your time is not reserved yet; please call the practice to book it.",
+  "auth": {
+    "brand": {
+      "title": "Your appointments in one place",
+      "body": "Book, change and cancel online, for you and your family.",
+      "freeTimes": "Free times shown live",
+      "reminders": "A reminder before every appointment",
+      "documents": "Documents your doctor shares with you"
+    },
+    "privacy": "Privacy",
+    "emailLabel": "E-mail address",
+    "passwordLabel": "Password",
+    "newPasswordLabel": "New password",
+    "passwordHint": "At least {min} characters.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "signIn": {
+      "title": "Sign in",
+      "body": "Welcome back. Sign in to see and book your appointments.",
+      "submit": "Sign in",
+      "forgot": "Forgot password?",
+      "newHere": "New to MediBooker?",
+      "createAccount": "Create account"
+    },
+    "signUp": {
+      "title": "Create your account",
+      "body": "Book appointments for yourself and your family.",
+      "consent": "I accept the privacy policy.",
+      "readPrivacy": "Read the privacy policy",
+      "consentRequired": "Please accept the privacy policy to continue.",
+      "submit": "Continue",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "signInFailed": "This address may already have an account with another password. Sign in, or choose a new password.",
+      "forgot": "Choose a new password",
+      "steps": "Step {current} of {total}",
+      "stepAccount": "Account",
+      "stepVerify": "Verify"
+    },
+    "checkInbox": {
+      "title": "Check your inbox",
+      "body": "We sent a link to {email}. Open it to confirm your address and book your first appointment.",
+      "resend": "Send the e-mail again",
+      "resendIn": "Send the e-mail again in {seconds} seconds",
+      "resent": "We sent the e-mail again.",
+      "continue": "Continue to my account"
+    },
+    "verifyEmail": {
+      "title": "Confirm your e-mail address",
+      "body": "Enter the password of your account, so that we know it is you.",
+      "submit": "Confirm e-mail address",
+      "doneTitle": "Your address is confirmed",
+      "doneBody": "You can now book appointments.",
+      "continue": "Continue to my account",
+      "noLinkTitle": "This link is not complete",
+      "noLinkBody": "Please open the link from the e-mail again, or request a new one from your account.",
+      "forgot": "Forgot password?"
+    },
+    "forgot": {
+      "title": "Forgot your password?",
+      "body": "Enter your e-mail address and we will send you a link to choose a new password.",
+      "submit": "Send link",
+      "doneTitle": "Check your inbox",
+      "doneBody": "If this address has an account, we sent a link to it. The link is valid for 30 minutes.",
+      "back": "Back to sign-in"
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "body": "After this, you need to sign in again on all your devices.",
+      "submit": "Save password",
+      "doneTitle": "Your password is changed",
+      "doneBody": "You can now sign in with your new password.",
+      "signIn": "Sign in",
+      "noLinkTitle": "This link is not complete",
+      "noLinkBody": "Please open the link from the e-mail again, or request a new one.",
+      "requestNew": "Request a new link"
+    },
+    "account": {
+      "title": "Your account",
+      "signedInAs": "Signed in as {email}",
+      "notConfirmedTitle": "Please confirm your e-mail address",
+      "notConfirmedBody": "You need a confirmed address to book appointments. We sent you a link.",
+      "resend": "Send the e-mail again",
+      "resent": "We sent the e-mail again.",
+      "confirmed": "Your e-mail address is confirmed.",
+      "signOut": "Sign out",
+      "loading": "Loading your account"
+    }
+  },
+  "privacyPage": {
+    "title": "Privacy notice",
+    "body": "The privacy notice of MediBooker is being written and will be here before the launch.",
     "back": "Back"
   },
   "emails": {

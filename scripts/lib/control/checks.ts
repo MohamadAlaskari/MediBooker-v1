@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
+import { PRIVACY_NOTICE_VERSION } from '../../../packages/i18n/src/legal.ts';
 import { DEMO_PRACTICE, DEMO_SERVICE, type Stack } from './stacks.ts';
 
 // A development server compiles a page on its first request.
@@ -173,7 +174,7 @@ function accountEmailChecks(stack: Stack, runId: string, locale: string): readon
         email,
         password: randomUUID(),
         locale,
-        privacyNoticeVersion: 'smoke',
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       }),
       verify: hasStatus(202),
     },

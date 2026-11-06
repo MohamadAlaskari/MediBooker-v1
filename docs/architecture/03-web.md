@@ -107,7 +107,7 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 ## 7. API client and data
 
 - **`lib/api.server.ts`** (`import 'server-only'`): `configureApiClient({ baseUrl: API_INTERNAL_URL })`. Public endpoints only, `cache: 'no-store'`, `Accept-Language` = route locale. It forwards the incoming `X-Forwarded-For` unchanged, so the API, which trusts one proxy hop, throttles per visitor and not per web container. An API 404 becomes `notFound()`.
-- **`lib/api.client.ts`:** `baseUrl: ''`, `credentials: 'same-origin'`; `getHeaders` adds `Accept-Language` and, from A05, the CSRF header. Only generated hooks; no handwritten `fetch`. The practice is part of every generated path, so query keys of two practices never collide.
+- **`lib/api.client.ts`:** `baseUrl: ''`, `credentials: 'same-origin'`; `getHeaders` adds `Accept-Language` and the CSRF header; a 401 outside the auth routes gets one refresh and one new try, one refresh for all requests at that moment. Only generated hooks; no handwritten `fetch`. The practice is part of every generated path, so query keys of two practices never collide.
 - **Free times (P06):** the generated hooks poll every 45 s and pass `cache: 'no-cache'`, so the browser revalidates instead of serving the 30-second cached response.
 - **Server components fetch only public data.** Personal and health data never pass through server-component props.
 - **Tokens and hand-offs in URLs:** links from e-mails carry tokens in the fragment (`/ar/verify-email#token=…`; invitations also carry the practice id, `#practice=…&token=…`); the page reads them and POSTs them in the body. The hand-off from the practice page to sign-in also uses the fragment, and names only the practice page: a URL stays in the browser's history, so the chosen service, doctor and time stay out of it (`sessionStorage`, A05). Neither reaches server logs or a `Referer`.
@@ -180,7 +180,7 @@ Either way:
 
 ## 12. Forms
 
-react-hook-form 7.91 with `zodResolver` and the generated schema from `@medibooker/api-client/zod`, laid out with shadcn's `FieldGroup` and `Field`. `applyFieldErrors` maps server field errors onto the fields (`data-invalid` on the field, `aria-invalid` on the control); when there are none, the form shows an `Alert`. Focus moves to the first invalid field, submit is disabled while pending, and bookings send an `Idempotency-Key` that a retry reuses.
+react-hook-form 7.91 with `zodResolver` and the generated schema from `@medibooker/api-client/zod`, laid out with shadcn's `FieldGroup` and `Field`. `applyFieldErrors` maps server field errors onto the fields (`data-invalid` on the field, `aria-invalid` on the control); when there are none, the form shows an `Alert`. Forms use POST, and their fields stay read-only and their button disabled until the page is alive: before that a browser would send the form itself, password included, and React would drop what was typed. Zod's issues become the codes of the `validation` catalogue (`validationMessageOf`). Focus moves to the first invalid field, submit is disabled while pending, and bookings send an `Idempotency-Key` that a retry reuses.
 
 ## 13. Security rules
 

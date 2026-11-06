@@ -5,7 +5,6 @@ import {
   handOffHref,
   nextRovingIndex,
   partsOfDay,
-  practiceAddressOf,
   selectedDay,
   weeksFrom,
 } from './free-times-view';
@@ -98,9 +97,6 @@ describe('the hand-off to sign-in', () => {
     const next = new URLSearchParams(url.hash.slice(1)).get('next');
     expect(next).toBe('/ar/al-noor');
     expect(safeReturnPath(next)).toBe(next);
-  });
-
-  it('leads back to the free times of the practice', () => {
-    expect(practiceAddressOf('/ar/al-noor')).toBe('/ar/al-noor#free-times');
+    expect(new URLSearchParams(url.hash.slice(1)).get('section')).toBe('free-times');
   });
 });

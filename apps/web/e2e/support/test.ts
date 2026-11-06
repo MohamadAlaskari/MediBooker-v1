@@ -11,9 +11,14 @@ export const test = base.extend<{ pageChecks: undefined }>({
     async ({ page, javaScriptEnabled }, use) => {
       // What the proxy does in production: the browser asks its own origin, and the API answers.
       await page.route('**/api/v1/**', async (route) => {
-        const { pathname, search } = new URL(route.request().url());
+        const request = route.request();
+        const { pathname, search } = new URL(request.url());
         const url = `http://127.0.0.1:${String(API_STUB_PORT)}${pathname}${search}`;
-        await route.fulfill({ response: await route.fetch({ url }) });
+        // The browser adds its cookies later than a route sees the request.
+        const cookies = await page.context().cookies(request.url());
+        const cookie = cookies.map(({ name, value }) => `${name}=${value}`).join('; ');
+        const headers = { ...request.headers(), cookie };
+        await route.fulfill({ response: await route.fetch({ url, headers }) });
       });
       const violations: string[] = [];
       page.on('console', (message) => {

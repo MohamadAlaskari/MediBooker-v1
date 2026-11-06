@@ -76,10 +76,5 @@ export function nextRovingIndex(
  * on a shared computer. A05 keeps the choice in `sessionStorage`.
  */
 export function handOffHref(locale: string, slug: string): string {
-  return `/${locale}/sign-in#next=${encodeURIComponent(`/${locale}/${slug}`)}`;
-}
-
-/** The free times of the practice page a hand-off came from. */
-export function practiceAddressOf(next: string): string {
-  return `${next}#free-times`;
+  return `/${locale}/sign-in#next=${encodeURIComponent(`/${locale}/${slug}`)}&section=free-times`;
 }

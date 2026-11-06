@@ -5,16 +5,21 @@ import type { PlatformTransactionHost } from '../../common/database/platform-tra
 import { DomainException } from '../../common/errors/domain.exception.js';
 import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
 import { AuthSecrets, sha256 } from '../../common/security/auth-secrets.js';
-import { auditActorOf, PlatformAudit } from '../../common/security/platform-audit.js';
+import {
+  ANONYMOUS_ACTOR,
+  auditActorOf,
+  PlatformAudit,
+} from '../../common/security/platform-audit.js';
 import { Clock } from '../../common/time/clock.js';
-import { dbInstantOf } from '../../common/time/convert.js';
+import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import type {
   AccountNotificationTemplate,
   AccountTokenPurpose,
 } from '../../generated/platform/enums.js';
 import { AccountNotifications } from '../notifications/account-notifications.js';
-import { hashPassword } from './domain/password.js';
+import { hashPassword, verifyPassword } from './domain/password.js';
 import { isBreachedPassword } from './domain/password-policy.js';
+import { SignInAttempts } from './sign-in-attempts.js';
 
 /** ADR 0004 §8. */
 const ACCOUNT_TOKEN_MINUTES = 30;
@@ -63,6 +68,7 @@ export class AccountService {
     private readonly secrets: AuthSecrets,
     private readonly notifications: AccountNotifications,
     private readonly audit: PlatformAudit,
+    private readonly attempts: SignInAttempts,
   ) {}
 
   /** Creates the account only, in the platform: a patient profile belongs to a practice (B01). */
@@ -94,12 +100,49 @@ export class AccountService {
     });
   }
 
-  async verifyEmail(token: string): Promise<void> {
+  /**
+   * Confirms an address, with the password of the account. Whoever holds the mailbox must also be
+   * who signed up: otherwise a click on a link nobody asked for would make a stranger's password
+   * valid for that address, and a mistyped address would hand over what the account holds.
+   *
+   * The link is judged first: an old e-mail must not become a way to test passwords. Then the
+   * password is counted like one at a sign-in, so this route is no way around the wait.
+   */
+  async verifyEmail(token: string, password: string): Promise<void> {
+    const row = await this.txHost.tx.accountToken.findUnique({
+      where: { tokenHash: sha256(token) },
+      select: { purpose: true, usedAt: true, expiresAt: true, user: { select: { email: true } } },
+    });
+    if (
+      row?.purpose !== 'EMAIL_VERIFICATION' ||
+      row.usedAt !== null ||
+      Temporal.Instant.compare(instantOf(row.expiresAt), this.clock.now()) <= 0
+    ) {
+      throw new DomainException('INVALID_TOKEN');
+    }
+    const attempt = await this.attempts.count(row.user.email);
+    if (
+      attempt === undefined ||
+      attempt.waiting ||
+      !(await verifyPassword(attempt.passwordHash, password))
+    ) {
+      await this.audit.record({
+        actor: attempt === undefined ? ANONYMOUS_ACTOR : auditActorOf(attempt.userId),
+        action: 'auth.email.verify',
+        outcome: 'FAILED',
+        errorCode: 'INVALID_CREDENTIALS',
+      });
+      throw new DomainException('INVALID_CREDENTIALS');
+    }
     await this.txHost.withTransaction(async () => {
       const userId = await this.consumeToken(token, 'EMAIL_VERIFICATION');
       await this.txHost.tx.user.update({
         where: { id: userId },
-        data: { emailVerifiedAt: dbInstantOf(this.clock.now()) },
+        data: {
+          emailVerifiedAt: dbInstantOf(this.clock.now()),
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
       });
       await this.audit.record({
         actor: auditActorOf(userId),

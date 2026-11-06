@@ -19,13 +19,13 @@ import type {
 } from 'msw';
 
 import type {
+  ConfirmEmailDto,
   EmailDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
-  SessionDto,
-  TokenDto
+  SessionDto
 } from '../../model';
 
 
@@ -98,8 +98,8 @@ export const getRegisterMockHandler = (overrideResponse?: void | ((info: Paramet
   }, options)
 }
 
-export const getVerifyEmailMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, TokenDto>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
-  return http.post<PathParams, TokenDto>('*/api/v1/auth/verify-email', async (info: Parameters<HttpResponseResolver<PathParams, TokenDto>>[0]) => {
+export const getVerifyEmailMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ConfirmEmailDto>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, ConfirmEmailDto>('*/api/v1/auth/verify-email', async (info: Parameters<HttpResponseResolver<PathParams, ConfirmEmailDto>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
 
     return new HttpResponse(null,

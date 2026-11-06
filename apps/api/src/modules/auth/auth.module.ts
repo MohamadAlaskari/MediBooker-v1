@@ -9,12 +9,14 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { MeController } from './me.controller.js';
 import { SessionAuthenticator } from './session-authenticator.js';
+import { SignInAttempts } from './sign-in-attempts.js';
 
 /** Accounts, sessions and their e-mails (ADR 0004). What a person may do in a practice follows. */
 @Module({
   imports: [NotificationsModule, PlatformDatabaseModule, SecurityModule],
   controllers: [AuthController, MeController],
   providers: [
+    SignInAttempts,
     AccessTokens,
     AccountService,
     AuthService,

@@ -4,6 +4,7 @@
  * tests which visitor addresses reached it.
  */
 import { createServer, type ServerResponse } from 'node:http';
+import { handleAccounts } from './auth-stub.ts';
 import { PRACTICES } from './practices.ts';
 
 const LIST_PATH = '/api/v1/public/practices';
@@ -90,6 +91,7 @@ const server = createServer((request, response) => {
   const visitor = request.headers['x-forwarded-for'];
   if (typeof visitor === 'string') forwardedFor.add(visitor);
   const { pathname, searchParams } = new URL(url, 'http://stub');
+  if (handleAccounts(pathname, searchParams, request, response)) return;
   if (pathname === LIST_PATH) {
     list(response, searchParams.get('cursor'));
     return;

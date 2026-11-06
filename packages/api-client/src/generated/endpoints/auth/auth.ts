@@ -15,14 +15,14 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ConfirmEmailDto,
   EmailDto,
   LoginDto,
   ProblemDetailsDto,
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
-  SessionDto,
-  TokenDto
+  SessionDto
 } from '../../model';
 
 import { apiFetch } from '../../../http/fetcher';
@@ -564,9 +564,9 @@ export const useRegister = <TError = ErrorType<ProblemDetailsDto>,
 }
 
 /**
- * @summary Confirm an e-mail address
+ * @summary Confirm an e-mail address, with the password of the account
  */
-export const verifyEmail = async (tokenDto: TokenDto, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const verifyEmail = async (confirmEmailDto: ConfirmEmailDto, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -587,7 +587,7 @@ return apiFetch<void>(getVerifyEmailUrl(),
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(tokenDto)
+    body: JSON.stringify(confirmEmailDto)
   }
 );}
 
@@ -625,12 +625,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type VerifyEmailMutationResult = NonNullable<Awaited<ReturnType<typeof verifyEmail>>>
-    export type VerifyEmailMutationBody = TokenDto
+    export type VerifyEmailMutationBody = ConfirmEmailDto
     export type VerifyEmailMutationError = ErrorType<ProblemDetailsDto>
-    export type VerifyEmailMutationVariables = {data: TokenDto}
+    export type VerifyEmailMutationVariables = {data: ConfirmEmailDto}
 
     /**
- * @summary Confirm an e-mail address
+ * @summary Confirm an e-mail address, with the password of the account
  */
 export const useVerifyEmail = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,VerifyEmailMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}

@@ -6,13 +6,13 @@ import { DomainException } from '../../common/errors/domain.exception.js';
 import { Public } from '../../common/security/public.decorator.js';
 import { AccountService } from './account.service.js';
 import {
+  ConfirmEmailDto,
   EmailDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
   SessionDto,
-  TokenDto,
 } from './auth.dto.js';
 import { AuthService, type IssuedSession } from './auth.service.js';
 import {
@@ -63,13 +63,13 @@ export class AuthController {
     await this.accounts.register(body);
   }
 
-  @Public() // ADR 0004: the token in the body is the proof
+  @Public() // ADR 0004: the token and the password in the body are the proof
   @Throttle(GUESSING_LIMIT)
-  @ApiOperation({ summary: 'Confirm an e-mail address' })
+  @ApiOperation({ summary: 'Confirm an e-mail address, with the password of the account' })
   @HttpCode(204)
   @Post('verify-email')
-  async verifyEmail(@Body() { token }: TokenDto): Promise<void> {
-    await this.accounts.verifyEmail(token);
+  async verifyEmail(@Body() { token, password }: ConfirmEmailDto): Promise<void> {
+    await this.accounts.verifyEmail(token, password);
   }
 
   @Public() // ADR 0004: the answer is the same for a known address

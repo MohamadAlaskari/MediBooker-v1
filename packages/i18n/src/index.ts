@@ -7,5 +7,6 @@ export { getDirection, type Direction } from './direction.js';
 export { toFormattingLocale, type FormattingOptions } from './format-locale.js';
 export { formats } from './formats.js';
 export { messages, type Messages } from './generated/catalog.js';
+export { PRIVACY_NOTICE_VERSION } from './legal.js';
 export { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from './locales.js';
 export { negotiateLocale } from './negotiate.js';

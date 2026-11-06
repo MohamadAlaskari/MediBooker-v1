@@ -5,7 +5,9 @@
  * OpenAPI spec version: 1
  */
 
-export interface TokenDto {
+export interface ConfirmEmailDto {
+  /** @maxLength 1024 */
+  password: string;
   /** @maxLength 256 */
   token: string;
 }

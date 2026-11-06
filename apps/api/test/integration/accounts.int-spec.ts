@@ -1,13 +1,14 @@
 /**
  * Accounts, sessions and their e-mails against a real platform database (08 A01, A02, A03).
  */
+import { PRIVACY_NOTICE_VERSION } from '@medibooker/i18n';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request, { type Response } from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlatformPrismaService } from '../../src/common/database/platform-prisma.service.js';
 import { PlatformAudit } from '../../src/common/security/platform-audit.js';
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
-import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { SignInAttempts } from '../../src/modules/auth/sign-in-attempts.js';
 import { AccountOutbox } from '../../src/modules/notifications/account-outbox.js';
 import { type Email, EmailSender } from '../../src/modules/notifications/email-sender.js';
 import { createTestApp } from '../support/create-test-app.js';
@@ -21,7 +22,7 @@ const PASSWORD = 'synthetic correct horse battery';
 const NEW_PASSWORD = 'another synthetic passphrase here';
 /** On the bundled list of known passwords. */
 const WELL_KNOWN = '1234567890';
-const PRIVACY_NOTICE = '2026-11';
+const PRIVACY_NOTICE = PRIVACY_NOTICE_VERSION;
 const NOW = Temporal.Instant.from('2026-11-15T07:00:00Z');
 const CONFIRMATION_SUBJECT = 'Please confirm your e-mail address';
 const RESET_SUBJECT = 'Reset your password';
@@ -160,11 +161,71 @@ describe('accounts on a real platform database', () => {
       });
 
       const token = await confirmationToken(email);
-      await post('verify-email', { token }).expect(204);
+      await post('verify-email', { token, password: PASSWORD }).expect(204);
       expect((await getMe(cookies).expect(200)).body).toMatchObject({ emailVerified: true });
 
-      const again = await post('verify-email', { token }).expect(400);
+      const again = await post('verify-email', { token, password: PASSWORD }).expect(400);
       expect(again.body).toMatchObject({ code: 'INVALID_TOKEN' });
+    });
+
+    it('needs the password of the account, so a click alone confirms nothing', async () => {
+      const email = await register();
+      const token = await confirmationToken(email);
+      const wrong = await post('verify-email', { token, password: NEW_PASSWORD }).expect(401);
+      expect(wrong.body).toMatchObject({ code: 'INVALID_CREDENTIALS' });
+      const user = await platform().user.findUniqueOrThrow({ where: { email } });
+      expect(user.emailVerifiedAt).toBeNull();
+      // The link still works for whoever knows the password.
+      expect(await statusOf(post('verify-email', { token, password: PASSWORD }))).toBe(204);
+    });
+
+    it('tells nothing about a password through a link that is over', async () => {
+      const email = await register();
+      const used = await confirmationToken(email);
+      await post('verify-email', { token: used, password: PASSWORD }).expect(204);
+      await post('password/forgot', { email }).expect(202);
+      const reset = await resetToken(email);
+      const expired = await confirmationToken(await register());
+      clock.set(NOW.add({ minutes: 30 }));
+
+      for (const token of [used, reset, expired]) {
+        const right = await post('verify-email', { token, password: PASSWORD }).expect(400);
+        const wrong = await post('verify-email', { token, password: NEW_PASSWORD }).expect(400);
+        expect(problemWithoutRequestId(right)).toEqual(problemWithoutRequestId(wrong));
+        expect(right.body).toMatchObject({ code: 'INVALID_TOKEN' });
+      }
+    });
+
+    it('counts a wrong password at the confirmation like one at a sign-in', async () => {
+      const email = await register();
+      const token = await confirmationToken(email);
+      for (let guess = 0; guess < 5; guess += 1) {
+        await post('verify-email', { token, password: NEW_PASSWORD }).expect(401);
+      }
+      expect(await statusOf(post('verify-email', { token, password: PASSWORD }))).toBe(401);
+      expect(await statusOf(login(email))).toBe(401);
+
+      const { id } = await platform().user.findUniqueOrThrow({ where: { email } });
+      const failed = await platform().platformAuditEvent.count({
+        where: { actor: `user:${id}`, action: 'auth.email.verify', outcome: 'FAILED' },
+      });
+      expect(failed).toBe(6);
+
+      clock.set(NOW.add({ minutes: 2 }));
+      expect(await statusOf(post('verify-email', { token, password: PASSWORD }))).toBe(204);
+      const user = await platform().user.findUniqueOrThrow({ where: { email } });
+      expect(user).toMatchObject({ failedLoginCount: 0, lockedUntil: null });
+      expect(user.emailVerifiedAt).not.toBeNull();
+    });
+
+    it('takes only the current version of the privacy notice', async () => {
+      const answer = await post('register', {
+        email: newAddress(),
+        password: PASSWORD,
+        locale: 'en',
+        privacyNoticeVersion: '2020-01',
+      }).expect(400);
+      expect(answer.body).toMatchObject({ errors: [{ field: 'privacyNoticeVersion' }] });
     });
 
     it('keeps what a person agreed to, with its version', async () => {
@@ -180,9 +241,11 @@ describe('accounts on a real platform database', () => {
       const tooLate = await confirmationToken(await register());
 
       clock.set(NOW.add({ minutes: 29, seconds: 59 }));
-      expect(await statusOf(post('verify-email', { token: inTime }))).toBe(204);
+      expect(await statusOf(post('verify-email', { token: inTime, password: PASSWORD }))).toBe(204);
       clock.set(NOW.add({ minutes: 30 }));
-      expect(await statusOf(post('verify-email', { token: tooLate }))).toBe(400);
+      expect(await statusOf(post('verify-email', { token: tooLate, password: PASSWORD }))).toBe(
+        400,
+      );
     });
 
     it('answers the same for a known and an unknown address', async () => {
@@ -282,10 +345,10 @@ describe('accounts on a real platform database', () => {
       const email = await register();
       await post('password/forgot', { email }).expect(202);
       const token = await resetToken(email);
-      const auth = app.get<{ countAttempt: (address: string) => Promise<unknown> }>(AuthService);
-      const countAttempt = auth.countAttempt.bind(auth);
-      vi.spyOn(auth, 'countAttempt').mockImplementationOnce(async (address) => {
-        const attempt = await countAttempt(address);
+      const attempts = app.get(SignInAttempts);
+      const count = attempts.count.bind(attempts);
+      vi.spyOn(attempts, 'count').mockImplementationOnce(async (address) => {
+        const attempt = await count(address);
         await post('password/reset', { token, password: NEW_PASSWORD }).expect(204);
         return attempt;
       });
@@ -566,10 +629,10 @@ describe('accounts on a real platform database', () => {
         await statusOf(post('password/reset', { token: confirmation, password: NEW_PASSWORD })),
       ).toBe(400);
 
-      await post('verify-email', { token: confirmation }).expect(204);
+      await post('verify-email', { token: confirmation, password: PASSWORD }).expect(204);
       await post('password/forgot', { email }).expect(202);
       const reset = await resetToken(email);
-      expect(await statusOf(post('verify-email', { token: reset }))).toBe(400);
+      expect(await statusOf(post('verify-email', { token: reset, password: PASSWORD }))).toBe(400);
     });
 
     it('refuses a well-known new password and keeps the token usable', async () => {
@@ -678,7 +741,7 @@ describe('accounts on a real platform database', () => {
     it('hold no address, password or token of a whole journey', async () => {
       const email = await register();
       const confirmation = await confirmationToken(email);
-      await post('verify-email', { token: confirmation }).expect(204);
+      await post('verify-email', { token: confirmation, password: PASSWORD }).expect(204);
       const cookies = cookiesOf(await login(email).expect(200));
       const next = cookiesOf(await refresh(cookies).expect(200));
       await post('password/forgot', { email }).expect(202);
