@@ -14,6 +14,7 @@ Languages: **Arabic (default, right-to-left) and English**; more languages will 
 | `.claude/skills/` | Project skills (how we work) | Active |
 | `docs/` | Product docs (`docs/product/`), architecture and roadmap (`docs/architecture/`), ADRs (`docs/adr/`), developer setup (`docs/dev/`) | Active |
 | `packages/` | Shared configuration: `@medibooker/tsconfig` (TypeScript presets), `@medibooker/eslint-config` (ESLint presets and guardrail rules); `@medibooker/i18n` (locales, direction, negotiation); `@medibooker/design-tokens` (tokens from Figma, Tailwind stylesheet); `@medibooker/api-client` (generated client, `ApiError`, query client) | Active |
+| `medibooker.cmd`, `medibooker.sh` | Control menu of the two Docker stacks `compose.dev.yaml` and `compose.prod.yaml` (`scripts/medibooker.ts`, ADR 0010) | Active |
 | `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans (`scan-secrets.ts`), CI-configuration test (`ci-config.test.ts`), generated-file check (`check-drift.ts`) | Active |
 | `.github/` | GitHub Actions: workflows `ci.yml` (only required check `ci-ok`), `codeql.yml`, `scheduled.yml`; composite actions `setup` and `gitleaks`; actionlint config; pull request template. `renovate.json` sits at the root — `docs/adr/0009-ci-branch-model-and-supply-chain.md` | Active |
 | `apps/` | `api` (NestJS 12, since F03), `db-migrate` (database CLI `medibooker-db`, since F04), `web` (Next.js, since F06); `mobile` (Expo) follows | Built feature by feature along `docs/architecture/08-roadmap.md` |
@@ -104,6 +105,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 
 | Task | Command |
 |---|---|
+| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, tests, clean-up. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
 | Install (also installs the git hooks) | `pnpm install` |
 | Install exactly from the lockfile (CI) | `pnpm install --frozen-lockfile` |
 | Lint (fails on any warning) | `pnpm lint` |
@@ -116,7 +118,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 | Lint the workflows and validate `renovate.json` (Docker; before a commit that changes `.github/` or `renovate.json`) | commands in `docs/dev/getting-started.md` (images from `ACTIONLINT_IMAGE` and `RENOVATE_IMAGE` in `ci.yml`) |
 | Create the local environment files (once; both are gitignored) | `cp .env.example .env` and `cp apps/web/.env.example apps/web/.env.local` |
 | Dev servers (API on http://localhost:3001 with values from the root `.env`, web on http://localhost:3000) | `pnpm dev` |
-| Start the local PostgreSQL (`compose.yaml`; Docker Desktop must run) | `pnpm db:up` |
+| Start only the local PostgreSQL, for tools on the host (`compose.dev.yaml`; Docker Desktop must run) | `pnpm db:up` |
 | Apply all migrations (platform and every practice database) | `pnpm db:migrate` |
 | Seed the synthetic practices | `pnpm db:seed` |
 | Reset the local databases | `pnpm db:reset` |

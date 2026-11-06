@@ -42,8 +42,8 @@ medibooker-db (one-off tasks: provisioning, migration runner, backups) ──►
 | [0007](../adr/0007-web-ui-shadcn.md) | Web UI components: shadcn/ui on React Aria | Accepted |
 | [0008](../adr/0008-animation-gsap.md) | Animation: GSAP on the web, Reanimated in the app | Accepted |
 | [0009](../adr/0009-ci-branch-model-and-supply-chain.md) | Branch model, CI gates and supply chain | Accepted (2026-11-05, F02; amended for F04) |
-| 0010 | Container images, delivery and the connection budget | Planned in F05, completed in OPS01 |
-| 0011 | Error model (problem+json, codes, status policy) | Planned in X01 |
+| 0010 | Container images and the two Docker stacks; delivery and the connection budget follow | Accepted; completed in F05 and OPS01 |
+| 0011 | Error model (problem+json, codes, status policy) | Accepted |
 | 0012 | Contract pipeline and committed generated code | Accepted |
 | 0013 | i18n library binding | Planned in X04, after decision D1 |
 | 0014 | Time handling: Temporal, practice zones, elapsed durations | Planned in P04 |
@@ -79,7 +79,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | P01 and P02 Practice model and public practice endpoint | Committed (`b20f32c`): the first functional feature |
 | X01 and X02 Error system and OpenAPI contract | Committed (`6bba58e`) |
 | F06 Next.js web skeleton | Committed (`c80aa43`) |
-| X05 and X03 Design tokens and generated API client | Done (one commit) |
+| X05 and X03 Design tokens and generated API client | Committed (`099be7b`) |
+| F05, first part: Docker images, dev and prod stacks, control menu | Done (this commit) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

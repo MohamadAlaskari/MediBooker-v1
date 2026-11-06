@@ -190,7 +190,7 @@ describe('a Tailwind compile of the stylesheet', () => {
     return compiler.build([...candidates]);
   }
 
-  const selectorOf = (candidate: string): string => `.${candidate.replace(/[:.]/g, '\\$&')}`;
+  const selectorOf = (candidate: string): string => `.${candidate.replace(/[\\:.]/g, '\\$&')}`;
 
   it.each([
     'bg-bg-canvas',

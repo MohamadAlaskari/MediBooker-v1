@@ -132,7 +132,7 @@
       "groupName": "gitleaks"
     },
     {
-      "description": "The PostgreSQL images of compose.yaml and of the integration tests move in one pull request",
+      "description": "The PostgreSQL images of compose.dev.yaml and of the integration tests move in one pull request",
       "matchDatasources": ["docker"],
       "matchDepNames": ["postgres"],
       "groupName": "postgres"

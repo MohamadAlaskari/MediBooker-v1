@@ -357,12 +357,50 @@ jobs:
             apps/web/test-results/
           retention-days: 7
 
+  # Both Docker stacks, started and checked through the control menu that developers use (ADR 0010).
+  images:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Start the production stack
+        run: node scripts/medibooker.ts prod up
+
+      - name: Fill the demo practices of the production stack
+        run: node scripts/medibooker.ts prod seed
+
+      - name: Run the smoke test of the production stack
+        run: node scripts/medibooker.ts prod smoke
+
+      - name: Start the development stack
+        run: node scripts/medibooker.ts dev up
+
+      - name: Run the smoke test of the development stack
+        run: node scripts/medibooker.ts dev smoke
+
+      - name: Show the logs of both stacks
+        if: ${{ failure() }}
+        run: |
+          docker compose --env-file .env.prod -f compose.prod.yaml logs --no-color --tail 200
+          docker compose --env-file .env -f compose.dev.yaml --profile app logs --no-color --tail 200
+
   # The only required status check (ADR 0009). Keep its job id and name ci-ok, and add every new
   # job to needs (scripts/ci-config.test.ts checks it).
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [config-lint, quality, security, secrets-history, sbom, integration, e2e-web]
+    needs: [config-lint, quality, security, secrets-history, sbom, integration, e2e-web, images]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}

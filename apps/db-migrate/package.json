@@ -4,6 +4,9 @@
   "private": true,
   "description": "MediBooker v2 database lifecycle CLI (medibooker-db): migrations, provisioning and the per-practice migration runner. Run by Node's type stripping.",
   "type": "module",
+  "files": [
+    "src"
+  ],
   "bin": {
     "medibooker-db": "src/cli.ts"
   },

@@ -21,7 +21,8 @@ MediBooker-v1/                         v2 monorepo; v1, removed on 2026-11-02 (L
 ├─ infra/local/                        F04: postgres/init/01-cluster.sh · F06: Caddyfile
 ├─ scripts/                            F01: git-hook scripts with tests (check-commit-msg.ts, check-hooks.ts, run-gitleaks.ts, lib/) · F02: scan-secrets.ts, the CI secret scans (pin, range, history, self-test), with lib/scan-range.ts · F04: check-migrations.ts with lib/migration-rules.ts, lib/migration-tree.ts and lib/sql-statements.ts · X02: check-drift.ts
 ├─ docs/                               adr/, architecture/, dev/ (F01), product/
-├─ compose.yaml · docker-bake.hcl      F04 · F05 (07)
+├─ compose.dev.yaml · compose.prod.yaml  F05 (07)
+├─ medibooker.cmd · medibooker.sh     the control menu of both stacks (ADR 0010)
 ├─ package.json · pnpm-workspace.yaml · pnpm-lock.yaml · turbo.json                  F01
 ├─ eslint.config.js · tsconfig.json · vitest.config.ts                                F01: lint, typecheck and tests of the root scripts
 ├─ prettier.config.js · .prettierignore · .editorconfig · .gitattributes · .gitignore · .node-version   F01
@@ -54,7 +55,7 @@ v2 shares no code with v1. The workspace members are `apps/*` and `packages/*` o
 
   | Script | Command |
   |---|---|
-  | `db:up` | `docker compose up -d --wait db`: the compose database, healthy over TCP ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)) |
+  | `db:up` | `docker compose -f compose.dev.yaml up -d --wait db`: the compose database, healthy over TCP ([07 §2](07-docker-ci-cd.md#2-compose-for-local-development)) |
   | `db:migrate` · `db:reset` | `turbo run db:migrate` · `turbo run db:reset`: `@medibooker/db-migrate` runs `node src/cli.ts migrate all` · `node src/cli.ts reset-local` |
   | `db:seed` | `turbo run db:seed`: the API's `tsx prisma/seed.ts`, after `db:generate` |
   | `test:integration` | `turbo run test:integration`: the API's `vitest run --project integration`, after `db:generate`; needs Docker |
@@ -344,7 +345,7 @@ Features import each other only through their `index.ts`.
 | lucide-react-native · @expo-google-fonts/inter · /noto-sans-arabic | 1.66.0 · 0.4.2 · 0.4.3 | same | — |
 | jest · jest-expo · @testing-library/react-native | 30.5.2 · ~58.0.13 · 14.1.0 | same | — |
 | test-renderer | 1.3.0 | 1.3.1 | jest-expo 58.0.13 depends on exactly 1.3.0; one renderer copy |
-| Docker images | node:26.13.0-trixie-slim · postgres:18.6-trixie · caddy:2.11.7-alpine · axllent/mailpit:v1.33.0 | same (postgres re-checked for F04 on 2026-11-05: 18.6 is the newest 18.x) | Pinned by digest; PostgreSQL 19 is a release candidate. F04 pins `postgres:18.6-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b547f540c730478583`, the multi-arch index pushed on 2026-11-05 at 10:14 UTC, in `compose.yaml` and in the Testcontainers constant |
+| Docker images | node:26.13.0-trixie-slim · postgres:18.6-trixie · caddy:2.11.9-alpine · axllent/mailpit:v1.33.0 | same (postgres re-checked for F04 on 2026-11-05: 18.6 is the newest 18.x) | Pinned by digest; PostgreSQL 19 is a release candidate. F04 pins `postgres:18.6-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b547f540c730478583`, the multi-arch index pushed on 2026-11-05 at 10:14 UTC, in `compose.yaml` and in the Testcontainers constant |
 | PostgreSQL client tools (OPS02) | `postgresql-client-18` from the PGDG repository (`trixie-pgdg`) | Debian trixie ships 17 | `pg_dump` 17 refuses a PostgreSQL 18 server; the migrate image checks `pg_dump --version`, and a Renovate custom manager moves the pin ([07 §1](07-docker-ci-cd.md#1-images)) |
 | PgBouncer | not used yet | — | Chosen in OPS01 if the connection budget requires it (ADR 0005 §2.4) |
 | GitHub runner | `ubuntu-26.04` | generally available since 2026-09-17; `ubuntu-latest` moves from 24.04 to 26.04 until 2026-11-19 | Newest available image; never `ubuntu-latest` while it moves; `ubuntu-24.04` is the documented fallback if a tool breaks. actionlint 1.7.12 needs the label declared in `.github/actionlint.yaml` |

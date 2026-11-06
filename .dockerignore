@@ -1,0 +1,43 @@
+# The build context of every image is the repository root (07 §1).
+
+# Dependencies and build output: images install and build their own.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+reports
+apps/*/reports
+packages/*/reports
+**/playwright-report
+**/test-results
+**/next-env.d.ts
+**/*.tsbuildinfo
+**/*.log
+apps/api/src/generated
+
+# Needed by no image.
+.git
+.github
+.claude
+.idea
+.vscode
+docs
+apps/mobile
+compose.*.yaml
+medibooker.cmd
+medibooker.sh
+
+# Secrets, as in .gitignore, at every depth.
+**/.env*
+**/*.env
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.mobileprovision
+**/.npmrc

@@ -29,4 +29,11 @@ describe('next.config (03 §3)', () => {
     expect(config(PHASE_PRODUCTION_BUILD).rewrites).toBeUndefined();
     expect(config(PHASE_DEVELOPMENT_SERVER).rewrites).toBeDefined();
   });
+
+  it('writes the standalone server only while the Docker image builds', () => {
+    expect(config(PHASE_PRODUCTION_BUILD).output).toBeUndefined();
+    vi.stubEnv('NEXT_OUTPUT', 'standalone');
+    expect(config(PHASE_PRODUCTION_BUILD).output).toBe('standalone');
+    expect(config(PHASE_PRODUCTION_BUILD).outputFileTracingRoot).toMatch(/[^\\/]$/);
+  });
 });

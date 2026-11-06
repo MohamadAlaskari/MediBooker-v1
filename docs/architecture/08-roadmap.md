@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (this commit), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (this commit, the user's request of 2026-11-06), X04, X06, X07, P03, P04, P05, P06, then the accounts and booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -30,14 +30,14 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 5 | F02 | CI quality and security baseline | `ci: add GitHub Actions gates, secret scans and logging lint rules` | U2, U3 | committed (`11a2113`) |
 | – | F08 | Full-history secret scan as a required check | – | – | merged into F02 (U1 declined, 2026-11-04) |
 | 6 | F04 | Platform and practice data layer | `feat(api): add per-practice databases with provisioning and runner` | - | committed (`284776c`) |
-| 7 | F05 | API images and delivery pipeline | `build(docker): add API images, compose stack and GHCR publishing` | U5 | planned |
+| 7 | F05 | API images and delivery pipeline | `feat(docker): add dev and prod stacks with a control menu` (images and stacks); the delivery pipeline follows | U5 | images and stacks done (this commit), delivery planned |
 | 8 | F06 | Next.js web skeleton | `feat(web): add Next.js 16 skeleton with CSP nonce and locale routes` | - | committed (`c80aa43`) |
 | 9 | F07 | Expo app skeleton | `feat(mobile): add Expo SDK 58 skeleton with router and test setup` | - | planned |
 | 10 | X01 | Server error system | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
 | 11 | X02 | OpenAPI contract and app config | `feat(api): add problem+json errors, validation and OpenAPI contract` | - | committed (`6bba58e`) |
-| 12 | X03 | Generated API client | `feat(shared): add design tokens and generated API client` | - | done (this commit) |
+| 12 | X03 | Generated API client | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
 | 13 | X04 | Shared ICU catalogues | `feat(i18n): add shared ICU catalogues for Arabic and English` | D1 | planned |
-| 14 | X05 | Design and motion tokens | `feat(shared): add design tokens and generated API client` | - | done (this commit) |
+| 14 | X05 | Design and motion tokens | `feat(shared): add design tokens and generated API client` | - | committed (`099be7b`) |
 | 15 | X06 | Web shell | `feat(web): add i18n, RTL, theming, fonts, motion and error routes` | D1 | planned |
 | 16 | X07 | Web UI kit (shadcn/ui) | `feat(web): add shadcn/ui kit on React Aria mapped to design tokens` | - | planned |
 | 17 | X08 | Mobile shell | `feat(mobile): add i18n, RTL, theming, fonts and version gate` | D1 | planned |
@@ -382,6 +382,8 @@ Acceptance:
 - Smoke test: `docker compose --profile app up -d --wait --no-build` brings `/health/ready` to 200.
 - `docker save <api image> | gzip | wc -c` is at most 157286400 (150 MB); the migrate image at most 209715200 (200 MB); the measured sizes are in the commit body.
 - `deploy.yml` dispatched for `staging` prints three digests, verifies their attestations, prints the plan with both migration steps and ends with the no-target notice; for `production` it waits for the reviewer.
+
+As built, first part (the user's request of 2026-11-06, ADR 0010): the API and web images, two stacks (`compose.dev.yaml`, `compose.prod.yaml`) and the control menu `medibooker.cmd` / `medibooker.sh` with `scripts/medibooker.ts`, which needs only Node and Docker. A smoke test in the menu checks a running stack, and the CI job `images` starts both stacks through the menu and runs it. Still open, just before OPS01: `docker-bake.hcl`, `.trivyignore` and Trivy, publishing to GHCR with attestations, `deploy.yml`, the CodeQL job in `ci.yml`, the memory measurement of `migrate` (a 1 GB limit until then) and the size budgets. The Dockerfile of 07 §1 needed no change except health-check timings; `pnpm install --trust-lockfile` is left out. Open minors of the security review: `apps/web/src/proxy.ts` matches too little (`/apifoo`, `/en/foo.bar` get a 404 without CSP), to fix with P03, which adds `robots.txt` and the sitemap there; ports 8081 and 8082 go in OPS01; during a run of the integration tests Testcontainers publishes its PostgreSQL on all interfaces, with random passwords and synthetic data (accepted).
 
 ### F06 — Next.js web skeleton
 

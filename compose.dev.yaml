@@ -1,0 +1,212 @@
+# The development stack (07 §2): the control menu (medibooker.cmd, medibooker.sh) runs it.
+# The passwords come from the root .env (cp .env.example .env).
+# Without a profile only the database starts (pnpm db:up, for tools on the host); the profile app
+# adds the API and the web app with live reload, and the profile tools the test containers.
+name: medibooker-dev
+
+x-dev-image: &dev-image
+  image: medibooker-dev:local
+  build:
+    context: .
+    dockerfile: infra/local/dev.Dockerfile
+    target: dev
+
+# The databases as the tools reach them from a container. Never used by the API.
+x-tool-env: &tool-env
+  NODE_ENV: development
+  APP_ENV: local
+  SECRET_STORE: dev
+  DEV_SECRET_SEED: ${DEV_SECRET_SEED:?copy .env.example to .env}
+  DATABASE_CLUSTER_ENDPOINTS: '{"local":"db:5432"}'
+  PLATFORM_MIGRATION_URL: postgresql://platform_owner:${PLATFORM_OWNER_PASSWORD}@db:5432/medibooker_platform
+  PROVISIONER_DATABASE_URL: postgresql://medibooker_provisioner:${PROVISIONER_PASSWORD}@db:5432/postgres
+  DATABASE_ADMIN_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+
+services:
+  db:
+    # The integration tests pin the same image (apps/api/test/integration/support/postgres-image.ts);
+    # Renovate moves both.
+    image: postgres:18.6-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b547f540c730478583
+    # The server log settings of ADR 0005 §4.10: no constraint details or bind values in the log.
+    command:
+      [
+        'postgres',
+        '-c',
+        'max_connections=200',
+        '-c',
+        'log_error_verbosity=terse',
+        '-c',
+        'log_parameter_max_length=0',
+        '-c',
+        'log_parameter_max_length_on_error=0',
+      ]
+    ports:
+      - 127.0.0.1:5432:5432
+    shm_size: 256mb
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      PLATFORM_OWNER_PASSWORD: ${PLATFORM_OWNER_PASSWORD:?copy .env.example to .env}
+      PLATFORM_APP_PASSWORD: ${PLATFORM_APP_PASSWORD:?copy .env.example to .env}
+      PROVISIONER_PASSWORD: ${PROVISIONER_PASSWORD:?copy .env.example to .env}
+    volumes:
+      # PostgreSQL 18 images expect the parent of the data directory.
+      - pgdata:/var/lib/postgresql
+      # 01-cluster.sh creates the cluster roles and the platform database on the first start.
+      - ./infra/local/postgres/init:/docker-entrypoint-initdb.d:ro
+    # Over TCP: during initialisation the image's temporary server listens on the Unix socket
+    # only, so a socket check would report healthy before 01-cluster.sh has finished.
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres']
+      interval: 2s
+      retries: 30
+      start_period: 30s
+
+  migrate:
+    <<: *dev-image
+    profiles: [app, tools]
+    working_dir: /repo/apps/db-migrate
+    command: ['node', 'src/cli.ts', 'migrate', 'all']
+    environment: *tool-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Fills the two synthetic practices; a second run changes nothing.
+  seed:
+    <<: *dev-image
+    profiles: [app, tools]
+    command: ['pnpm', '--filter', '@medibooker/api', 'db:seed']
+    environment: *tool-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *dev-image
+    profiles: [app]
+    working_dir: /repo/apps/api
+    # Not nest start --watch: a sync fires its watcher twice, and the two restarts race for the
+    # port. Compose watch syncs a change and restarts this container, which takes a few seconds.
+    command: ['sh', '-c', 'pnpm exec nest build && exec node --enable-source-maps dist/main.js']
+    init: true
+    stop_grace_period: 5s
+    environment:
+      NODE_ENV: development
+      APP_ENV: local
+      HOST: 0.0.0.0
+      PORT: 3001
+      LOG_PRETTY: 'true'
+      OPENAPI_UI_ENABLED: 'true'
+      TRUST_PROXY_HOPS: 0
+      SECRET_STORE: dev
+      DEV_SECRET_SEED: ${DEV_SECRET_SEED:?copy .env.example to .env}
+      DATABASE_CLUSTER_ENDPOINTS: '{"local":"db:5432"}'
+      PLATFORM_DATABASE_URL: postgresql://platform_app:${PLATFORM_APP_PASSWORD}@db:5432/medibooker_platform
+    ports:
+      - 127.0.0.1:3001:3001
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/health/live').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./apps/api/src
+          target: /repo/apps/api/src
+          ignore:
+            - generated/
+        - action: rebuild
+          path: ./apps/api/prisma
+        - action: rebuild
+          path: ./apps/api/package.json
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+
+  web:
+    <<: *dev-image
+    profiles: [app]
+    command: ['pnpm', '--filter', '@medibooker/web', 'dev']
+    environment:
+      NODE_ENV: development
+      APP_ENV: local
+      API_INTERNAL_URL: http://api:3001
+      PUBLIC_SITE_URL: http://localhost:3000
+    ports:
+      - 127.0.0.1:3000:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/web/src
+          target: /repo/apps/web/src
+        - action: rebuild
+          path: ./apps/web/next.config.ts
+        - action: rebuild
+          path: ./apps/web/package.json
+        - action: rebuild
+          path: ./packages
+          ignore:
+            - '**/node_modules/'
+            - '**/dist/'
+            - '**/coverage/'
+            - '**/reports/'
+            - '**/.turbo/'
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+
+  # Lint, type check and unit tests: docker compose --profile tools run --rm tools.
+  tools:
+    <<: *dev-image
+    profiles: [tools]
+    command: ['pnpm', 'exec', 'turbo', 'run', 'lint', 'typecheck', 'test']
+    environment:
+      CI: '1'
+
+  # The integration tests start their own PostgreSQL through the Docker socket (Testcontainers).
+  # The socket controls Docker itself: run only code you trust here, never an unreviewed branch.
+  integration:
+    <<: *dev-image
+    profiles: [tools]
+    command: ['pnpm', '--filter', '@medibooker/api', 'test:integration']
+    # Only root may use the Docker socket; this container runs nothing but the tests.
+    user: root
+    environment:
+      CI: '1'
+      # As in CI: Testcontainers' cleanup container is not pinned, and it would get the socket.
+      TESTCONTAINERS_RYUK_DISABLED: 'true'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # The end-to-end tests in Chromium, against the production build of the web app.
+  e2e:
+    image: medibooker-dev-e2e:local
+    build:
+      context: .
+      dockerfile: infra/local/dev.Dockerfile
+      target: e2e
+    profiles: [tools]
+    command: ['pnpm', 'exec', 'turbo', 'run', 'test:e2e', '--filter=@medibooker/web']
+    environment:
+      CI: '1'
+
+volumes:
+  pgdata:

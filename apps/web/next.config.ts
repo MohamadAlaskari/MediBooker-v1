@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 import type { NextConfig } from 'next';
 
@@ -21,6 +22,14 @@ export default function config(phase: string): NextConfig {
     reactCompiler: true,
     // The root layouts live under [locale], so a language we lack needs its own 404 page.
     experimental: { globalNotFound: true },
+    // The Docker image runs the standalone server; `next start` (the e2e tests) needs the normal
+    // output. NEXT_OUTPUT is set only while the image builds.
+    ...(process.env.NEXT_OUTPUT === 'standalone'
+      ? {
+          output: 'standalone',
+          outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
+        }
+      : {}),
     headers: () => Promise.resolve([{ source: '/:path*', headers: SECURITY_HEADERS }]),
     // Same-origin in development too, as behind the proxy in production.
     ...(phase === PHASE_DEVELOPMENT_SERVER

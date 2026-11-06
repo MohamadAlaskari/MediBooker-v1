@@ -1,6 +1,6 @@
 /**
  * The PostgreSQL image of the integration tests, pinned by its multi-arch index digest.
- * compose.yaml pins the same image for local development; Renovate moves both. Prettier would
+ * compose.dev.yaml pins the same image for local development; Renovate moves both. Prettier would
  * wrap the value, so the two lines its manager matches stay as they are.
  */
 // prettier-ignore

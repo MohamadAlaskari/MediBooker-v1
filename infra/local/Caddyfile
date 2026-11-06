@@ -1,0 +1,25 @@
+# The reverse proxy of compose.prod.yaml (07 §2): one origin for the web app and the API.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	# Probes are for the platform, not for visitors. In a handle: Caddy sorts handle before respond.
+	@probes path /health /health/* /healthz
+	handle @probes {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy api:3001 {
+			# Only a trusted hop chooses the request id: this replaces any client value (02 §4).
+			header_up X-Request-Id {http.request.uuid}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

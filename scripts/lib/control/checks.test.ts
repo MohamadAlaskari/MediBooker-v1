@@ -1,0 +1,294 @@
+import { describe, expect, it, vi } from 'vitest';
+import { allPassed, healthChecks, runChecks, smokeChecks, type Check } from './checks.ts';
+import { STACKS } from './stacks.ts';
+
+interface Route {
+  readonly status: number;
+  readonly body?: string;
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
+function answering(routes: Readonly<Record<string, Route>>): typeof fetch {
+  return vi.fn((input: string | URL | Request) => {
+    const url = input instanceof Request ? input.url : String(input);
+    const route = routes[url];
+    if (route === undefined) return Promise.reject(new Error(`No route for ${url}`));
+    return Promise.resolve(
+      new Response(route.body ?? '', {
+        status: route.status,
+        ...(route.headers === undefined ? {} : { headers: route.headers }),
+      }),
+    );
+  });
+}
+
+/** Everything a healthy stack answers, by the URLs of its checks. */
+function healthyRoutes(mode: 'dev' | 'prod'): Readonly<Record<string, Route>> {
+  const { apiProbeUrl, webProbeUrl, webUrl, apiUrl } = STACKS[mode];
+  const page = (direction: string) => ({
+    status: 200,
+    body: `<html dir="${direction}">`,
+    headers: { 'content-security-policy': "script-src 'self' 'nonce-abc'" },
+  });
+  return {
+    [`${apiProbeUrl}/health/live`]: { status: 200 },
+    [`${apiProbeUrl}/health/ready`]: { status: 200 },
+    [`${webProbeUrl}/healthz`]: { status: 200 },
+    [`${webUrl}/`]: { status: 307, headers: { location: '/en' } },
+    [`${webUrl}/en`]: page('ltr'),
+    [`${webUrl}/ar`]: page('rtl'),
+    [`${apiUrl}/api/v1/public/practices/al-noor`]: { status: 200, body: '{"slug":"al-noor"}' },
+    [`${apiUrl}/api/v1/public/practices/gibt-es-nicht`]: {
+      status: 404,
+      headers: {
+        'content-type': 'application/problem+json',
+        'x-request-id': 'chosen-by-the-proxy',
+      },
+    },
+    // In development the probes and the Swagger UI answer; behind the proxy they do not.
+    ...(mode === 'dev'
+      ? { [`${apiProbeUrl}/api/docs`]: { status: 200 } }
+      : {
+          [`${webUrl}/health/ready`]: { status: 404 },
+          [`${webUrl}/healthz`]: { status: 404 },
+          [`${apiUrl}/api/docs`]: { status: 404 },
+        }),
+  };
+}
+
+describe('runChecks', () => {
+  const check: Check = {
+    name: 'Probe',
+    url: 'http://test/a',
+    hint: 'Do something',
+    verify: ({ status }) => (status === 200 ? undefined : 'Not fine'),
+  };
+
+  it('reports a passed check without a problem', async () => {
+    const [result] = await runChecks([check], answering({ 'http://test/a': { status: 200 } }));
+    expect(result).toEqual({
+      name: 'Probe',
+      url: 'http://test/a',
+      ok: true,
+      problem: '',
+      hint: 'Do something',
+      advisory: false,
+    });
+  });
+
+  it('reports the problem of a failed check', async () => {
+    const [result] = await runChecks([check], answering({ 'http://test/a': { status: 500 } }));
+    expect(result).toMatchObject({ ok: false, problem: 'Not fine' });
+  });
+
+  it('treats an unreachable service as a failed check, not as a crash', async () => {
+    const [result] = await runChecks([check], answering({}));
+    expect(result).toMatchObject({ ok: false, problem: 'Nicht erreichbar' });
+  });
+
+  it('never follows a redirect and sends the headers of the check', async () => {
+    const fetchImpl = answering({ 'http://test/a': { status: 200 } });
+    await runChecks([{ ...check, headers: { 'Accept-Language': 'en' } }], fetchImpl);
+    expect(vi.mocked(fetchImpl).mock.calls[0]?.[1]).toMatchObject({
+      redirect: 'manual',
+      headers: { 'Accept-Language': 'en' },
+    });
+  });
+});
+
+describe('a fresh database without demo practices', () => {
+  const routes = {
+    ...healthyRoutes('prod'),
+    'http://localhost:8080/api/v1/public/practices/al-noor': { status: 404 },
+  };
+
+  it('is no error for the health entry', async () => {
+    const results = await runChecks(healthChecks(STACKS.prod), answering(routes));
+    expect(results.find(({ ok }) => !ok)).toMatchObject({ name: 'Demo-Praxis', advisory: true });
+    expect(allPassed(results)).toBe(true);
+  });
+
+  it('fails the smoke test, which needs the data', async () => {
+    const results = await runChecks(smokeChecks(STACKS.prod, false), answering(routes));
+    expect(allPassed(results)).toBe(false);
+  });
+});
+
+describe('the checks of a healthy stack', () => {
+  it.each(['dev', 'prod'] as const)('%s passes the smoke test', async (mode) => {
+    const results = await runChecks(
+      smokeChecks(STACKS[mode], false),
+      answering(healthyRoutes(mode)),
+    );
+    expect(results.filter(({ ok }) => !ok)).toEqual([]);
+  });
+
+  it('asks the probes past the proxy in production', () => {
+    const urls = healthChecks(STACKS.prod).map(({ url }) => url);
+    expect(urls).toContain('http://localhost:8081/health/ready');
+    expect(urls).toContain('http://localhost:8082/healthz');
+    expect(urls).toContain('http://localhost:8080/en');
+  });
+
+  it('expects the Swagger UI only where it is on', () => {
+    const names = (enabled: boolean) => smokeChecks(STACKS.prod, enabled).map(({ name }) => name);
+    expect(names(false)).toContain('Swagger ist aus');
+    expect(names(true)).not.toContain('Swagger ist aus');
+  });
+});
+
+describe('what the smoke test catches', () => {
+  async function failuresWith(
+    mode: 'dev' | 'prod',
+    overrides: Readonly<Record<string, Route>>,
+  ): Promise<readonly string[]> {
+    const routes = { ...healthyRoutes(mode), ...overrides };
+    const results = await runChecks(smokeChecks(STACKS[mode], false), answering(routes));
+    return results.filter(({ ok }) => !ok).map(({ problem }) => problem);
+  }
+
+  it('a proxy that keeps the request id of the visitor', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/api/v1/public/practices/gibt-es-nicht': {
+          status: 404,
+          headers: {
+            'content-type': 'application/problem+json',
+            'x-request-id': '11111111-1111-4111-8111-111111111111',
+          },
+        },
+      }),
+    ).toEqual(['Request-ID des Besuchers übernommen']);
+  });
+
+  it('an answer without a request id', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/api/v1/public/practices/gibt-es-nicht': {
+          status: 404,
+          headers: { 'content-type': 'application/problem+json' },
+        },
+      }),
+    ).toEqual(['Keine Request-ID']);
+  });
+
+  it('a redirect to the address of the container', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/': { status: 307, headers: { location: 'http://0.0.0.0:3000/en' } },
+      }),
+    ).toEqual(['Ziel http://0.0.0.0:3000/en']);
+  });
+
+  it('a start page that does not redirect', async () => {
+    expect(await failuresWith('dev', { 'http://localhost:3000/': { status: 200 } })).toEqual([
+      'Status 200 statt 307',
+    ]);
+  });
+
+  it('accepts a redirect to the full address of the site', async () => {
+    expect(
+      await failuresWith('prod', {
+        'http://localhost:8080/': {
+          status: 307,
+          headers: { location: 'http://localhost:8080/en' },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it('a redirect without a target', async () => {
+    expect(await failuresWith('dev', { 'http://localhost:3000/': { status: 307 } })).toEqual([
+      'Ziel ',
+    ]);
+  });
+
+  it('a proxy that lets probes through', async () => {
+    expect(
+      await failuresWith('prod', { 'http://localhost:8080/healthz': { status: 200 } }),
+    ).toEqual(['Status 200 statt 404']);
+  });
+
+  it('a Swagger UI that should be off', async () => {
+    expect(
+      await failuresWith('prod', { 'http://localhost:8080/api/docs': { status: 200 } }),
+    ).toEqual(['Status 200 statt 404']);
+  });
+
+  it('a page in the wrong direction', async () => {
+    expect(
+      await failuresWith('dev', {
+        'http://localhost:3000/ar': { status: 200, body: '<html dir="ltr">' },
+      }),
+    ).toEqual(['Nicht dir="rtl"']);
+  });
+
+  it('a page without a nonce', async () => {
+    expect(
+      await failuresWith('dev', {
+        'http://localhost:3000/ar': {
+          status: 200,
+          body: '<html dir="rtl">',
+          headers: { 'content-security-policy': "script-src 'self'" },
+        },
+      }),
+    ).toEqual(['Keine CSP mit Nonce']);
+  });
+
+  it('a page that does not load', async () => {
+    expect(await failuresWith('dev', { 'http://localhost:3000/ar': { status: 500 } })).toEqual([
+      'Status 500 statt 200',
+    ]);
+  });
+
+  it('an error that is no problem document', async () => {
+    expect(
+      await failuresWith('dev', {
+        'http://localhost:3001/api/v1/public/practices/gibt-es-nicht': {
+          status: 404,
+          headers: { 'content-type': 'text/html' },
+        },
+      }),
+    ).toEqual(['Content-Type text/html']);
+  });
+
+  it('a missing problem status', async () => {
+    expect(
+      await failuresWith('dev', {
+        'http://localhost:3001/api/v1/public/practices/gibt-es-nicht': { status: 500 },
+      }),
+    ).toEqual(['Status 500 statt 404']);
+  });
+
+  it('a practice that is missing, with what to do', async () => {
+    const results = await runChecks(
+      smokeChecks(STACKS.dev, false),
+      answering({
+        ...healthyRoutes('dev'),
+        'http://localhost:3001/api/v1/public/practices/al-noor': { status: 404 },
+      }),
+    );
+    expect(results.find(({ ok }) => !ok)).toMatchObject({
+      name: 'Demo-Praxis',
+      problem: 'Status 404 statt 200',
+      hint: expect.stringContaining('Demo-Praxen einspielen') as unknown,
+    });
+  });
+
+  it('the wrong practice', async () => {
+    expect(
+      await failuresWith('dev', {
+        'http://localhost:3001/api/v1/public/practices/al-noor': {
+          status: 200,
+          body: '{"slug":"other"}',
+        },
+      }),
+    ).toEqual(['Falsche Praxis']);
+  });
+
+  it('a service that is not healthy', async () => {
+    expect(
+      await failuresWith('dev', { 'http://localhost:3001/health/ready': { status: 503 } }),
+    ).toEqual(['Status 503']);
+  });
+});

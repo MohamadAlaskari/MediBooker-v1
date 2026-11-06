@@ -103,6 +103,14 @@ catalog:
   yaml: 2.9.1
   zod: 4.6.7
 
+# Declared as a required peer without peerDependenciesMeta: this keeps the Prisma CLI out of the
+# API's production image (pnpm deploy --prod). The migrate image has it through db-migrate (07 §1).
+packageExtensions:
+  '@nestjs-cls/transactional-adapter-prisma':
+    peerDependenciesMeta:
+      prisma:
+        optional: true
+
 # Install scripts run only for the packages listed here (pnpm 12 strictDepBuilds, ADR 0006).
 allowBuilds:
   lefthook: true

@@ -1,0 +1,150 @@
+# The production stack on this machine (07 §2), never for real patient data: no TLS, no backups, and
+# only the development secret store. The built images, read-only, behind the proxy on
+# http://localhost:8080. The control menu (medibooker.cmd, medibooker.sh) runs it and writes the
+# passwords into .env.prod on the first start. Its own project, network and database: nothing is
+# shared with the development stack. APP_ENV stays local until OPS01 brings a real secret store.
+name: medibooker-prod
+
+x-hardening: &hardening
+  read_only: true
+  init: true
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  pids_limit: 256
+  tmpfs:
+    - /tmp
+
+# Where the tools and the API reach the cluster, whatever the platform database has registered.
+x-cluster-env: &cluster-env
+  APP_ENV: local
+  SECRET_STORE: dev
+  DEV_SECRET_SEED: ${DEV_SECRET_SEED:?run the control menu, it writes .env.prod}
+  DATABASE_CLUSTER_ENDPOINTS: '{"local":"db:5432"}'
+
+services:
+  db:
+    # One image pin: Renovate moves it in compose.dev.yaml. No port: only this stack reaches it.
+    extends:
+      file: compose.dev.yaml
+      service: db
+    ports: !reset []
+    networks: [data]
+    security_opt: ['no-new-privileges:true']
+    pids_limit: 512
+
+  migrate:
+    <<: *hardening
+    image: medibooker-api-migrate:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    command: ['migrate', 'all']
+    mem_limit: 1g
+    networks: [data]
+    environment:
+      <<: *cluster-env
+      PLATFORM_MIGRATION_URL: postgresql://platform_owner:${PLATFORM_OWNER_PASSWORD}@db:5432/medibooker_platform
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The synthetic demo practices, only on request: the seed is a development tool, so this one
+  # service uses the development image.
+  seed:
+    image: medibooker-dev:local
+    build:
+      context: .
+      dockerfile: infra/local/dev.Dockerfile
+      target: dev
+    profiles: [demo]
+    command: ['pnpm', '--filter', '@medibooker/api', 'db:seed']
+    networks: [data]
+    environment:
+      <<: *cluster-env
+      NODE_ENV: development
+      PLATFORM_MIGRATION_URL: postgresql://platform_owner:${PLATFORM_OWNER_PASSWORD}@db:5432/medibooker_platform
+      PROVISIONER_DATABASE_URL: postgresql://medibooker_provisioner:${PROVISIONER_PASSWORD}@db:5432/postgres
+      DATABASE_ADMIN_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *hardening
+    image: medibooker-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    mem_limit: 512m
+    networks: [edge, data]
+    environment:
+      <<: *cluster-env
+      HOST: 0.0.0.0
+      PORT: 3001
+      TRUST_PROXY_HOPS: 1
+      OPENAPI_UI_ENABLED: ${OPENAPI_UI_ENABLED:-false}
+      PLATFORM_DATABASE_URL: postgresql://platform_app:${PLATFORM_APP_PASSWORD}@db:5432/medibooker_platform
+    # Past the proxy, for the health links and Swagger: only from this machine. Removed in OPS01.
+    ports:
+      - 127.0.0.1:8081:3001
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *hardening
+    image: medibooker-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+    mem_limit: 512m
+    networks: [edge]
+    environment:
+      APP_ENV: local
+      API_INTERNAL_URL: http://api:3001
+      PUBLIC_SITE_URL: http://localhost:8080
+    tmpfs:
+      - /tmp
+      - /app/apps/web/.next/cache:uid=1000,gid=1000
+    # Past the proxy, for the health link: only from this machine. Removed in OPS01.
+    ports:
+      - 127.0.0.1:8082:3000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  proxy:
+    <<: *hardening
+    image: caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+    mem_limit: 128m
+    networks: [edge]
+    # The image would run as root; port 8080 does not need it.
+    user: '1000:1000'
+    tmpfs:
+      - /tmp
+      - /data:uid=1000,gid=1000
+      - /config:uid=1000,gid=1000
+    volumes:
+      - ./infra/local/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/en']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+networks:
+  edge:
+  # The database has no way out, and the proxy and the web app have no way in.
+  data:
+    internal: true
+
+volumes:
+  pgdata:

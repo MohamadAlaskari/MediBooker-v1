@@ -2,6 +2,34 @@
 
 How to set up a development machine for the MediBooker v2 monorepo and how the repository checks work. On Windows, read [windows.md](windows.md) as well.
 
+## Run everything in Docker
+
+You need Docker Desktop and Node.js 26, nothing else: no `pnpm install`, no `.env` by hand.
+
+- Windows: double-click `medibooker.cmd`, or run it in a terminal.
+- Linux and macOS: `./medibooker.sh`.
+
+It first asks for the mode, then shows the list: build, start, stop, restart, links, status, health, logs, a shell, the database (migrate, demo practices, psql, reset), tests and clean-up. Entries that delete data ask first. One entry also runs directly, for example `medibooker.cmd prod up` or `medibooker.cmd dev logs api`; `--dry-run` only prints the commands.
+
+| | `1` dev | `2` prod |
+|---|---|---|
+| Stack | `compose.dev.yaml`, project `medibooker-dev` | `compose.prod.yaml`, project `medibooker-prod` |
+| Runs | The sources with live reload, Swagger, demo practices | The built images, read-only, behind the proxy |
+| Environment file | `.env`, copied from `.env.example` when missing | `.env.prod`, written with random secrets on the first start |
+| Web | <http://localhost:3000/ar>, <http://localhost:3000/en> | <http://localhost:8080/ar>, <http://localhost:8080/en> |
+| Backend | <http://localhost:3001/api/v1/public/practices/al-noor> | <http://localhost:8080/api/v1/public/practices/al-noor> |
+| Swagger | <http://localhost:3001/api/docs> | Off; on with `OPENAPI_UI_ENABLED=true` in `.env.prod`: <http://localhost:8081/api/docs> |
+| Health | <http://localhost:3001/health/live>, <http://localhost:3001/health/ready>, <http://localhost:3000/healthz> | <http://localhost:8081/health/live>, <http://localhost:8081/health/ready>, <http://localhost:8082/healthz> |
+| Database | `localhost:5432` | Only inside its Docker network |
+
+The two stacks share nothing and publish different ports, so both can run at once. Prod is the production build on this machine, not a deployment: hosting is still open ([ADR 0010](../adr/0010-container-images-and-delivery.md)).
+
+- **Live reload in dev:** "Starten mit Live-Reload" stays in the foreground and syncs every change into the containers; the web page updates at once, the API restarts in about five seconds. Strg+C ends only the watching: the containers keep running. A change of `pnpm-lock.yaml` or of a shared package rebuilds the image.
+- **Demo practices in prod:** a fresh prod database is empty, so the backend link answers 404 until "Demo-Praxen einspielen" has run. Dev fills them on every start.
+- **Clean-up:** "Cache des Projekts leeren" deletes `.turbo`, `.next`, `dist`, `coverage` and `reports`. The menu can also delete `node_modules`: Docker does not need it, but the git hooks, the editor and every `pnpm` command do, so `pnpm install` brings it back.
+
+The rest of this page sets up the toolchain on the host, which commits and `pnpm verify` need.
+
 ## Prerequisites
 
 | Tool | Version | Notes |
@@ -107,13 +135,13 @@ pnpm db:up && pnpm db:migrate && pnpm db:seed
 - Check the result:
 
   ```sh
-  docker compose exec -T db psql -U postgres -lqt
+  docker compose -f compose.dev.yaml exec -T db psql -U postgres -lqt
   ```
 
   It lists `medibooker_platform`, the two `practice_…` databases and `practice_template` (`-T`: no terminal, which Git Bash needs).
 - `pnpm db:reset` starts over (local and CI only): it drops every practice database, `practice_template` and the practice roles, recreates the platform database and migrates it. Run `pnpm db:seed` afterwards. `docker compose down -v` removes the container and its volume as well.
 - `node apps/db-migrate/src/cli.ts verify` compares every practice database with the practice schema and checks its access list; exit code 2 means drift or a wrong ACL.
-- `pnpm test:integration` runs the API's integration tests against a PostgreSQL container of their own (Testcontainers, the image that `compose.yaml` pins), not against the compose database. Run it before a commit that changes database code; CI runs it in the job `integration`.
+- `pnpm test:integration` runs the API's integration tests against a PostgreSQL container of their own (Testcontainers, the image that `compose.dev.yaml` pins), not against the compose database. Run it before a commit that changes database code; CI runs it in the job `integration`.
 
 ### Author a migration
 
@@ -122,7 +150,7 @@ Schema changes are reviewed SQL migrations ([02 §9](../architecture/02-api.md#a
 1. Once, create the authoring and the shadow database of `prisma migrate dev`. Prisma 7.10.1 does not create a shadow database that `SHADOW_DATABASE_URL` names; it fails with P1003.
 
    ```sh
-   docker compose exec -T db psql -U postgres -c 'CREATE DATABASE practice_authoring' -c 'CREATE DATABASE practice_shadow'
+   docker compose -f compose.dev.yaml exec -T db psql -U postgres -c 'CREATE DATABASE practice_authoring' -c 'CREATE DATABASE practice_shadow'
    ```
 
 2. Change `apps/api/prisma/practice/schema.prisma` or `apps/api/prisma/platform/schema.prisma`, then create the migration without applying it. Pass the arguments without a `--` in front: pnpm 12 would hand it to the script.
@@ -193,7 +221,8 @@ The e2e commands arrive with the web item. The database commands need Docker Des
 | `apps/` | The applications: `api` (NestJS 12, `@medibooker/api`, with the Prisma schemas of the platform and practice databases in `prisma/`) and `db-migrate` (`@medibooker/db-migrate`, the database lifecycle CLI `medibooker-db` and the test helpers `./testing`); web and mobile follow. |
 | `packages/` | Shared packages: `@medibooker/tsconfig`, `@medibooker/eslint-config`. |
 | `infra/local/` | Local infrastructure: `postgres/init/01-cluster.sh`, which creates the cluster roles and the platform database on the compose database's first start. |
-| `compose.yaml` | The compose service `db` for local development ([07 §2](../architecture/07-docker-ci-cd.md#2-compose-for-local-development)). |
+| `compose.dev.yaml`, `compose.prod.yaml` | The two Docker stacks ([07 §2](../architecture/07-docker-ci-cd.md#2-compose-for-local-development)). Without a profile the first starts only the database. |
+| `medibooker.cmd`, `medibooker.sh` | The control menu of both stacks ([above](#run-everything-in-docker)). |
 | `scripts/` | Repo scripts behind the git hooks, the CI secret scans (`scan-secrets.ts`) and the migration check (`check-migrations.ts`), with their tests. Run by Node directly (TypeScript type stripping). |
 | `.github/` | CI: the workflows, the composite actions `setup` and `gitleaks`, the actionlint configuration and the pull request template. `renovate.json` at the root configures Renovate. |
 | `docs/` | Product docs (`docs/product`), architecture (`docs/architecture`), decision records (`docs/adr`) and these developer docs (`docs/dev`). |

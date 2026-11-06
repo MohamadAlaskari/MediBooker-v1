@@ -2,9 +2,13 @@
 
 Online appointment booking for medical practices. Patients book, reschedule and cancel appointments in a mobile app or on the web. Practice staff manage availability, appointments, patients and services in a web dashboard and see new bookings live. Languages: Arabic (default, right-to-left) and English.
 
+## Run it
+
+With Docker Desktop and Node.js 26, nothing else: double-click `medibooker.cmd` on Windows, or run `./medibooker.sh` elsewhere. It asks for the mode, `1` dev or `2` prod, and then shows the list: build, start, stop, logs, health, links, database, tests and clean-up. After a start it prints the links to the web app, the API, Swagger and the health checks. Details: [getting started](docs/dev/getting-started.md#run-everything-in-docker).
+
 ## Status
 
-MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`) the web skeleton, the design tokens and the generated API client are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
+MediBooker v2 is under construction: one platform for many practices, with a NestJS API, a Next.js web app and an Expo (React Native) patient app. The monorepo tooling, CI, the API skeleton, the per-practice databases, the error system, the OpenAPI contract, the first public endpoint (`GET /api/v1/public/practices/{slug}`), the web skeleton, the design tokens, the generated API client and the Docker stacks are in place; the apps are built feature by feature along the [roadmap](docs/architecture/08-roadmap.md).
 
 ## Repository
 
@@ -13,7 +17,8 @@ MediBooker v2 is under construction: one platform for many practices, with a Nes
 | `apps/api` | NestJS API (skeleton: configuration, logging, request context, deny-by-default guard, health check) |
 | `apps/web` | Next.js: public practice page, patient portal and practice dashboard (planned) |
 | `apps/mobile` | Expo (React Native) patient app (planned) |
-| `packages/` | Shared configuration: TypeScript presets, ESLint presets and guardrail rules |
+| `packages/` | Shared packages: TypeScript and ESLint presets, languages, design tokens, the generated API client |
+| `medibooker.cmd`, `medibooker.sh` | Control menu of the two Docker stacks `compose.dev.yaml` and `compose.prod.yaml` |
 | `scripts/` | Repository scripts: commit-message check, staged secret scan, git-hook check, CI secret scans |
 | `.github/` | GitHub Actions workflows and actions, pull request template |
 | `docs/product/` | Product documents and the feature catalogue |
