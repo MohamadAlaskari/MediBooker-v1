@@ -32,8 +32,20 @@ const CONNECTION_KINDS: ReadonlySet<string> = new Set([
   'SocketTimeout',
 ]);
 
+const LOCK_NOT_AVAILABLE = '55P03';
+const POOL_TIMEOUT_TEXT = 'timeout exceeded when trying to connect';
+
 function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null;
+}
+
+/** `instanceof`, false also for a value whose prototype cannot be read (a Proxy that throws). */
+function isError(value: unknown): value is Error {
+  try {
+    return value instanceof Error;
+  } catch {
+    return false;
+  }
 }
 
 function stringField(source: object, key: string): string | undefined {
@@ -78,6 +90,18 @@ export function isConnectionFailure(error: unknown): boolean {
   return (
     failure.kind === 'postgres' && (failure.severity === 'FATAL' || failure.severity === 'PANIC')
   );
+}
+
+/**
+ * True when the database is busy, not broken: no connection of the pool came free in time, a
+ * transaction could not start or ran out of time (P2028), or a row lock did not come free (55P03).
+ * pg's own connect timeout has no code, only this constant text.
+ */
+export function isDatabaseBusy(error: unknown): boolean {
+  if (isPrismaKnownRequestError(error)) {
+    return error.code === 'P2028' || driverFailureOf(error)?.sqlState === LOCK_NOT_AVAILABLE;
+  }
+  return isError(error) && error.message.includes(POOL_TIMEOUT_TEXT);
 }
 
 /** True when the database refused the password (28P01). */

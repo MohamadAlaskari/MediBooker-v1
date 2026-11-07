@@ -40,6 +40,11 @@ class Handlers {
     // a route handler's body does not matter here
   }
 
+  @PracticeScoped('id', { patient: true, confirmed: true })
+  confirmedPatient(): void {
+    // a route handler's body does not matter here
+  }
+
   @PracticeScoped('id', { join: true })
   join(): void {
     // a route handler's body does not matter here
@@ -50,6 +55,7 @@ class Handlers {
 const SCOPED: unknown = Reflect.get(Handlers.prototype, 'scoped');
 const PLAIN: unknown = Reflect.get(Handlers.prototype, 'plain');
 const PATIENT: unknown = Reflect.get(Handlers.prototype, 'patient');
+const CONFIRMED_PATIENT: unknown = Reflect.get(Handlers.prototype, 'confirmedPatient');
 const JOIN: unknown = Reflect.get(Handlers.prototype, 'join');
 
 interface Response {
@@ -294,6 +300,24 @@ describe('PracticeContextInterceptor (02 §5)', () => {
     );
   });
 
+  it('answers 503 and keeps the client when the database is busy: it is the one that still works', async () => {
+    const { interceptor, release, connections, response, calls, contextOf } = setUp();
+    const busy = new Error('timeout exceeded when trying to connect');
+    await expect(
+      intercept(
+        interceptor,
+        contextOf(SCOPED),
+        handlerOf(() => throwError(() => busy)),
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(connections.close).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(response.setHeader).toHaveBeenCalledWith('Retry-After', '30');
+    expect(calls).toContainEqual(
+      expect.objectContaining({ fields: { practiceId: PRACTICE_A, reasonCode: 'PRACTICE_BUSY' } }),
+    );
+  });
+
   it('answers 503 for a PracticeUnavailableError of the handler, without a header once the response is sent', async () => {
     const { interceptor, response, connections, contextOf } = setUp();
     response.headersSent = true;
@@ -411,6 +435,35 @@ describe('PracticeContextInterceptor (02 §5)', () => {
         ),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(connections.acquire).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a { patient: true, confirmed: true } route', () => {
+    it('says first that the address is not confirmed, and reads nothing more (BR-09)', async () => {
+      const { interceptor, index, connections, contextOf } = setUp();
+      index.isVerified.mockResolvedValue(false);
+      index.capacitiesOf.mockResolvedValue([]);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(CONFIRMED_PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+      expect(index.capacitiesOf).not.toHaveBeenCalled();
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+
+    it('asks a confirmed account for its index row and its profile as usual', async () => {
+      const { interceptor, index, contextOf } = setUp();
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(CONFIRMED_PATIENT),
+          handlerOf(() => defer(() => of(cls.get('practice')?.selfPatientId))),
+        ),
+      ).resolves.toBe('own-patient');
+      expect(index.capacitiesOf).toHaveBeenCalledWith(ACTOR.userId, PRACTICE_A);
     });
   });
 

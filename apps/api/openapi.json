@@ -31,6 +31,93 @@
         ],
         "type": "object"
       },
+      "AppointmentDto": {
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "patientId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerId": {
+            "description": "The doctor, only with a public profile (BR-24); null, the practice will say who",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "BOOKED",
+              "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "serviceId",
+          "providerId",
+          "startsAt",
+          "endsAt",
+          "status",
+          "bookedAt"
+        ],
+        "type": "object"
+      },
+      "BookAppointmentDto": {
+        "properties": {
+          "patientNote": {
+            "description": "For the practice. It is health data: stored encrypted, and never logged",
+            "maxLength": 500,
+            "minLength": 1,
+            "pattern": "^(?=[\\s\\S]*[^\\s\\u{200C}\\u{200D}])(?:[^\\p{C}\\p{Zl}\\p{Zp}]|[\\n\\u{200C}\\u{200D}])+$",
+            "type": "string"
+          },
+          "providerId": {
+            "description": "A doctor with a public profile; left out, any doctor free at that time",
+            "format": "uuid",
+            "type": "string"
+          },
+          "serviceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serviceId",
+          "startsAt"
+        ],
+        "type": "object"
+      },
       "ConfirmEmailDto": {
         "properties": {
           "password": {
@@ -72,6 +159,12 @@
           "NOT_FOUND",
           "CONFLICT",
           "ALREADY_JOINED",
+          "SLOT_NOT_AVAILABLE",
+          "BOOKING_LIMIT_REACHED",
+          "OUTSIDE_BOOKING_WINDOW",
+          "SERVICE_NOT_BOOKABLE",
+          "PATIENT_PROFILE_INCOMPLETE",
+          "IDEMPOTENCY_KEY_REUSED",
           "PAYLOAD_TOO_LARGE",
           "UNSUPPORTED_MEDIA_TYPE",
           "RATE_LIMITED",
@@ -2259,6 +2352,135 @@
         "summary": "Delete an own account that was never confirmed: a mistyped address",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/appointments": {
+      "post": {
+        "operationId": "bookAppointment",
+        "parameters": [
+          {
+            "description": "A new UUID per attempt: sent again, it answers with the first booking",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookAppointmentDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Book a free time for the own profile in this practice",
+        "tags": [
+          "appointments"
         ]
       }
     },

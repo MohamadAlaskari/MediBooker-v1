@@ -29,7 +29,13 @@
     "INVALID_CREDENTIALS": "The e-mail address or the password is not correct.",
     "INVALID_TOKEN": "This link is no longer valid. Please request a new one.",
     "EMAIL_NOT_VERIFIED": "Please confirm your e-mail address first. We sent you a link.",
-    "ALREADY_JOINED": "You are already registered with this practice."
+    "ALREADY_JOINED": "You are already registered with this practice.",
+    "SLOT_NOT_AVAILABLE": "This time was just booked. Please choose another one.",
+    "BOOKING_LIMIT_REACHED": "You already have the most upcoming appointments this practice allows ({maxFutureAppointments}).",
+    "OUTSIDE_BOOKING_WINDOW": "This time cannot be booked online. Please choose another one.",
+    "SERVICE_NOT_BOOKABLE": "This service cannot be booked online with your insurance. Please call the practice.",
+    "PATIENT_PROFILE_INCOMPLETE": "Please complete your details for this practice before you book.",
+    "IDEMPOTENCY_KEY_REUSED": "Something went wrong with this booking. Please reload the page and try again."
   },
   "validation": {
     "REQUIRED": "Please fill in this field.",

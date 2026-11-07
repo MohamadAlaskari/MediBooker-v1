@@ -7,6 +7,8 @@ export interface DomainExceptionOptions {
   /** Public values only, for example `{ maxFutureAppointments: 2 }`. */
   readonly params?: Readonly<Record<string, unknown>>;
   readonly fieldErrors?: readonly FieldError[];
+  /** Answered as `Retry-After`, for a failure that passes by itself. */
+  readonly retryAfterSeconds?: number;
   readonly cause?: unknown;
 }
 
@@ -18,6 +20,7 @@ export class DomainException extends Error {
   readonly detail: string | undefined;
   readonly params: Readonly<Record<string, unknown>> | undefined;
   readonly fieldErrors: readonly FieldError[] | undefined;
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(
     readonly code: ErrorCode,
@@ -28,5 +31,6 @@ export class DomainException extends Error {
     this.detail = options.detail;
     this.params = options.params;
     this.fieldErrors = options.fieldErrors;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 }

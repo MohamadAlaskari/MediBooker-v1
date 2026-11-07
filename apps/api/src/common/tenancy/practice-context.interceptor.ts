@@ -14,7 +14,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { type Observable, catchError, finalize, throwError } from 'rxjs';
 import type { RequestContext } from '../context/request-context.js';
 import { isUuid } from '../context/request-id.js';
-import { isConnectionFailure } from '../database/prisma-errors.js';
+import { isConnectionFailure, isDatabaseBusy } from '../database/prisma-errors.js';
 import { DomainException } from '../errors/domain.exception.js';
 import { bindLogFields } from '../logging/bind-log-fields.js';
 import type { Actor } from '../security/actor.js';
@@ -56,14 +56,15 @@ interface PracticeScopedRequest {
  * schema guard, then a lease of the practice's client, stored in the request context and released
  * when the handler's result is complete, also after an error.
  *
- * A `{ patient: true }` route first reads the membership index, so a caller without a row gets 404
+ * A `{ patient: true }` route, with `confirmed` after a look at the account, first reads the membership index, so a caller without a row gets 404
  * and no client is opened, and then asks the practice database, which decides: a stale index row is
  * overruled there. A `{ join: true }` route needs a published practice and a confirmed account
  * (BR-09). The route's guard has verified the caller; staff roles follow with A04.
  *
  * A PracticeUnavailableError is answered with 503 and `Retry-After`, as is a query that fails in
- * the handler because the practice's connection failed; that client is closed. Only the practice
- * id and the reason code are logged, and the ProblemDetailsFilter writes the answer.
+ * the handler because the practice's connection failed, whose client is closed, or because its
+ * pool or a row lock stayed busy. Only the practice id and the reason code are logged, and the
+ * ProblemDetailsFilter writes the answer.
  */
 @Injectable()
 export class PracticeContextInterceptor implements NestInterceptor {
@@ -90,7 +91,10 @@ export class PracticeContextInterceptor implements NestInterceptor {
         ? await this.leaseBySlug(params?.slug, response)
         : await this.leaseById(params?.practiceId, access, response);
     try {
-      const selfPatientId = access === 'patient' ? await this.selfPatientOf(lease) : undefined;
+      const selfPatientId =
+        access === 'patient' || access === 'confirmed-patient'
+          ? await this.selfPatientOf(lease)
+          : undefined;
       this.cls.set('practice', {
         practice: resolvedPracticeOf(route),
         lease,
@@ -119,7 +123,10 @@ export class PracticeContextInterceptor implements NestInterceptor {
   ): Promise<LeasedPractice> {
     if (!isUuid(rawPracticeId)) throw new NotFoundException();
     const practiceId = rawPracticeId.toLowerCase();
-    if (access === 'patient') await this.requirePatientIndexRow(practiceId);
+    if (access === 'confirmed-patient') await this.requireConfirmedAccount();
+    if (access === 'patient' || access === 'confirmed-patient') {
+      await this.requirePatientIndexRow(practiceId);
+    }
     const resolution =
       access === 'join'
         ? await this.resolver.resolvePublished(practiceId)
@@ -128,9 +135,7 @@ export class PracticeContextInterceptor implements NestInterceptor {
     if (resolution.answer === 'UNAVAILABLE') {
       throw this.unavailable(new PracticeUnavailableError(practiceId, resolution.reason), response);
     }
-    if (access === 'join' && !(await this.index.isVerified(this.actor().userId))) {
-      throw new DomainException('EMAIL_NOT_VERIFIED');
-    }
+    if (access === 'join') await this.requireConfirmedAccount();
     return this.lease(resolution.route, 'request', response);
   }
 
@@ -139,6 +144,13 @@ export class PracticeContextInterceptor implements NestInterceptor {
     const actor = this.cls.get('actor');
     if (actor === undefined) throw new UnauthorizedException();
     return actor;
+  }
+
+  /** BR-09: a session no longer means a confirmed address. */
+  private async requireConfirmedAccount(): Promise<void> {
+    if (!(await this.index.isVerified(this.actor().userId))) {
+      throw new DomainException('EMAIL_NOT_VERIFIED');
+    }
   }
 
   /** No row: 404, before any client is opened. Only another capacity there: 403. */
@@ -188,9 +200,18 @@ export class PracticeContextInterceptor implements NestInterceptor {
     }
   }
 
-  /** What the handler's error becomes: 503 for an unavailable practice or a failed connection. */
+  /**
+   * What the handler's error becomes: 503 for an unavailable practice, a busy database or a failed
+   * connection. Only a failed connection closes the client: a busy one is the one that still works.
+   */
   private answerOf(error: unknown, lease: PracticeLease, response: ServerResponse): unknown {
     if (error instanceof PracticeUnavailableError) return this.unavailable(error, response);
+    if (isDatabaseBusy(error)) {
+      const busy = new PracticeUnavailableError(lease.practiceId, 'PRACTICE_BUSY', {
+        cause: error,
+      });
+      return this.unavailable(busy, response);
+    }
     if (!isConnectionFailure(error)) return error;
     this.connections.close(lease);
     const unavailable = new PracticeUnavailableError(

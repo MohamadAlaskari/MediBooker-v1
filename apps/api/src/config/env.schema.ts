@@ -200,6 +200,8 @@ const envObject = z.object({
   DATABASE_CLUSTER_ENDPOINTS: clusterEndpoints.optional(),
   DATABASE_TX_MAX_WAIT_MS: integer(1, 60_000).default(2000),
   DATABASE_TX_TIMEOUT_MS: integer(1, 600_000).default(5000),
+  /** How long a booking waits for a row lock: the limit on a transaction does not end that wait. */
+  DATABASE_LOCK_TIMEOUT_MS: integer(1, 60_000).default(2000),
   // F04: the development store only, in local and ci; unset elsewhere until OPS01 adds the
   // provider, so every practice answers 503 there (fail closed).
   SECRET_STORE: z.enum(['dev']).optional(),

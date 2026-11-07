@@ -18,7 +18,8 @@ const LINE_FIELDS = ['hostname', 'level', 'pid', 'reqId', 'time'];
 const NEVER_LOGGED = [
   SYNTHETIC_EMAIL,
   SYNTHETIC_SECRET_VALUE,
-  'appointment',
+  // As a field: the route of the real booking may appear in the lines the framework logs at its start.
+  '"appointment"',
   'address',
   'mfaSecret',
   'accessToken',

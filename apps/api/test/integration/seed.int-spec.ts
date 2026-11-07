@@ -30,6 +30,8 @@ describe('the seed (08 F04)', () => {
     'patients',
     'integration_outbox',
     'audit_events',
+    'appointments',
+    'idempotency_keys',
   ]);
 
   /** P01: every other practice table has rows, and the registry names and publishes the practice. */

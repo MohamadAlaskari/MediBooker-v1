@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PlatformDatabaseModule } from '../database/platform-database.module.js';
+import { AccountTransactions } from './account-transactions.js';
 import { IntegrationRelay } from './integration-relay.js';
 import { PracticeAccessIndex } from './practice-access-index.js';
 import { PracticeAudit } from './practice-audit.js';
@@ -24,6 +25,7 @@ import { PublishedPractices } from './published-practices.js';
 @Module({
   imports: [PlatformDatabaseModule],
   providers: [
+    AccountTransactions,
     IntegrationRelay,
     PracticeAccessIndex,
     PracticeAudit,
@@ -40,6 +42,7 @@ import { PublishedPractices } from './published-practices.js';
     { provide: APP_INTERCEPTOR, useClass: PracticeContextInterceptor },
   ],
   exports: [
+    AccountTransactions,
     IntegrationRelay,
     PracticeAccessIndex,
     PracticeAudit,

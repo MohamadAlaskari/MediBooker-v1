@@ -1,6 +1,11 @@
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { describe, expect, it } from 'vitest';
-import { driverFailureOf, isAuthenticationFailure, isConnectionFailure } from './prisma-errors.js';
+import {
+  driverFailureOf,
+  isAuthenticationFailure,
+  isConnectionFailure,
+  isDatabaseBusy,
+} from './prisma-errors.js';
 
 /** A Prisma error with the driver adapter's report, as the pg adapter produces it. */
 function reported(cause: Record<string, unknown>, code = 'P2010'): PrismaClientKnownRequestError {
@@ -116,6 +121,40 @@ describe('isConnectionFailure (02 §5 item 7)', () => {
     expect(isConnectionFailure(new Error('timeout exceeded when trying to connect'))).toBe(false);
     expect(isConnectionFailure(reported({}))).toBe(false);
     expect(isConnectionFailure('secret-value')).toBe(false);
+  });
+});
+
+describe('isDatabaseBusy', () => {
+  it('is true for pg, when no connection of the pool came free in time', () => {
+    expect(isDatabaseBusy(new Error('timeout exceeded when trying to connect'))).toBe(true);
+  });
+
+  it('is true for a transaction that could not start or ran out of time', () => {
+    expect(
+      isDatabaseBusy(new PrismaClientKnownRequestError('x', { code: 'P2028', clientVersion: '7' })),
+    ).toBe(true);
+  });
+
+  it('is true for a row lock that did not come free', () => {
+    expect(
+      isDatabaseBusy(reported({ kind: 'postgres', originalCode: '55P03', severity: 'ERROR' })),
+    ).toBe(true);
+  });
+
+  it('is false for anything else: a failed connection, another error, what is no error', () => {
+    expect(isDatabaseBusy(reported({ kind: 'ConnectionClosed' }))).toBe(false);
+    expect(isDatabaseBusy(reported({ kind: 'postgres', originalCode: '23514' }))).toBe(false);
+    expect(isDatabaseBusy(new Error('other'))).toBe(false);
+    expect(isDatabaseBusy('timeout exceeded when trying to connect')).toBe(false);
+    const unreadable = new Proxy(
+      {},
+      {
+        getPrototypeOf: (): never => {
+          throw new RangeError('secret-value');
+        },
+      },
+    );
+    expect(isDatabaseBusy(unreadable)).toBe(false);
   });
 });
 

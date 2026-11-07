@@ -103,6 +103,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (isInstance(exception, PracticeUnavailableError)) {
       response.setHeader('Retry-After', String(PRACTICE_RETRY_AFTER_SECONDS));
     }
+    if (isInstance(exception, DomainException) && exception.retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(exception.retryAfterSeconds));
+    }
     response.statusCode = status;
     response.setHeader('Content-Type', 'application/problem+json; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');

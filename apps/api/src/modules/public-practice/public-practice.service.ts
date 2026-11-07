@@ -10,6 +10,7 @@ import type { PracticeTransactionHost } from '../../common/tenancy/practice-tran
 import { PublishedPractices } from '../../common/tenancy/published-practices.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbDateOf } from '../../common/time/convert.js';
+import { PUBLIC_PROFILE } from '../scheduling/domain/public-profile.js';
 import { OPEN_NOW_HORIZON_DAYS } from './domain/open-now.js';
 import type { PublicPracticeDto, PublicPracticeListDto } from './public-practice.dto.js';
 import { toPublicPractice } from './public-practice.mapper.js';
@@ -62,12 +63,7 @@ export class PublicPracticeService {
         where: { active: true, isBookableOnline: true },
         orderBy: { sortOrder: 'asc' },
       }),
-      db.staffMember.findMany({
-        where: {
-          hiddenAt: null,
-          consents: { some: { type: 'PUBLIC_PROFILE', withdrawnAt: null } },
-        },
-      }),
+      db.staffMember.findMany({ where: PUBLIC_PROFILE }),
     ]);
     return toPublicPractice(
       {

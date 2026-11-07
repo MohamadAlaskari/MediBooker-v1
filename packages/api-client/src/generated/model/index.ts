@@ -7,6 +7,10 @@
 
 export * from './accountDto';
 export * from './accountDtoLocale';
+export * from './appointmentDto';
+export * from './appointmentDtoStatus';
+export * from './bookAppointmentDto';
+export * from './bookAppointmentHeaders';
 export * from './confirmEmailDto';
 export * from './emailDto';
 export * from './errorCode';

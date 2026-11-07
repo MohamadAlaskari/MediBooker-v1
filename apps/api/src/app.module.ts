@@ -19,6 +19,7 @@ import { EnvModule } from './config/env.module.js';
 import type { Env } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
 import { AccountProfileModule } from './modules/account-profile/account-profile.module.js';
+import { AppointmentsModule } from './modules/appointments/appointments.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
@@ -55,6 +56,7 @@ export class AppModule {
         AuthModule,
         AccountProfileModule,
         PatientsModule,
+        AppointmentsModule,
         PublicPracticeModule,
         SchedulingModule,
       ],

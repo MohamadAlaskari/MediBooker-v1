@@ -219,6 +219,7 @@ model Service {
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   availabilityRules AvailabilityRuleService[]
+  appointments      Appointment[]
 
   @@map("services")
 }
@@ -358,8 +359,9 @@ model Slot {
   /// class: personal (null: the rule is gone, and the slot can be booked for no service)
   ruleId     String?    @map("rule_id") @db.Uuid
 
-  provider StaffMember       @relation(fields: [providerId], references: [id], onDelete: Restrict)
-  rule     AvailabilityRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  provider     StaffMember       @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  rule         AvailabilityRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
 
   @@unique([providerId, startsAt])
   @@index([ruleId])
@@ -416,6 +418,8 @@ model Patient {
   /// class: personal
   updatedAt                DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  appointments Appointment[]
+
   @@unique([userId], map: "patients_self_user_key", where: raw("(relationship = 'SELF'::patient_relationship)"))
   @@index([insuranceNumberIndex])
   @@map("patients")
@@ -457,4 +461,63 @@ model AuditEvent {
 
   @@index([subjectId])
   @@map("audit_events")
+}
+
+/// What became of an appointment (BR-11). All but CANCELLED hold its slot.
+enum AppointmentStatus {
+  BOOKED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+
+  @@map("appointment_status")
+}
+
+/// A patient's booking of a slot for a service (BR-01): at most one that holds a slot. Which service a
+/// person booked can reveal a condition, so all of this is health data.
+model Appointment {
+  /// class: health
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: health
+  patientId            String            @map("patient_id") @db.Uuid
+  /// class: health
+  slotId               String            @map("slot_id") @db.Uuid
+  /// class: health
+  serviceId            String            @map("service_id") @db.Uuid
+  /// class: health
+  status               AppointmentStatus @default(BOOKED)
+  /// class: health (encrypted with this practice's data key, bound to this row)
+  patientNoteEncrypted String?           @map("patient_note_encrypted")
+  /// class: personal (the account that booked: from FA01 not always the patient's own)
+  bookedById           String            @map("booked_by_id") @db.Uuid
+  /// class: health
+  bookedAt             DateTime          @map("booked_at") @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  slot    Slot    @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([slotId], map: "appointments_slot_active_key", where: raw("(status <> 'CANCELLED'::appointment_status)"))
+  @@index([patientId])
+  @@index([serviceId])
+  @@map("appointments")
+}
+
+/// What an Idempotency-Key answered, for 24 hours: per caller, so that nobody can reach another
+/// person's result with a guessed key. It holds a keyed hash of the request and never the request.
+model IdempotencyKey {
+  /// class: personal
+  actorId       String   @map("actor_id") @db.Uuid
+  /// class: public (a random value of the client)
+  key           String   @db.Uuid
+  /// class: secret (keyed with a key of this practice: a request can hold a note)
+  requestHash   String   @map("request_hash")
+  /// class: health
+  appointmentId String?  @map("appointment_id") @db.Uuid
+  /// class: public
+  createdAt     DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@id([actorId, key])
+  @@map("idempotency_keys")
 }

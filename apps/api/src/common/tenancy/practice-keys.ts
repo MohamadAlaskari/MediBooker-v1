@@ -13,7 +13,7 @@ const DERIVED_KEY_BYTES = 32;
 const DEPLOYMENT_KEY_MIN_BYTES = 32;
 
 /** What a keyed hash is for: a key per purpose and practice, so that none compares with another. */
-export type KeyedHashPurpose = 'insurance-number' | 'ip-address';
+export type KeyedHashPurpose = 'insurance-number' | 'ip-address' | 'idempotency-request';
 
 interface CachedKeys {
   readonly keys: readonly FieldKey[];

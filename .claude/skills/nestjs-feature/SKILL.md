@@ -95,7 +95,9 @@ export class AppointmentsService {
   ) {}
 
   // One transaction in the database of the request's practice; its limits come from
-  // DATABASE_TX_MAX_WAIT_MS and DATABASE_TX_TIMEOUT_MS.
+  // DATABASE_TX_MAX_WAIT_MS and DATABASE_TX_TIMEOUT_MS. A transaction of one account that waits
+  // for row locks runs through AccountTransactions instead: it keeps that account to a share of
+  // the practice's connections and limits the wait for a lock (B02).
   @Transactional('practice')
   async book(actor: Actor, dto: BookAppointmentDto): Promise<AppointmentResponseDto> {
     const tx = this.txHost.tx;

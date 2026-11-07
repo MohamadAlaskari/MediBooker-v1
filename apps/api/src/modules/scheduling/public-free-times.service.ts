@@ -5,6 +5,7 @@ import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
+import { PUBLIC_PROVIDER } from './domain/public-profile.js';
 import {
   bookableWindow,
   dayRange,
@@ -107,12 +108,7 @@ export class PublicFreeTimesService {
     if (service === null) throw new DomainException('NOT_FOUND');
     if (providerId === undefined) return;
     const provider = await db.staffMember.findFirst({
-      where: {
-        id: providerId,
-        isProvider: true,
-        hiddenAt: null,
-        consents: { some: { type: 'PUBLIC_PROFILE', withdrawnAt: null } },
-      },
+      where: { id: providerId, ...PUBLIC_PROVIDER },
       select: { id: true },
     });
     if (provider === null) throw new DomainException('NOT_FOUND');

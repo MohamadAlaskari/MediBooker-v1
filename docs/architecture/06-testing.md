@@ -137,6 +137,8 @@ Against real PostgreSQL only, never PGlite. `test/integration/appointments/booki
 
 Every assertion checks the `code`, not only the status. The concurrency app sets `PRACTICE_POOL_MAX` to at least the concurrency plus two, so pool exhaustion fails with a named error instead of a flaky 500.
 
+`booking.busy.int-spec.ts` runs with one connection: a booking waiting for a row and a read that finds no connection both answer 503 with `Retry-After`, and a retry with the key books. `booking.int-spec.ts` floods with one account from many addresses: another patient still books, and the flood sees only 409 and 429.
+
 ## 6. Asynchronous side effects
 
 - **Outboxes (A02, N01):** messages are enqueued in the business transaction. Tests prove that a committed change always has its outbox row and that a change rolled back after the enqueue has none. Scheduling and backoff come from the `Clock` (`scheduled_for`, `next_attempt_at`); SQL never calls `now()`. Tests call `OutboxProcessor.processDue(fixedNow, limit)` for the platform outbox or inside `runInPractice` for one practice; `findPracticesWithDueWork()` is a thin wrapper with its own tests (a practice with a due row is found in one poll, a practice that is not `ACTIVE` is skipped, job clients never evict a request client).

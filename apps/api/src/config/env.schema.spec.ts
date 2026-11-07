@@ -84,6 +84,7 @@ describe('parseEnv', () => {
       DATABASE_CLUSTER_ENDPOINTS: new Map(),
       DATABASE_TX_MAX_WAIT_MS: 2000,
       DATABASE_TX_TIMEOUT_MS: 5000,
+      DATABASE_LOCK_TIMEOUT_MS: 2000,
       MARKETS: [],
       AUTH_SIGNING_KEY_REFS: ['dev:auth-signing-key'],
       AUTH_SECRET_REF: 'dev:auth-secret',
@@ -501,6 +502,7 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
     ['PRACTICE_SECRET_TTL_MS', '0', 0, '86400001'],
     ['DATABASE_TX_MAX_WAIT_MS', '100', 100, '0'],
     ['DATABASE_TX_TIMEOUT_MS', '100', 100, '0'],
+    ['DATABASE_LOCK_TIMEOUT_MS', '100', 100, '0'],
   ])('%s', (key, raw, value, outOfRange) => {
     it(`reads ${raw} as ${String(value)}`, () => {
       expect(parseEnv({ ...LOCAL, [key]: raw })).toMatchObject({ [key]: value });

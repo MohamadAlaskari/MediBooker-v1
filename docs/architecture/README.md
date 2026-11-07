@@ -86,7 +86,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | P04, P05 and P06 Slots from rules, the public free times, and the picker on the page | Committed (`c0dbca6`) |
 | A01 (accounts and sessions), A02 (account e-mails) and A03 Sign-up, verification, reset, login, rotation and Mailpit | Committed (`22c0cd5`); memberships with B01 and A04 |
 | A05 for patients The pages for signing up, confirming, signing in and out, and a new password; the account profile of D16 | Committed (`8d12915`, `b0e2f11`) and done; staff pages with A04 |
-| B01 Patient profiles, insurance per practice, the membership index and its relay | Committed (one commit) |
+| B01 Patient profiles, insurance per practice, the membership index and its relay | Committed (`ddf90dd`) |
+| B02 Booking an appointment with row locks and idempotency keys | Committed (one commit) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

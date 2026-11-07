@@ -8,15 +8,23 @@ export type PracticeScope = 'id' | 'slug';
 
 /**
  * Who may reach a practice named by `id` (02 §5). `patient`: a person with an index row and a patient
- * profile in the practice's database. `join`: a confirmed account, on a published practice, to create
- * its own patient profile. Staff roles follow with A04.
+ * profile in the practice's database; with `confirmed` their account's address must be confirmed
+ * too (BR-09), and that is said first, so that a person learns what to do. `join`: a confirmed
+ * account, on a published practice, to create its own patient profile. Staff roles follow with A04.
  */
 export interface PracticeScopedOptions {
   readonly patient?: true;
+  readonly confirmed?: true;
   readonly join?: true;
 }
 
-export type PracticeAccess = 'patient' | 'join';
+export type PracticeAccess = 'patient' | 'confirmed-patient' | 'join';
+
+function accessOf(options: PracticeScopedOptions): PracticeAccess | undefined {
+  if (options.join === true) return 'join';
+  if (options.patient !== true) return undefined;
+  return options.confirmed === true ? 'confirmed-patient' : 'patient';
+}
 
 const PRACTICE_SCOPE = 'medibooker:practiceScope';
 const PRACTICE_ACCESS = 'medibooker:practiceAccess';
@@ -31,8 +39,7 @@ export function PracticeScoped(
   scope: PracticeScope,
   options: PracticeScopedOptions = {},
 ): MethodDecorator {
-  const access: PracticeAccess | undefined =
-    options.patient === true ? 'patient' : options.join === true ? 'join' : undefined;
+  const access = accessOf(options);
   return applyDecorators(
     SetMetadata(PRACTICE_SCOPE, scope),
     ...(access === undefined ? [] : [SetMetadata(PRACTICE_ACCESS, access)]),
@@ -52,5 +59,7 @@ export function practiceAccessOf(
   handler: ReturnType<ExecutionContext['getHandler']>,
 ): PracticeAccess | undefined {
   const access: unknown = Reflect.getMetadata(PRACTICE_ACCESS, handler);
-  return access === 'patient' || access === 'join' ? access : undefined;
+  return access === 'patient' || access === 'confirmed-patient' || access === 'join'
+    ? access
+    : undefined;
 }

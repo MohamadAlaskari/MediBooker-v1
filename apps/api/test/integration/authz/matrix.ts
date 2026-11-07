@@ -20,6 +20,7 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   listMyPatients: { account: 404 },
   getMyPatient: { account: 404 },
   updateMyPatient: { account: 404 },
+  bookAppointment: { account: 404 },
 };
 
 /** The operationIds that answer without sign-in. */

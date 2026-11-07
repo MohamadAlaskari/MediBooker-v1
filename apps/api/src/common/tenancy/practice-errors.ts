@@ -29,6 +29,8 @@ export type PracticeUnavailableReason =
   | 'PRACTICE_ACL_OPEN'
   /** No client could be freed within the wait of the connection manager. */
   | 'PRACTICE_CAPACITY_EXHAUSTED'
+  /** No connection of its pool or no row lock came free in time: busy, not broken. */
+  | 'PRACTICE_BUSY'
   /** A public acquisition above PRACTICE_CLIENT_CREATIONS_PER_SECOND. */
   | 'PRACTICE_CREATION_RATE_EXCEEDED';
 

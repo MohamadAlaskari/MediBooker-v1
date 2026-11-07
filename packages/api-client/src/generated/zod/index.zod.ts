@@ -1,3 +1,4 @@
+export * from './appointments/appointments.zod';
 export * from './auth/auth.zod';
 export * from './me/me.zod';
 export * from './patients/patients.zod';
