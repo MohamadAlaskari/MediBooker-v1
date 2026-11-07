@@ -155,6 +155,7 @@ describe('PracticeResolver', () => {
       AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
       AUTH_SECRET_REF: 'hosted:auth-secret',
       FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
+      BLIND_INDEX_KEY_REF: 'hosted:blind-index-key',
     });
     expect(
       await resolverWith(registryRow(), staging).resolver.resolve(PRACTICE_A, 'request'),

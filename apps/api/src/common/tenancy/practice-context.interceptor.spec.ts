@@ -1,8 +1,10 @@
 import {
   type CallHandler,
   type ExecutionContext,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { ClsServiceManager } from 'nestjs-cls';
@@ -11,6 +13,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { fakePinoLogger } from '../../../test/support/fake-pino-logger.js';
 import { PRACTICE_A, practiceRoute } from '../../../test/support/practice-routes.js';
 import type { RequestContext } from '../context/request-context.js';
+import { DomainException } from '../errors/domain.exception.js';
+import type { PracticeAccessIndex } from './practice-access-index.js';
 import type { PracticeClient, PracticeLease } from './practice-client.js';
 import type { PracticeConnectionManager } from './practice-connection-manager.js';
 import { PracticeContextInterceptor } from './practice-context.interceptor.js';
@@ -30,11 +34,23 @@ class Handlers {
   plain(): void {
     // a route handler's body does not matter here
   }
+
+  @PracticeScoped('id', { patient: true })
+  patient(): void {
+    // a route handler's body does not matter here
+  }
+
+  @PracticeScoped('id', { join: true })
+  join(): void {
+    // a route handler's body does not matter here
+  }
 }
 
 /** The handlers as Nest's ExecutionContext.getHandler() returns them. */
 const SCOPED: unknown = Reflect.get(Handlers.prototype, 'scoped');
 const PLAIN: unknown = Reflect.get(Handlers.prototype, 'plain');
+const PATIENT: unknown = Reflect.get(Handlers.prototype, 'patient');
+const JOIN: unknown = Reflect.get(Handlers.prototype, 'join');
 
 interface Response {
   headersSent: boolean;
@@ -43,13 +59,23 @@ interface Response {
 
 function setUp(resolution: PracticeResolution = { answer: 'SERVE', route: ROUTE }) {
   const release = vi.fn();
-  const lease: PracticeLease = { practiceId: PRACTICE_A, client: {} as PracticeClient, release };
-  const resolver = { resolve: vi.fn().mockResolvedValue(resolution) };
+  const findPatient = vi.fn().mockResolvedValue({ id: 'own-patient' });
+  const client = { patient: { findFirst: findPatient } } as unknown as PracticeClient;
+  const lease: PracticeLease = { practiceId: PRACTICE_A, client, release };
+  const resolver = {
+    resolve: vi.fn().mockResolvedValue(resolution),
+    resolvePublished: vi.fn().mockResolvedValue(resolution),
+  };
   const connections = { acquire: vi.fn().mockResolvedValue(lease), close: vi.fn() };
+  const index = {
+    capacitiesOf: vi.fn().mockResolvedValue(['PATIENT']),
+    isVerified: vi.fn().mockResolvedValue(true),
+  };
   const { logger, calls, assign } = fakePinoLogger();
   const interceptor = new PracticeContextInterceptor(
     resolver as unknown as PracticeResolver,
     connections as unknown as PracticeConnectionManager,
+    index as unknown as PracticeAccessIndex,
     cls,
     logger,
   );
@@ -65,7 +91,19 @@ function setUp(resolution: PracticeResolution = { answer: 'SERVE', route: ROUTE 
         getResponse: () => response,
       }),
     }) as unknown as ExecutionContext;
-  return { interceptor, resolver, connections, lease, release, assign, calls, response, contextOf };
+  return {
+    interceptor,
+    resolver,
+    connections,
+    index,
+    findPatient,
+    lease,
+    release,
+    assign,
+    calls,
+    response,
+    contextOf,
+  };
 }
 
 /** Runs the interceptor in a request context, as the request-context middleware opens one. */
@@ -78,6 +116,20 @@ function intercept(
 }
 
 const handlerOf = (result: () => Observable<unknown>): CallHandler => ({ handle: result });
+
+const ACTOR = { userId: 'user-1', sessionId: 'session-1', amr: ['pwd'] };
+
+/** As `intercept`, with the caller the authentication guard verified. */
+function interceptAs(
+  interceptor: PracticeContextInterceptor,
+  context: ExecutionContext,
+  handler: CallHandler,
+): Promise<unknown> {
+  return cls.run(async () => {
+    cls.set('actor', ACTOR);
+    return lastValueFrom(await interceptor.intercept(context, handler));
+  });
+}
 
 describe('PracticeContextInterceptor (02 §5)', () => {
   it('leaves a route without @PracticeScoped alone', async () => {
@@ -267,5 +319,139 @@ describe('PracticeContextInterceptor (02 §5)', () => {
       ),
     ).rejects.toThrow();
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a { patient: true } route', () => {
+    it('answers 404 without an index row, and opens no client', async () => {
+      const { interceptor, index, connections, resolver, contextOf } = setUp();
+      index.capacitiesOf.mockResolvedValue([]);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(resolver.resolve).not.toHaveBeenCalled();
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+
+    it('answers 403 for another capacity, and opens no client', async () => {
+      const { interceptor, index, connections, contextOf } = setUp();
+      index.capacitiesOf.mockResolvedValue(['STAFF']);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+
+    it('lets the practice database overrule a stale index row, and releases the client', async () => {
+      const { interceptor, findPatient, release, contextOf } = setUp();
+      findPatient.mockResolvedValue(null);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(findPatient).toHaveBeenCalledWith({
+        where: { userId: ACTOR.userId, relationship: 'SELF' },
+        select: { id: true },
+      });
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers a failed connection with 503, and closes that client', async () => {
+      const { interceptor, findPatient, connections, lease, release, contextOf } = setUp();
+      findPatient.mockRejectedValue(
+        new PrismaClientKnownRequestError('terminated', {
+          code: 'P2039',
+          clientVersion: '7.10.1',
+          meta: {
+            driverAdapterError: {
+              cause: { kind: 'postgres', originalCode: '57P01', severity: 'FATAL' },
+            },
+          },
+        }),
+      );
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(connections.close).toHaveBeenCalledWith(lease);
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives the handler the own profile of the caller', async () => {
+      const { interceptor, contextOf } = setUp();
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => defer(() => of(cls.get('practice')?.selfPatientId))),
+        ),
+      ).resolves.toBe('own-patient');
+    });
+
+    it('needs a caller: such a route can never be public', async () => {
+      const { interceptor, connections, contextOf } = setUp();
+      await expect(
+        intercept(
+          interceptor,
+          contextOf(PATIENT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a { join: true } route', () => {
+    it('asks for a publication and needs no index row', async () => {
+      const { interceptor, resolver, index, contextOf } = setUp();
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(JOIN),
+          handlerOf(() => of('joined')),
+        ),
+      ).resolves.toBe('joined');
+      expect(resolver.resolvePublished).toHaveBeenCalledWith(PRACTICE_A);
+      expect(resolver.resolve).not.toHaveBeenCalled();
+      expect(index.capacitiesOf).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for a practice without a publication, whoever asks', async () => {
+      const { interceptor, index, contextOf } = setUp({ answer: 'NOT_FOUND' });
+      index.isVerified.mockResolvedValue(false);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(JOIN),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('refuses an account whose address is not confirmed, and opens no client (BR-09)', async () => {
+      const { interceptor, index, connections, contextOf } = setUp();
+      index.isVerified.mockResolvedValue(false);
+      const failure: unknown = await interceptAs(
+        interceptor,
+        contextOf(JOIN),
+        handlerOf(() => of(1)),
+      ).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(DomainException);
+      expect(failure).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
   });
 });

@@ -283,6 +283,7 @@ describe('TLS to the practice databases (ADR 0005 §4.9, §11.11)', () => {
         AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
         AUTH_SECRET_REF: 'hosted:auth-secret',
         FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
+        BLIND_INDEX_KEY_REF: 'hosted:blind-index-key',
         PLATFORM_DATABASE_URL: platformUrl.toString(),
         // Blank is unset, as staging requires; the overridden SecretStore resolves the references.
         SECRET_STORE: '',

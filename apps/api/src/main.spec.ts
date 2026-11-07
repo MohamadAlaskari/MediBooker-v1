@@ -34,6 +34,7 @@ function deployedEnv(port: number): NodeJS.ProcessEnv {
     AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
     AUTH_SECRET_REF: 'hosted:auth-secret',
     FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
+    BLIND_INDEX_KEY_REF: 'hosted:blind-index-key',
     SECRET_STORE: '',
     DEV_SECRET_SEED: '',
     DATABASE_CLUSTER_ENDPOINTS: '',

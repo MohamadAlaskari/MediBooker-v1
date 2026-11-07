@@ -212,6 +212,8 @@ const envObject = z.object({
   AUTH_SECRET_REF: z.string().min(1).default('dev:auth-secret'),
   // D16: the keys of encrypted platform fields. The first encrypts and all decrypt.
   FIELD_ENCRYPTION_KEY_REFS: keyRefs.default(['dev:field-encryption-key']),
+  // B01: the deployment key from which the keyed hashes of each practice are derived (ADR 0005 §4.8).
+  BLIND_INDEX_KEY_REF: z.string().min(1).default('dev:blind-index-key'),
   // A02: the address every link in an e-mail is built from, never a request's Host. Required in
   // staging and production (refinement below).
   PUBLIC_WEB_URL: webOrigin.optional(),
@@ -225,6 +227,8 @@ const envObject = z.object({
   MAIL_ALLOWED_RECIPIENTS: mailAddresses.optional(),
   // A02: how often the outbox looks for due e-mails; 0 turns the timer off (tests).
   OUTBOX_POLL_SECONDS: integer(0, 3600).default(5),
+  // B01: how often the relay visits every practice for the membership index; 0 turns it off (tests).
+  RELAY_POLL_SECONDS: integer(0, 3600).default(900),
   // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler) and
   // by Node when a module loads, never by the API: their output goes to stderr, outside pino, with
   // request URLs and query strings. Allowed in local and ci only (refinement below); not in Env.
@@ -363,6 +367,9 @@ const envSchema = envObject
         env.FIELD_ENCRYPTION_KEY_REFS.some(isDevReference)
       ) {
         reject('FIELD_ENCRYPTION_KEY_REFS', 'dev_reference_only_in_local_and_ci');
+      }
+      if (isDeployed && parsed('BLIND_INDEX_KEY_REF') && isDevReference(env.BLIND_INDEX_KEY_REF)) {
+        reject('BLIND_INDEX_KEY_REF', 'dev_reference_only_in_local_and_ci');
       }
       if (env.APP_ENV !== 'production') return;
       if (parsed('OPENAPI_UI_ENABLED') && env.OPENAPI_UI_ENABLED) {

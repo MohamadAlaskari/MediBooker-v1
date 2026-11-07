@@ -25,7 +25,14 @@ describe('the seed (08 F04)', () => {
     return counts;
   }
 
-  /** P01: every practice table has rows, and the registry names and publishes the practice. */
+  /** What only people fill, at run time: the seed adds no patient and nothing they cause. */
+  const FILLED_AT_RUN_TIME: ReadonlySet<string> = new Set([
+    'patients',
+    'integration_outbox',
+    'audit_events',
+  ]);
+
+  /** P01: every other practice table has rows, and the registry names and publishes the practice. */
   async function expectPublishedAndFilled(): Promise<void> {
     const listings = await withClient(databases.platformOwnerUrl, async (platform) => {
       const result = await platform.query<Row>(
@@ -37,7 +44,11 @@ describe('the seed (08 F04)', () => {
     for (const practice of SEED_PRACTICES) {
       const { databaseName } = practiceNames(practice.id);
       const counts = await rowCounts(databases.superuserUrl(databaseName));
-      expect(Object.entries(counts).filter(([, count]) => count === 0)).toEqual([]);
+      expect(
+        Object.entries(counts).filter(
+          ([table, count]) => count === 0 && !FILLED_AT_RUN_TIME.has(table),
+        ),
+      ).toEqual([]);
       const settings = await withClient(databases.superuserUrl(databaseName), async (client) => {
         const result = await client.query<Row>(
           'SELECT time_zone AS "timeZone", default_locale AS "defaultLocale" FROM practice_settings',

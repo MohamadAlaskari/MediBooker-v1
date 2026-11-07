@@ -32,6 +32,18 @@ export const UpdateMeResponse = zod.object({
 })
 
 /**
+ * @summary The practices of this account, with the capacity in each
+ */
+export const ListMyPracticesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "capacity": zod.enum(['STAFF', 'PATIENT']),
+  "id": zod.uuid(),
+  "name": zod.record(zod.string(), zod.string()).describe('Its name per language'),
+  "slug": zod.string().nullable().describe('Its current slug, when it has one')
+}))
+})
+
+/**
  * @summary The own details; 404 until they are entered
  */
 export const GetProfileResponse = zod.object({

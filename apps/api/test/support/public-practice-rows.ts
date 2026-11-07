@@ -26,6 +26,9 @@ export function publicPracticeRows(
       maxHorizonDays: 90,
       cancellationDeadlineHours: 24,
       reminderHoursBefore: 24,
+      insuranceTypes: ['PUBLIC', 'PRIVATE', 'SELF_PAY'],
+      insuranceProviderTypes: ['PUBLIC', 'PRIVATE'],
+      insuranceNumberTypes: ['PUBLIC', 'PRIVATE'],
       updatedAt: AT,
     },
     page: {

@@ -20,6 +20,7 @@ import type {
 
 import type {
   AccountDto,
+  MyPracticeListDto,
   ProfileDto,
   UpdateAccountDto,
   UpdateProfileDto
@@ -29,6 +30,10 @@ import type {
 export const getGetMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
 
 export const getUpdateMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
+
+export const getListMyPracticesResponseMock = (overrideResponse: Partial<Extract<MyPracticeListDto, object>> = {}): MyPracticeListDto => ({items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({capacity: faker.helpers.arrayElement(['STAFF','PATIENT'] as const), id: faker.string.uuid(), name: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, slug: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null])})), ...overrideResponse})
 
 export const getGetProfileResponseMock = (overrideResponse: Partial<Extract<ProfileDto, object>> = {}): ProfileDto => ({dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
@@ -54,6 +59,18 @@ export const getUpdateMeMockHandler = (overrideResponse?: AccountDto | ((info: P
     return HttpResponse.json(overrideResponse !== undefined
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getUpdateMeResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getListMyPracticesMockHandler = (overrideResponse?: MyPracticeListDto | ((info: Parameters<HttpResponseResolver>[0]) => Promise<MyPracticeListDto> | MyPracticeListDto), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/me/practices', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListMyPracticesResponseMock(),
       { status: 200
       })
   }, options)
@@ -95,6 +112,7 @@ export const getDeleteUnconfirmedAccountMockHandler = (overrideResponse?: void |
 export const getMeMock = () => [
   getGetMeMockHandler(),
   getUpdateMeMockHandler(),
+  getListMyPracticesMockHandler(),
   getGetProfileMockHandler(),
   getUpdateProfileMockHandler(),
   getDeleteUnconfirmedAccountMockHandler()

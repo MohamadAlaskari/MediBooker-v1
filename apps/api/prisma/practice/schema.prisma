@@ -102,6 +102,12 @@ model PracticeSettings {
   cancellationDeadlineHours       Int      @default(24) @map("cancellation_deadline_hours") @db.SmallInt
   /// class: public (BR-13)
   reminderHoursBefore             Int      @default(24) @map("reminder_hours_before") @db.SmallInt
+  /// class: public (BR-10: the insurance types this practice takes)
+  insuranceTypes                  String[] @default(["PUBLIC", "PRIVATE", "SELF_PAY"]) @map("insurance_types")
+  /// class: public (BR-10: the types that need a provider)
+  insuranceProviderTypes          String[] @default(["PUBLIC", "PRIVATE"]) @map("insurance_provider_types")
+  /// class: public (BR-10: the types that need a number; never SELF_PAY, CHECK in the migration)
+  insuranceNumberTypes            String[] @default(["PUBLIC", "PRIVATE"]) @map("insurance_number_types")
   /// class: public
   updatedAt                       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -359,4 +365,96 @@ model Slot {
   @@index([ruleId])
   @@index([startsAt], map: "slots_open_starts_at_idx", where: raw("(status = 'OPEN'::slot_status)"))
   @@map("slots")
+}
+
+enum InsuranceType {
+  PUBLIC
+  PRIVATE
+  SELF_PAY
+
+  @@map("insurance_type")
+}
+
+/// Whom a patient profile belongs to: the account itself, or from FA01 a child of that account.
+enum PatientRelationship {
+  SELF
+  CHILD
+
+  @@map("patient_relationship")
+}
+
+/// A person as this practice knows them (ADR 0005 §1.3): a copy of the account's details made at the
+/// join, and from then on authoritative for this practice (D16). The verified phone stays on the
+/// account. At most one SELF row per user.
+model Patient {
+  /// class: personal
+  id                       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal (null for a child without an account, FA01)
+  userId                   String?             @map("user_id") @db.Uuid
+  /// class: personal
+  relationship             PatientRelationship @default(SELF)
+  /// class: personal
+  firstName                String              @map("first_name")
+  /// class: personal
+  lastName                 String              @map("last_name")
+  /// class: personal
+  dateOfBirth              DateTime            @map("date_of_birth") @db.Date
+  /// class: personal (a contact number for this practice)
+  contactPhone             String?             @map("contact_phone")
+  /// class: personal
+  insuranceType            InsuranceType       @map("insurance_type")
+  /// class: personal
+  insuranceProvider        String?             @map("insurance_provider")
+  /// class: secret (encrypted with this practice's data key, bound to this row)
+  insuranceNumberEncrypted String?             @map("insurance_number_encrypted")
+  /// class: personal (the last characters, so that a person recognises it)
+  insuranceNumberEnd       String?             @map("insurance_number_end")
+  /// class: secret (keyed hash with a key of this practice: the same number differs per practice)
+  insuranceNumberIndex     String?             @map("insurance_number_index")
+  /// class: personal
+  createdAt                DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  updatedAt                DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([userId], map: "patients_self_user_key", where: raw("(relationship = 'SELF'::patient_relationship)"))
+  @@index([insuranceNumberIndex])
+  @@map("patients")
+}
+
+/// What the platform database must learn of a change here (ADR 0005 §1.4): written in the same
+/// transaction, relayed at least once. An event names no practice: the relay takes that from the
+/// database it read it from, so one practice's data cannot change another's index.
+model IntegrationOutbox {
+  /// class: public (increases with every event: the source_version of the index)
+  id          BigInt    @id @default(autoincrement())
+  /// class: public
+  type        String
+  /// class: personal (ids and a capacity, no profile data)
+  payload     Json
+  /// class: public
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: public
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3)
+
+  @@index([id], map: "integration_outbox_due_idx", where: raw("(processed_at IS NULL)"))
+  @@map("integration_outbox")
+}
+
+/// What happened to the personal data of this practice. Append-only for the app role (migration).
+model AuditEvent {
+  /// class: personal
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  at        DateTime @db.Timestamptz(3)
+  /// class: personal (`user:<id>`; nothing else about a person)
+  actor     String
+  /// class: public (a constant such as patient.join)
+  action    String
+  /// class: personal (the row it happened to)
+  subjectId String?  @map("subject_id") @db.Uuid
+  /// class: personal (keyed hash with a key of this practice, ADR 0005 §4.8)
+  ipHash    String?  @map("ip_hash")
+
+  @@index([subjectId])
+  @@map("audit_events")
 }

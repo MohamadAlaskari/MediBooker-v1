@@ -77,7 +77,7 @@ async function withPlatform<T>(
   }
 }
 
-/** Whether the practice is ACTIVE at the newest practice migration and published already. */
+/** Whether the practice is ACTIVE at the newest migration, has a data key and is published. */
 async function isCurrent(
   platformUrl: string,
   practiceId: string,
@@ -85,7 +85,8 @@ async function isCurrent(
 ): Promise<boolean> {
   return withPlatform(platformUrl, async (client) => {
     const result = await client.query<{ current: boolean }>(
-      `SELECT status = 'ACTIVE' AND schema_version = $2 AND published_at IS NOT NULL AS current
+      `SELECT status = 'ACTIVE' AND schema_version = $2 AND published_at IS NOT NULL
+         AND cardinality(field_key_refs) > 0 AS current
        FROM practices WHERE id = $1`,
       [practiceId, newest],
     );

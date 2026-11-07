@@ -14,6 +14,8 @@ export interface PracticeNames {
   /** Development store references (SECRET_STORE=dev); the provider's scheme arrives in OPS01. */
   readonly appSecretRef: string;
   readonly ownerSecretRef: string;
+  /** The first data key of the practice (ADR 0005 §4.8). */
+  readonly fieldKeyRef: string;
 }
 
 export function isPracticeId(value: string): boolean {
@@ -36,5 +38,6 @@ export function practiceNames(practiceId: string): PracticeNames {
     ownerRole,
     appSecretRef: `dev:${appRole}`,
     ownerSecretRef: `dev:${ownerRole}`,
+    fieldKeyRef: `dev:${databaseName}_field_key`,
   };
 }

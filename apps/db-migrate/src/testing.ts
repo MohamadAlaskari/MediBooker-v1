@@ -103,6 +103,7 @@ async function grantCopiedObjects(copy: Client, names: PracticeNames): Promise<v
   }
   await copy.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${app}`);
   await copy.query(`REVOKE INSERT, UPDATE, DELETE ON practice_identity FROM ${app}`);
+  await copy.query(`REVOKE UPDATE, DELETE ON audit_events FROM ${app}`);
   await copy.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${app}`,
   );
@@ -172,6 +173,7 @@ async function provisionFromTemplate(
       databaseName: names.databaseName,
       appSecretRef: names.appSecretRef,
       ownerSecretRef: names.ownerSecretRef,
+      fieldKeyRef: names.fieldKeyRef,
       schemaVersion: newest,
     }),
   );

@@ -80,6 +80,10 @@ Extend this list; never reuse a code with a different meaning.
 | GET, PATCH /settings | admin (GET also staff) | Booking rules, practice data | |
 | GET /audit-events | admin | Audit log | |
 | GET /app-config | public | Minimum app version, feature flags | |
+| POST /practices/{practiceId}/me/patients | confirmed account | Join: copies the account's details into the practice and names what is missing (D16) | BR-09, BR-10 |
+| GET /practices/{practiceId}/me/patients | patient | The caller's profiles in this practice; 404 before a join | BR-10 |
+| GET, PATCH /practices/{practiceId}/me/patients/{patientId} | patient (own) | The own profile; the number is masked | BR-10 |
+| GET /me/practices | account | The practices of the account with the capacity, from the platform database | |
 | GET /me/patients | patient | Own (`SELF`) and managed patient profiles | BR-19 |
 | POST /me/patients | patient | Add a child (with `guardianDeclaration: true`) | BR-19 |
 | POST /me/patients/invitations | patient | Invite an adult family member (by e-mail or phone) | BR-19 |

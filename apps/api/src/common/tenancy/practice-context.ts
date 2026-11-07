@@ -14,6 +14,8 @@ export interface PracticeContext {
   readonly lease: PracticeLease;
   /** Only on a `@PracticeScoped('slug')` route: the registry's slug and name of the practice. */
   readonly listing?: PracticeListing;
+  /** Only on a `{ patient: true }` route: the caller's own profile in this practice. */
+  readonly selfPatientId?: string;
 }
 
 /** The practice context of the current request or `runInPractice` call; throws without one. */

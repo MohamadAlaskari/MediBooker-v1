@@ -34,6 +34,7 @@ import {
   placePractice,
   readPractice,
   recordDeployOutcome,
+  setFieldKeyRef,
   setSecretRefs,
 } from '../lib/registry.ts';
 import { ensurePracticeRoles, type ConnectionLimits, type RolePasswords } from '../lib/roles.ts';
@@ -109,6 +110,8 @@ async function provisionSteps(
         : await store.ensure(ownerSecretRef),
   };
   await setSecretRefs(platform, names.practiceId, appSecretRef, ownerSecretRef);
+  await store.ensure(names.fieldKeyRef);
+  await setFieldKeyRef(platform, names.practiceId, names.fieldKeyRef);
   const access = await resolveClusterAccess(cluster, {
     appEnv: options.appEnv,
     endpoints: options.clusterEndpoints,

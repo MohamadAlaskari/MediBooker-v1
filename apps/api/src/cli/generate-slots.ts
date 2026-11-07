@@ -13,8 +13,8 @@ import { SlotGenerationJob } from '../modules/scheduling/slot-generation.job.js'
 
 loadWorkspaceEnv(import.meta.dirname, process.env.NODE_ENV);
 
-// This one run is no instance of the outbox: its timer would send e-mails and leave with them unsent.
-const env = parseEnv({ ...process.env, OUTBOX_POLL_SECONDS: '0' });
+// This one run is no instance of the outbox or the relay: their timers would start work it leaves.
+const env = parseEnv({ ...process.env, OUTBOX_POLL_SECONDS: '0', RELAY_POLL_SECONDS: '0' });
 const app = await NestFactory.createApplicationContext(AppModule.forRoot(env), {
   logger: false,
 });

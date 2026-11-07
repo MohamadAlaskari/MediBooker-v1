@@ -132,6 +132,22 @@ export async function setSecretRefs(
   );
 }
 
+/**
+ * The first data key of a practice (ADR 0005 §4.8). Only when it has none: a rerun of provision adds
+ * it to a practice from before B01 and never replaces a key in use.
+ */
+export async function setFieldKeyRef(
+  platform: Client,
+  practiceId: string,
+  fieldKeyRef: string,
+): Promise<void> {
+  await platform.query(
+    `UPDATE practices SET field_key_refs = ARRAY[$2]::text[], updated_at = now()
+     WHERE id = $1 AND cardinality(field_key_refs) = 0`,
+    [practiceId, fieldKeyRef],
+  );
+}
+
 /** After a deploy: the schema version and the time, or the error code (ADR 0005 §6.2). */
 export async function recordDeployOutcome(
   platform: Client,
@@ -175,13 +191,14 @@ export async function insertRoutedPractice(
     readonly databaseName: string;
     readonly appSecretRef: string;
     readonly ownerSecretRef: string;
+    readonly fieldKeyRef: string;
     readonly schemaVersion: string;
   },
 ): Promise<void> {
   await platform.query(
     `INSERT INTO practices (id, status, market, cluster_id, database_name, app_secret_ref,
-       owner_secret_ref, schema_version, migrated_at)
-     VALUES ($1, 'ACTIVE', $2, $3, $4, $5, $6, $7, now())`,
+       owner_secret_ref, field_key_refs, schema_version, migrated_at)
+     VALUES ($1, 'ACTIVE', $2, $3, $4, $5, $6, ARRAY[$7]::text[], $8, now())`,
     [
       practice.practiceId,
       practice.market,
@@ -189,6 +206,7 @@ export async function insertRoutedPractice(
       practice.databaseName,
       practice.appSecretRef,
       practice.ownerSecretRef,
+      practice.fieldKeyRef,
       practice.schemaVersion,
     ],
   );

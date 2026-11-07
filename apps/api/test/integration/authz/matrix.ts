@@ -15,6 +15,11 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   deleteUnconfirmedAccount: { account: 204 },
   getProfile: { account: 200 },
   updateProfile: { account: 200 },
+  listMyPractices: { account: 200 },
+  joinPractice: { account: 404 },
+  listMyPatients: { account: 404 },
+  getMyPatient: { account: 404 },
+  updateMyPatient: { account: 404 },
 };
 
 /** The operationIds that answer without sign-in. */

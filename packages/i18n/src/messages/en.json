@@ -27,7 +27,9 @@
     "TIMEOUT": "This is taking too long. Please try again.",
     "UNEXPECTED_RESPONSE": "We received an unexpected answer. Please try again in a moment.",
     "INVALID_CREDENTIALS": "The e-mail address or the password is not correct.",
-    "INVALID_TOKEN": "This link is no longer valid. Please request a new one."
+    "INVALID_TOKEN": "This link is no longer valid. Please request a new one.",
+    "EMAIL_NOT_VERIFIED": "Please confirm your e-mail address first. We sent you a link.",
+    "ALREADY_JOINED": "You are already registered with this practice."
   },
   "validation": {
     "REQUIRED": "Please fill in this field.",

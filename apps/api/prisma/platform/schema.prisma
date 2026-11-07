@@ -100,6 +100,9 @@ model Practice {
   appSecretRef       String?        @map("app_secret_ref")
   /// class: secret (a secret-store reference, not the secret; never logged or returned)
   ownerSecretRef     String?        @map("owner_secret_ref")
+  /// class: secret (secret-store references to this practice's data keys, never logged or returned:
+  /// the first encrypts and all decrypt, so a key can be replaced row by row; ADR 0005 §4.8)
+  fieldKeyRefs       String[]       @default([]) @map("field_key_refs")
   /// class: public (incremented when the route or a credential changes)
   routeVersion       Int            @default(1) @map("route_version")
   /// class: public (the newest migration applied to the practice database)
@@ -121,6 +124,7 @@ model Practice {
 
   cluster DatabaseCluster? @relation(fields: [clusterId], references: [id], onDelete: Restrict)
   slugs   PracticeSlug[]
+  access  PracticeAccess[]
 
   @@map("practices")
 }
@@ -228,8 +232,45 @@ model User {
   consents      AccountConsent[]
   notifications AccountNotification[]
   profile       AccountProfile?
+  access        PracticeAccess[]
 
   @@map("users")
+}
+
+/// In what capacity a person may reach a practice. The practice database decides; this only says
+/// where to look.
+enum PracticeCapacity {
+  STAFF
+  PATIENT
+
+  @@map("practice_capacity")
+}
+
+/// The membership index (ADR 0005 §1.1): which practices a person may reach, read before any
+/// practice database is opened. It holds the capacity only, no profile data. It can only lag behind
+/// its source in the practice, and a lagging index fails closed. Staff columns follow with A04.
+model PracticeAccess {
+  /// class: health (who is a patient where, ADR 0005 §1.1: never in a log line with the practice)
+  userId        String           @map("user_id") @db.Uuid
+  /// class: health
+  practiceId    String           @map("practice_id") @db.Uuid
+  /// class: health
+  capacity      PracticeCapacity
+  /// class: health (false until the practice has the row: a join reserves its place first)
+  active        Boolean          @default(false)
+  /// class: public (the id of the newest event applied; an older one is ignored)
+  sourceVersion BigInt           @default(0) @map("source_version")
+  /// class: health
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: health
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, practiceId, capacity])
+  @@index([practiceId])
+  @@map("practice_access")
 }
 
 /// What a person enters at sign-up (D16 option B, RT-90): one entry, copied into a practice when

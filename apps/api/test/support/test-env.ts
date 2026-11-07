@@ -15,4 +15,5 @@ export const TEST_ENV: Readonly<Record<string, string>> = {
   DEV_SECRET_SEED: 'synthetic-test-seed',
   // A test drives the outbox itself: no timer in the background.
   OUTBOX_POLL_SECONDS: '0',
+  RELAY_POLL_SECONDS: '0',
 };

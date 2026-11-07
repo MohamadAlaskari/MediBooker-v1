@@ -9,6 +9,13 @@
     "dev": {
       "dependsOn": ["^build"]
     },
+    "lint": {
+      "dependsOn": ["^build", "typecheck"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/types/**"]
+    },
     "test:e2e": {
       "dependsOn": ["build"]
     }

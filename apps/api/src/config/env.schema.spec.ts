@@ -22,6 +22,7 @@ const PRODUCTION: EnvSource = {
   AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
   AUTH_SECRET_REF: 'hosted:auth-secret',
   FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
+  BLIND_INDEX_KEY_REF: 'hosted:blind-index-key',
 };
 
 const STAGING: EnvSource = { ...PRODUCTION, APP_ENV: 'staging' };
@@ -87,9 +88,11 @@ describe('parseEnv', () => {
       AUTH_SIGNING_KEY_REFS: ['dev:auth-signing-key'],
       AUTH_SECRET_REF: 'dev:auth-secret',
       FIELD_ENCRYPTION_KEY_REFS: ['dev:field-encryption-key'],
+      BLIND_INDEX_KEY_REF: 'dev:blind-index-key',
       PUBLIC_WEB_URL: 'http://localhost:3000',
       MAIL_FROM: 'MediBooker <no-reply@medibooker.invalid>',
       OUTBOX_POLL_SECONDS: 5,
+      RELAY_POLL_SECONDS: 900,
     });
   });
 
@@ -623,6 +626,9 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
       );
       expect(parseInvalid({ ...base, FIELD_ENCRYPTION_KEY_REFS: undefined }).stderr).toContain(
         'FIELD_ENCRYPTION_KEY_REFS (custom: dev_reference_only_in_local_and_ci)',
+      );
+      expect(parseInvalid({ ...base, BLIND_INDEX_KEY_REF: undefined }).stderr).toContain(
+        'BLIND_INDEX_KEY_REF (custom: dev_reference_only_in_local_and_ci)',
       );
     });
 

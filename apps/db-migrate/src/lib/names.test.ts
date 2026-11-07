@@ -11,6 +11,7 @@ describe('practiceNames', () => {
       ownerRole: 'practice_00000000000040008000000000000001_owner',
       appSecretRef: 'dev:practice_00000000000040008000000000000001_app',
       ownerSecretRef: 'dev:practice_00000000000040008000000000000001_owner',
+      fieldKeyRef: 'dev:practice_00000000000040008000000000000001_field_key',
     });
   });
 

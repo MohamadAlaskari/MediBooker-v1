@@ -81,6 +81,17 @@ export class PracticeResolver {
     return this.routeOf(row, purpose);
   }
 
+  /** As `resolve`, for a person who joins: a practice without a publication does not exist yet. */
+  async resolvePublished(practiceId: string): Promise<PracticeResolution> {
+    const row = await this.platform.practice.findUnique({
+      where: { id: practiceId },
+      select: { ...ROUTE_FIELDS, publishedAt: true },
+    });
+    const publishedAt = row?.publishedAt ?? null;
+    if (row === null || publishedAt === null) return { answer: 'NOT_FOUND' };
+    return this.routeOf(row, 'request');
+  }
+
   /**
    * A public request by slug (02 §5), current or retired: unknown and unpublished practices give
    * the same 404 as the status table's, before any practice client is leased.

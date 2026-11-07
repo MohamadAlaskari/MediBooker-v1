@@ -25,6 +25,7 @@ import type {
 
 import type {
   AccountDto,
+  MyPracticeListDto,
   ProblemDetailsDto,
   ProfileDto,
   UpdateAccountDto,
@@ -241,7 +242,107 @@ export const useUpdateMe = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getUpdateMeMutationOptions(options), queryClient);
     }
-    export const getGetProfileUrl = () => {
+    export const getListMyPracticesUrl = () => {
+
+
+
+
+  return `/api/v1/me/practices`
+}
+
+/**
+ * @summary The practices of this account, with the capacity in each
+ */
+export const listMyPractices = async ( options?: Parameters<typeof apiFetch>[1]): Promise<MyPracticeListDto> => {
+
+  return apiFetch<MyPracticeListDto>(getListMyPracticesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyPracticesQueryKey = () => {
+    return [
+    `/api/v1/me/practices`
+    ] as const;
+    }
+
+
+export const getListMyPracticesQueryOptions = <TData = Awaited<ReturnType<typeof listMyPractices>>, TError = ErrorType<ProblemDetailsDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyPracticesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyPractices>>> = ({ signal }) => listMyPractices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyPracticesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyPractices>>>
+export type ListMyPracticesQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useListMyPractices<TData = Awaited<ReturnType<typeof listMyPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPractices>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPractices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyPractices<TData = Awaited<ReturnType<typeof listMyPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPractices>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPractices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyPractices<TData = Awaited<ReturnType<typeof listMyPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The practices of this account, with the capacity in each
+ */
+
+export function useListMyPractices<TData = Awaited<ReturnType<typeof listMyPractices>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPractices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyPracticesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetProfileUrl = () => {
 
 
 

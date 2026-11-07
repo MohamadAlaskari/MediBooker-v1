@@ -20,6 +20,7 @@ import type { Env } from './config/env.schema.js';
 import { HealthModule } from './health/health.module.js';
 import { AccountProfileModule } from './modules/account-profile/account-profile.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { PatientsModule } from './modules/patients/patients.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
 
@@ -53,6 +54,7 @@ export class AppModule {
         HealthModule,
         AuthModule,
         AccountProfileModule,
+        PatientsModule,
         PublicPracticeModule,
         SchedulingModule,
       ],

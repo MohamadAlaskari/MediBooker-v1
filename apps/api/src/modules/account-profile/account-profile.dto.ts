@@ -14,18 +14,18 @@ import {
   type InsuranceTypeName,
 } from './domain/profile.rules.js';
 
-const MAX_NAME_LENGTH = 100;
-const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const MAX_NAME_LENGTH = 100;
+export const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * A name as a person writes it, in any script, but with a visible character and without control or
  * reading-direction characters: a NUL cannot be stored, and an override would disguise a name on
  * the screens of a practice that later shows it.
  */
-const PLAIN_TEXT = /^(?=.*\S)[^\p{Cc}\p{Bidi_Control}]+$/u;
+export const PLAIN_TEXT = /^(?=.*\S)[^\p{Cc}\p{Bidi_Control}]+$/u;
 /** At least six digits, of any script: a person types the digits of their keyboard. */
-const PHONE = /^\+?(?=(?:[ ()-]*\p{Nd}){6})[\p{Nd} ()-]{6,20}$/u;
+export const PHONE = /^\+?(?=(?:[ ()-]*\p{Nd}){6})[\p{Nd} ()-]{6,20}$/u;
 /** Long enough that showing its end does not show all of it. */
-const INSURANCE_NUMBER = /^[\p{L}\p{Nd}][\p{L}\p{Nd} ./-]{5,39}$/u;
+export const INSURANCE_NUMBER = /^[\p{L}\p{Nd}][\p{L}\p{Nd} ./-]{5,39}$/u;
 
 /** What a person enters. A self-payer's insurance fields are not asked for, and not kept. */
 export class UpdateProfileDto {
