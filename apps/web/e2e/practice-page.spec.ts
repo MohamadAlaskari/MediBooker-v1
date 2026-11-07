@@ -236,6 +236,8 @@ test.describe('on a phone', () => {
 
   test('long Arabic text does not make the page wider than the screen', async ({ page }) => {
     await page.goto('/ar/long-arabic');
+    // Once it is alive: the picker's hidden select comes with the first answers.
+    await expect(page.locator('#free-times [data-a11y-ignore]')).toBeAttached();
     const { scrollWidth, innerWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,

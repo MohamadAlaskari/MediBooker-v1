@@ -5,6 +5,9 @@
  * OpenAPI spec version: 1
  */
 import type { PublicOpeningHoursDto } from './publicOpeningHoursDto';
+import type { PublicPracticeDtoInsuranceNumberTypesItem } from './publicPracticeDtoInsuranceNumberTypesItem';
+import type { PublicPracticeDtoInsuranceProviderTypesItem } from './publicPracticeDtoInsuranceProviderTypesItem';
+import type { PublicPracticeDtoInsuranceTypesItem } from './publicPracticeDtoInsuranceTypesItem';
 import type { PublicServiceDto } from './publicServiceDto';
 import type { PublicSpecialDayDto } from './publicSpecialDayDto';
 import type { PublicTeamMemberDto } from './publicTeamMemberDto';
@@ -15,6 +18,8 @@ export interface PublicPracticeDto {
   about: string | null;
   /** @nullable */
   address: string | null;
+  /** Until how many hours before the start a patient can change an appointment online */
+  cancellationDeadlineHours: number;
   defaultLocale: string;
   /**
      * Null when the practice hides its directions
@@ -24,6 +29,14 @@ export interface PublicPracticeDto {
   /** @nullable */
   email: string | null;
   hourCycle: string;
+  /** What the routes of a signed-in patient name it by */
+  id: string;
+  /** The insurance types for which this practice asks for a number (BR-10) */
+  insuranceNumberTypes: PublicPracticeDtoInsuranceNumberTypesItem[];
+  /** The insurance types for which this practice asks for a provider (BR-10) */
+  insuranceProviderTypes: PublicPracticeDtoInsuranceProviderTypesItem[];
+  /** The insurance types this practice takes (BR-10) */
+  insuranceTypes: PublicPracticeDtoInsuranceTypesItem[];
   /** @nullable */
   legalNoticeUrl: string | null;
   /** The locale of the texts in this response, also in Content-Language */

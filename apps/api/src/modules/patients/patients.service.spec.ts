@@ -68,7 +68,7 @@ function setUp(market = 'SA') {
       create: vi.fn().mockResolvedValue({}),
     },
     practiceAccess: {
-      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
       createMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     session: { findUnique: vi.fn().mockResolvedValue({ revokedAt: null }) },
@@ -170,6 +170,31 @@ describe('PatientsService.join', () => {
     const change = { userId: USER, capacity: 'PATIENT', active: true };
     expect(context.recordAccessChange).toHaveBeenCalledWith(change);
     expect(context.applyNow).toHaveBeenCalledWith('practice-a', 7n, change);
+  });
+
+  it('copies only what this practice asks for: the rest stays with the account', async () => {
+    const context = setUp();
+    context.practice.practiceSettings.findUniqueOrThrow.mockResolvedValue({
+      ...RULES,
+      insuranceProviderTypes: [],
+      insuranceNumberTypes: [],
+    });
+    await context.inPractice(() => context.service.join(ACTOR, {}, undefined));
+    const { data } = context.practice.patient.create.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data).toMatchObject({ insuranceType: 'PUBLIC', insuranceProvider: null });
+    expect(data.insuranceNumberEncrypted).toBeUndefined();
+    expect(context.decrypt).not.toHaveBeenCalled();
+  });
+
+  it('removes a phone the person cleared, and copies it only when left out', async () => {
+    const cleared = setUp();
+    await cleared.inPractice(() => cleared.service.join(ACTOR, { phone: null }, undefined));
+    const { data } = cleared.practice.patient.create.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data).toMatchObject({ contactPhone: null });
   });
 
   it('holds its place before it writes, under the row lock of the account', async () => {
@@ -361,18 +386,62 @@ describe('PatientsService.join', () => {
     expect(context.platform.accountConsent.create).not.toHaveBeenCalled();
   });
 
-  it('stops at the limit of the day, and counts only other practices', async () => {
-    const context = setUp();
-    context.platform.practiceAccess.count.mockResolvedValue(5);
-    await expect(
-      context.inPractice(() => context.service.join(ACTOR, {}, undefined)),
-    ).rejects.toMatchObject({
-      code: 'RATE_LIMITED',
+  describe('the limit of the day', () => {
+    /** Places taken that long ago, the newest first, as the query answers. */
+    const taken = (...ago: readonly Temporal.DurationLike[]) =>
+      ago.map((duration) => ({
+        createdAt: new Date(NOW.subtract(duration).epochMilliseconds),
+      }));
+
+    it('stops the sixth new practice, and counts only other practices', async () => {
+      const context = setUp();
+      context.platform.practiceAccess.findMany.mockResolvedValue(
+        taken({ hours: 1 }, { hours: 2 }, { hours: 3 }, { hours: 4 }, { hours: 5 }),
+      );
+      await expect(
+        context.inPractice(() => context.service.join(ACTOR, {}, undefined)),
+      ).rejects.toMatchObject({ code: 'JOIN_LIMIT_REACHED' });
+      expect(context.platform.practiceAccess.findMany).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: USER,
+            capacity: 'PATIENT',
+            practiceId: { not: 'practice-a' },
+            createdAt: { gte: new Date('2026-11-14T07:00:00Z') },
+          }) as object,
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        }),
+      );
+      expect(context.platform.practiceAccess.createMany).not.toHaveBeenCalled();
+      expect(context.practice.patient.create).not.toHaveBeenCalled();
     });
-    expect(context.platform.practiceAccess.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({ practiceId: { not: 'practice-a' } }) as object,
+
+    it('takes the fifth new practice', async () => {
+      const context = setUp();
+      context.platform.practiceAccess.findMany.mockResolvedValue(
+        taken({ hours: 1 }, { hours: 2 }, { hours: 3 }, { hours: 4 }),
+      );
+      await context.inPractice(() => context.service.join(ACTOR, {}, undefined));
+      expect(context.practice.patient.create).toHaveBeenCalledOnce();
     });
-    expect(context.practice.patient.create).not.toHaveBeenCalled();
+
+    it.each([
+      ['an hour', { hours: 23 }, 3601],
+      ['half a second less', { hours: 23, milliseconds: 500 }, 3600],
+      ['nothing, as its last moment counts as inside', { hours: 24 }, 1],
+    ])(
+      'says how long until the last of the five leaves the day: %s',
+      async (_, ago, retryAfterSeconds) => {
+        const context = setUp();
+        context.platform.practiceAccess.findMany.mockResolvedValue(
+          taken({ hours: 1 }, { hours: 2 }, { hours: 3 }, { hours: 4 }, ago),
+        );
+        await expect(
+          context.inPractice(() => context.service.join(ACTOR, {}, undefined)),
+        ).rejects.toMatchObject({ retryAfterSeconds });
+      },
+    );
   });
 
   it.each(['2026-02-31', '2030-01-01', '1800-01-01'])('refuses the birth date %s', async (date) => {

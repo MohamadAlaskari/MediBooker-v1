@@ -3,7 +3,7 @@ import { DEFAULT_LOCALE, isLocale, messages } from '@medibooker/i18n';
 import { NextIntlClientProvider, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import type { PracticeFormat } from '@/lib/format';
-import { fullNameOf, initialsOf } from '../practice-view';
+import { doctorsOf } from '../practice-view';
 import { PageSection } from '../section';
 import { FreeTimesPicker } from './free-times-picker';
 
@@ -30,13 +30,6 @@ export function FreeTimesSection({ practice, locale, format }: FreeTimesSectionP
       }),
     }),
   }));
-  const doctors = team
-    .filter(({ isProvider }) => isProvider)
-    .map((member) => ({
-      id: member.id,
-      name: fullNameOf(member),
-      initials: initialsOf(member),
-    }));
   const language = isLocale(locale) ? locale : DEFAULT_LOCALE;
   return (
     <PageSection
@@ -57,7 +50,7 @@ export function FreeTimesSection({ practice, locale, format }: FreeTimesSectionP
             today={practice.today}
             weekStart={practice.weekStart}
             services={offers}
-            doctors={doctors}
+            doctors={doctorsOf(team)}
             phone={phone}
           />
         </NextIntlClientProvider>

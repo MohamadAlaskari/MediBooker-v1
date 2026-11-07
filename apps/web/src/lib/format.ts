@@ -18,10 +18,14 @@ export interface PracticeFormat {
   readonly year: (isoDate: string) => string;
   /** Such a date in full: "Wednesday, 4 November". */
   readonly dayLong: (isoDate: string) => string;
+  /** The same with its year, for what can lie in another one: "Wednesday, 4 November 2026". */
+  readonly dayLongWithYear: (isoDate: string) => string;
   /** Its month and year: "November 2026". */
   readonly monthYear: (isoDate: string) => string;
   /** Its short weekday: "Wed". */
   readonly weekdayShort: (isoDate: string) => string;
+  /** Its weekday in one letter, where a short one does not fit: "W". */
+  readonly weekdayNarrow: (isoDate: string) => string;
   /** Its day of the month, with the practice's digits. */
   readonly dayOfMonth: (isoDate: string) => string;
   /** The time of an instant in the practice's zone. */
@@ -87,8 +91,13 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     year: (isoDate) => inUtc({ year: 'numeric' }).format(utcDate(isoDate)),
     dayLong: (isoDate) =>
       inUtc({ weekday: 'long', day: 'numeric', month: 'long' }).format(utcDate(isoDate)),
+    dayLongWithYear: (isoDate) =>
+      inUtc({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(
+        utcDate(isoDate),
+      ),
     monthYear: (isoDate) => inUtc({ month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
     weekdayShort: (isoDate) => inUtc({ weekday: 'short' }).format(utcDate(isoDate)),
+    weekdayNarrow: (isoDate) => inUtc({ weekday: 'narrow' }).format(utcDate(isoDate)),
     dayOfMonth: (isoDate) => inUtc({ day: 'numeric' }).format(utcDate(isoDate)),
     instantTime: (instant) => inZone({ hour, minute: '2-digit' }).format(new Date(instant)),
     instantWeekday: (instant) => inZone({ weekday: 'long' }).format(new Date(instant)),

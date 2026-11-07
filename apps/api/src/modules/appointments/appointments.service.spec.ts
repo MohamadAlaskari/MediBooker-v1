@@ -264,6 +264,35 @@ describe('AppointmentsService.book', () => {
     ).rejects.toMatchObject({ code: 'SERVICE_NOT_BOOKABLE' });
   });
 
+  it('BR-25 refuses a time that overlaps an own appointment, and books nothing', async () => {
+    const context = setUp({ slot: { id: SLOT, ends_at: new Date('2026-11-17T07:30:00Z') } });
+    // The first count is BR-02's, which leaves a place; the second is this rule's.
+    context.db.appointment.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    await expect(
+      context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+    expect(context.db.appointment.count).toHaveBeenLastCalledWith({
+      where: {
+        patientId: SELF,
+        status: { in: ['BOOKED', 'CHECKED_IN'] },
+        slot: {
+          startsAt: { lt: new Date('2026-11-17T07:30:00Z') },
+          endsAt: { gt: new Date(INPUT.startsAt) },
+        },
+      },
+    });
+    expect(context.db.slot.update).not.toHaveBeenCalled();
+    expect(context.db.appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('BR-25 names the own appointment also when no slot is free', async () => {
+    const context = setUp({ slot: null });
+    context.db.appointment.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    await expect(
+      context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+  });
+
   it('books in a transaction of this account', async () => {
     const context = setUp();
     await context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x'));
@@ -470,7 +499,10 @@ describe('AppointmentsService.reschedule (BR-05)', () => {
       ['appointment.cancel', OLD],
       ['appointment.reschedule', data.id],
     ]);
-    expect(context.db.appointment.count).not.toHaveBeenCalled();
+    // BR-02 has nothing to count; BR-25 asks once, without the appointment being moved.
+    expect(context.db.appointment.count).toHaveBeenCalledExactlyOnceWith({
+      where: expect.objectContaining({ id: { not: OLD } }) as unknown,
+    });
   });
 
   it('keeps the note, sealed for the new row', async () => {

@@ -22,6 +22,8 @@ interface AppointmentBody {
   timeZone: string;
   status: string;
   changeableUntil: string;
+  changeable: boolean;
+  started: boolean;
 }
 
 interface PageBody {
@@ -47,6 +49,14 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       .expect(201);
     return response.body as AppointmentBody;
   };
+
+  const read = (who: Person, practice: Fixture, id: string): request.Test =>
+    world.send(
+      request(world.server()).get(
+        `${API}/practices/${practice.practice.practiceId}/appointments/${id}`,
+      ),
+      who,
+    );
 
   const rowOf = (
     practice: Fixture,
@@ -93,7 +103,12 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const { id } = await booked(who, practice, startsAt);
 
       const response = await world.cancel(who, practice, id).expect(200);
-      expect(response.body).toMatchObject({ id, status: 'CANCELLED' });
+      expect(response.body).toMatchObject({
+        id,
+        status: 'CANCELLED',
+        changeable: false,
+        started: false,
+      });
       await expect(rowOf(practice, id)).resolves.toMatchObject({
         status: 'CANCELLED',
         cancelled_at: new Date(NOW.epochMilliseconds),
@@ -113,15 +128,19 @@ describe('changing and reading the own appointments on real databases (08 B03)',
     it('BR-04 at 24 elapsed hours: allowed a minute before, refused a minute after', async () => {
       const practice = world.lindenhof();
       const who = await world.patient(practice);
+      // Two people: these two times overlap, which one person cannot hold (BR-25).
+      const someoneElse = await world.patient(practice);
       const inTime = NOW.add({ hours: 24, minutes: 1 });
       const tooLate = NOW.add({ hours: 23, minutes: 59 });
       await world.slotAt(practice, inTime);
       await world.slotAt(practice, tooLate, { other: true });
       const allowed = await booked(who, practice, inTime);
-      const refused = await booked(who, practice, tooLate);
+      const refused = await booked(someoneElse, practice, tooLate);
+      expect(allowed.changeable).toBe(true);
+      expect(refused.changeable).toBe(false);
 
       await world.cancel(who, practice, allowed.id).expect(200);
-      const response = await world.cancel(who, practice, refused.id).expect(409);
+      const response = await world.cancel(someoneElse, practice, refused.id).expect(409);
       expect(response.body).toMatchObject({
         code: 'CANCELLATION_DEADLINE_PASSED',
         params: { cancellationDeadlineHours: 24 },
@@ -138,7 +157,7 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const { id } = await booked(who, practice, await world.changeableSlot(practice));
       await world.cancel(who, practice, id).expect(200);
       const second = await world.cancel(who, practice, id).expect(200);
-      expect(second.body).toMatchObject({ id, status: 'CANCELLED' });
+      expect(second.body).toMatchObject({ id, status: 'CANCELLED', changeable: false });
       await expect(auditOf(practice, id)).resolves.toEqual([
         'appointment.book',
         'appointment.cancel',
@@ -154,6 +173,8 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       );
       const response = await world.cancel(who, practice, id).expect(409);
       expect(response.body).toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
+      const answer = await read(who, practice, id).expect(200);
+      expect(answer.body).toMatchObject({ status: 'CHECKED_IN', changeable: false });
     });
 
     it('answers 404 for another patient, for no such row and for what is no id', async () => {
@@ -193,7 +214,7 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const { id } = first.body as AppointmentBody;
       await world.cancel(who, practice, id).expect(200);
       const replay = await world.book(who, practice, body, key).expect(201);
-      expect(replay.body).toMatchObject({ id, status: 'CANCELLED' });
+      expect(replay.body).toMatchObject({ id, status: 'CANCELLED', changeable: false });
       await expect(world.activeAt(practice, startsAt)).resolves.toEqual([]);
     });
   });
@@ -217,9 +238,13 @@ describe('changing and reading the own appointments on real databases (08 B03)',
         serviceId: old.serviceId,
         startsAt: target.toString(),
         status: 'BOOKED',
+        changeable: true,
+        started: false,
       });
       expect(moved.id).not.toBe(old.id);
       expect(response.text).not.toContain('Synthetic');
+      const oldNow = await read(who, practice, old.id).expect(200);
+      expect(oldNow.body).toMatchObject({ status: 'CANCELLED', changeable: false });
       await expect(rowOf(practice, moved.id)).resolves.toMatchObject({
         status: 'BOOKED',
         rescheduled_from_id: old.id,
@@ -263,6 +288,22 @@ describe('changing and reading the own appointments on real databases (08 B03)',
         return rows.map(({ id }) => id);
       });
       expect(copies).toEqual([(again.body as AppointmentBody).id]);
+    });
+
+    it('BR-04 the new appointment follows its own time: moved close to now, it cannot change again', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const old = await booked(who, practice, await world.changeableSlot(practice));
+      const soon = await world.freshSlot(practice);
+      const response = await world
+        .reschedule(who, practice, old.id, { startsAt: soon.toString() })
+        .expect(201);
+      expect(response.body).toMatchObject({
+        startsAt: soon.toString(),
+        status: 'BOOKED',
+        changeable: false,
+        started: false,
+      });
     });
 
     it('BR-05 a failure on the way keeps the old appointment, and a retry with the key moves it', async () => {
@@ -318,6 +359,30 @@ describe('changing and reading the own appointments on real databases (08 B03)',
         .expect(409);
       expect(response.body).toMatchObject({ code: 'SLOT_NOT_AVAILABLE' });
       await expect(rowOf(practice, old.id)).resolves.toMatchObject({ status: 'BOOKED' });
+    });
+
+    it('BR-25 refuses a move onto another own appointment, and keeps the old one', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const old = await booked(who, practice, await world.changeableSlot(practice));
+      const target = await world.changeableSlot(practice);
+      await booked(who, practice, target);
+      await world.slotAt(practice, target, { other: true });
+      const response = await world
+        .reschedule(who, practice, old.id, { startsAt: target.toString() })
+        .expect(409);
+      expect(response.body).toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+      await expect(rowOf(practice, old.id)).resolves.toMatchObject({ status: 'BOOKED' });
+    });
+
+    it('BR-25 does not count the appointment being moved: the same time with another doctor', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const startsAt = await world.changeableSlot(practice);
+      await world.slotAt(practice, startsAt, { other: true });
+      const old = await booked(who, practice, startsAt);
+      await world.reschedule(who, practice, old.id, { startsAt: startsAt.toString() }).expect(201);
+      await expect(rowOf(practice, old.id)).resolves.toMatchObject({ status: 'CANCELLED' });
     });
 
     it('refuses the same time with the same doctor, which is no other time', async () => {
@@ -410,14 +475,7 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const other = await world.patient(practice);
       const unnamed = await booked(other, practice, startsAt);
 
-      const answer = await world
-        .send(
-          request(world.server()).get(
-            `${API}/practices/${practice.practice.practiceId}/appointments/${named.id}`,
-          ),
-          who,
-        )
-        .expect(200);
+      const answer = await read(who, practice, named.id).expect(200);
       expect(answer.body).toEqual({
         id: named.id,
         practiceId: practice.practice.practiceId,
@@ -429,9 +487,13 @@ describe('changing and reading the own appointments on real databases (08 B03)',
         startsAt: startsAt.toString(),
         endsAt: startsAt.add({ minutes: 30 }).toString(),
         timeZone: 'Asia/Riyadh',
+        numberingSystem: expect.any(String) as string,
+        hourCycle: expect.any(String) as string,
         status: 'BOOKED',
         bookedAt: NOW.toString(),
         changeableUntil: startsAt.subtract({ hours: 24 }).toString(),
+        changeable: true,
+        started: false,
       });
       expect(unnamed).toMatchObject({ providerId: null, providerName: null });
     });
@@ -441,9 +503,8 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const who = await world.patient(practice);
       const other = await world.patient(practice);
       const { id } = await booked(who, practice, await world.changeableSlot(practice));
-      const path = `${API}/practices/${practice.practice.practiceId}/appointments`;
-      const ofOther = await world.send(request(world.server()).get(`${path}/${id}`), other);
-      const noId = await world.send(request(world.server()).get(`${path}/not-an-id`), who);
+      const ofOther = await read(other, practice, id);
+      const noId = await read(who, practice, 'not-an-id');
       expect([ofOther.status, noId.status]).toEqual([404, 404]);
     });
 
@@ -468,7 +529,11 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       world.clock.set(Temporal.Instant.from(soon.startsAt).add({ minutes: 1 }));
       const fresh = { ...who, token: await world.signIn(who.email) };
       const after = await listOf(fresh, practice, { scope: 'past' }).expect(200);
-      expect((after.body as PageBody).items.map(({ id }) => id)).toEqual([later.id, soon.id]);
+      expect((after.body as PageBody).items).toMatchObject([
+        { id: later.id, status: 'CANCELLED', started: false, changeable: false },
+        // Nothing sets another status yet (M05): only `started` tells that this one has begun.
+        { id: soon.id, status: 'BOOKED', started: true, changeable: false },
+      ]);
     });
 
     it('goes through a list a page at a time, without losing or repeating anything', async () => {

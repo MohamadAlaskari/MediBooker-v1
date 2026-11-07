@@ -81,14 +81,16 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 | `[locale]/layout.tsx` | `hasLocale` / `notFound`; `<html lang dir data-theme data-brand>` rendered on the server; fonts; providers; skip link; a nonce'd brand `<style>` for a custom practice colour (§9) | dynamic (nonce) |
 | `[locale]/page.tsx` | Neutral platform landing until a design exists | none |
 | `[locale]/(public)/[slug]/` | Practice page PW13/PW14 (P03) with free times (P06); no cookies, no third parties | server fetch with `no-store`; not cached (decision D2) |
-| `[locale]/(auth)/` | Sign-in, sign-up, verification, reset, two-factor (A05) | client only, `no-store` |
-| `[locale]/(patient)/` | Patient portal | client only, `no-store` |
+| `[locale]/(auth)/` | The ways in, for someone without a session: sign-in, the first step of sign-up, verification, reset, two-factor (A05) | client only, `no-store` |
+| `[locale]/(patient)/` | The account of a signed-in person, with the steps of a sign-up after its first (details, check inbox) | client only, `no-store` |
+| `[locale]/(portal)/` | Appointments and booking (B04), in a frame with navigation and signing out | client only, `no-store` |
 | `[locale]/(practice)/` | Practice dashboard: roles, 15-minute inactivity logout with a warning, realtime from RT01 | client only, `no-store` |
 | `[locale]/dev/kit/` | Component overview (X07); `notFound()` when `APP_ENV=production` | `force-dynamic` |
 | `global-error.tsx` | Static bilingual message with its own `<html lang="ar" dir="rtl">` | none |
 | `healthz/route.ts` | Container probe | `force-dynamic`, no data |
 | `sitemap.ts` · `robots.ts` | Sitemap from `GET /public/practices` (published slugs, read only from the platform database); robots disallows portal and dashboard | `export const dynamic = 'force-dynamic'`, so `PUBLIC_SITE_URL` is read at run time |
 
+- Every page but the start page and a practice's has a title of its own, through `pageTitle` (`lib/page-title.ts`): a page is a new document, and its title is what a screen reader announces on arrival (WCAG 2.4.2). A fixed text of the page and never a service or a practice, because a title stays in the browser's history.
 - Every static first segment under `[locale]` is on the API's reserved-slug list (unit test in P02).
 - Portal and dashboard routes carry the practice id, so each browser tab works in one practice and every API call names it in the path (ADR 0005 §3). The exact segments are designed in A05 together with decision D3 (page address).
 - A retired slug: the API answers with the practice and its current slug, and the page calls `permanentRedirect()` (308) to the current URL. An unpublished or offboarded practice answers 404 like an unknown slug.
@@ -99,7 +101,7 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 `providers/app-providers.tsx` (client component), outermost first:
 
 1. The i18n client provider with only the namespaces the subtree needs; practice subtrees nest a second provider with the practice's `timeZone` (§8).
-2. `QueryClientProvider` with `createQueryClient()`; `MutationCache.onError` shows a toast unless the mutation sets `meta.handlesError`.
+2. `QueryClientProvider` with `createQueryClient()`; `MutationCache.onError` shows a toast unless the mutation sets `meta.handlesError`. As built, without the toast so far: the frames of `(patient)` and `(portal)` pass `onUnauthenticated`, so that the code `UNAUTHENTICATED` on any query or press is a `location.replace` to sign-in, with the current path as `next`, or the safe `next` the fragment already holds. `(auth)` and a public page pass nothing, so a page of signed-in people belongs in one of those two groups. All three frames set React Aria's `I18nProvider` to the page's locale, and the public picker does so for itself: otherwise a dialog's hidden dismiss button and the arrow keys of tabs follow the browser's language.
 3. sonner's `<Toaster />`, placed by reading direction, announcing through an `aria-live="polite"` region.
 
 `data-theme` is `light`, `dark` or `system` (default). An explicit choice from the portal or dashboard settings (A05) is stored in a `theme` cookie that only signed-in areas set, so the server renders the right value without a flash. `data-brand` carries the practice's preset on practice-scoped pages.
@@ -107,11 +109,11 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 ## 7. API client and data
 
 - **`lib/api.server.ts`** (`import 'server-only'`): `configureApiClient({ baseUrl: API_INTERNAL_URL })`. Public endpoints only, `cache: 'no-store'`, `Accept-Language` = route locale. It forwards the incoming `X-Forwarded-For` unchanged, so the API, which trusts one proxy hop, throttles per visitor and not per web container. An API 404 becomes `notFound()`.
-- **`lib/api.client.ts`:** `baseUrl: ''`, `credentials: 'same-origin'`; `getHeaders` adds `Accept-Language` and the CSRF header; a 401 outside the auth routes gets one refresh and one new try, one refresh for all requests at that moment. Only generated hooks; no handwritten `fetch`. The practice is part of every generated path, so query keys of two practices never collide.
+- **`lib/api.client.ts`:** `baseUrl: ''`, `credentials: 'same-origin'`; `getHeaders` adds `Accept-Language` and the CSRF header; a 401 outside the auth routes gets one refresh and one new try, one refresh for all requests at that moment. A failed refresh may have lost to another tab's, and nothing orders the two answers, so when `mb_csrf` is unchanged it waits 500 ms and reads the cookie once more; a changed cookie means that the session is alive. Only generated hooks; no handwritten `fetch`. The practice is part of every generated path, so query keys of two practices never collide.
 - **Free times (P06):** the generated hooks poll every 45 s and pass `cache: 'no-cache'`, so the browser revalidates instead of serving the 30-second cached response.
 - **Server components fetch only public data.** Personal and health data never pass through server-component props.
-- **Tokens and hand-offs in URLs:** links from e-mails carry tokens in the fragment (`/ar/verify-email#token=…`; invitations also carry the practice id, `#practice=…&token=…`); the page reads them and POSTs them in the body. The hand-off from the practice page to sign-in also uses the fragment, and names only the practice page: a URL stays in the browser's history, so the chosen service, doctor and time stay out of it (`sessionStorage`, A05). Neither reaches server logs or a `Referer`.
-- **`safeReturnPath(next)`** (P06, `lib/safe-return-path.ts`): accepts only `/<locale>/[a-z0-9/-]*`, with no query; rejects `//`, `\`, encoded slashes, URL schemes and anything longer than 512 characters.
+- **Tokens and hand-offs in URLs:** links from e-mails carry tokens in the fragment (`/ar/verify-email#token=…`; invitations also carry the practice id, `#practice=…&token=…`); the page reads them and POSTs them in the body. The hand-off from the practice page to sign-in also uses the fragment, and names only the practice page: a URL stays in the browser's history, so the chosen service, doctor and time stay out of it (`sessionStorage`, A05). Neither reaches server logs or a `Referer`. The skip link must not wipe such a fragment, so when it holds an `=` the link only moves the focus.
+- **`safeReturnPath(next)`** (P06, `lib/safe-return-path.ts`): accepts only `/<locale>/[a-z0-9/-]*`, with no query; rejects `//`, `\`, encoded slashes, URL schemes and anything longer than 512 characters. The language switch keeps the fragment, so `useReturnPath` puts the page's own locale into the path.
 
 ## 8. i18n and RTL
 
@@ -160,6 +162,8 @@ Either way:
   ```
 
 - Variants and sizes follow the Figma components, not shadcn's defaults: touch targets of at least 44 × 44 px, the Arabic and English type scales, the `border/focus` ring.
+- `outline-none` never stands beside a ring: in Tailwind 4 it sets `--tw-outline-style`, which `outline-2` reads, so the ring stays invisible, and axe does not see that. It stays only on what a script alone focuses (a heading with `tabIndex={-1}`, a dialog, a list box) and on the input of a password field, whose group draws the ring.
+- A running request is `isPending` on the button, with its `data-[pending]` look, and not `isDisabled`, which would drop the focus to the page; `isDisabled` is for what cannot be pressed at all, such as a submit button before the page is alive or the arrow of the last week, which hands the focus to the other arrow first.
 - Fonts: `next/font/local` with the variable woff2 files of `@fontsource-variable/inter` and `@fontsource-variable/noto-sans-arabic`; `--font-sans` is chosen per `:lang()`.
 - Practice brand: as built, presets and custom scales alike through `brandStyle` on a practice page, because the root layout does not know the practice; `data-brand` stays for pages that do. A custom scale is rendered as a nonce'd `<style>:root{--brand-50:…}</style>` by `brandStyle(scale)`, which accepts exactly 11 values matching `^#[0-9a-f]{6}$` and otherwise falls back to the Teal preset. A unit test feeds it `#000;}</style><script>`.
 
@@ -180,12 +184,12 @@ Either way:
 
 ## 12. Forms
 
-react-hook-form 7.91 with `zodResolver` and the generated schema from `@medibooker/api-client/zod`, laid out with shadcn's `FieldGroup` and `Field`. `applyFieldErrors` maps server field errors onto the fields (`data-invalid` on the field, `aria-invalid` on the control); when there are none, the form shows an `Alert`. Forms use POST, and their fields stay read-only and their button disabled until the page is alive: before that a browser would send the form itself, password included, and React would drop what was typed. Zod's issues become the codes of the `validation` catalogue (`validationMessageOf`). Focus moves to the first invalid field, submit is disabled while pending, and bookings send an `Idempotency-Key` that a retry reuses.
+react-hook-form 7.91 with `zodResolver` and the generated schema from `@medibooker/api-client/zod`, laid out with shadcn's `FieldGroup` and `Field`. `applyFieldErrors` maps server field errors onto the fields (`data-invalid` on the field, `aria-invalid` on the control); when there are none, the form shows an `Alert`. Forms use POST, and their fields stay read-only and their button disabled until the page is alive: before that a browser would send the form itself, password included, and React would drop what was typed. Zod's issues become the codes of the `validation` catalogue (`validationMessageOf`). Focus moves to the first invalid field, and bookings send an `Idempotency-Key` that a retry reuses. While a request runs, the submit button waits with the focus on it (§9), and the form ignores Enter: a waiting button is no submit button, and without one Enter in a single field would send the form again, with a token that works once.
 
 ## 13. Security rules
 
 - The CSP of §4; no `dangerouslySetInnerHTML` with one exception: the JSON-LD component, which escapes `<` and carries the nonce.
-- No `localStorage` or `sessionStorage` (lint); no third-party scripts, fonts, maps or analytics; external links with `rel="noopener noreferrer"`.
+- No `localStorage` or `sessionStorage` (lint, in the `react` preset). One exception, `features/portal/booking-choice.ts`: a chosen time on its way through signing in, in `sessionStorage` for at most 15 minutes (a page removes it when they are over, also in a tab left open), cleared by the booking, by signing out and by anyone signing in in another tab, because a URL would stay in the browser's history. It holds ids and a time and names no person, but on a shared computer it is personal by context: whoever signs in next in that tab within those minutes sees it. No third-party scripts, fonts, maps or analytics; external links with `rel="noopener noreferrer"`.
 - Public pages set no cookies; e2e tests assert there is no `Set-Cookie` and no third-party request.
 
 ## 14. Testing

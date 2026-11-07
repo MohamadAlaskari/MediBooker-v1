@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { safeReturnPath } from './safe-return-path';
+import { inLocale, safeReturnPath } from './safe-return-path';
+
+describe('inLocale', () => {
+  it.each([
+    ['/en/book/al-noor', 'ar', '/ar/book/al-noor'],
+    ['/ar/book/al-noor', 'ar', '/ar/book/al-noor'],
+    ['/en', 'ar', '/ar'],
+    ['/en/', 'ar', '/ar/'],
+    ['/en/en/al-noor', 'ar', '/ar/en/al-noor'],
+  ])('puts %s into the language %s', (path, locale, expected) => {
+    expect(inLocale(path, locale)).toBe(expected);
+  });
+});
 
 describe('safeReturnPath', () => {
   it.each(['/ar', '/en/', '/en/al-noor', '/ar/al-noor/book'])('accepts %s', (path) => {

@@ -22,6 +22,8 @@ export interface ApiErrorInit {
   readonly requestId?: string | undefined;
   readonly params?: Readonly<Record<string, unknown>> | undefined;
   readonly fieldErrors?: readonly ApiFieldError[] | undefined;
+  /** What `Retry-After` said, for a failure that passes by itself. */
+  readonly retryAfterSeconds?: number | undefined;
   readonly cause?: unknown;
 }
 
@@ -33,6 +35,7 @@ export class ApiError extends Error {
   readonly requestId: string | undefined;
   readonly params: Readonly<Record<string, unknown>> | undefined;
   readonly fieldErrors: readonly ApiFieldError[];
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(init: ApiErrorInit) {
     super(init.code, init.cause === undefined ? undefined : { cause: init.cause });
@@ -41,6 +44,7 @@ export class ApiError extends Error {
     this.requestId = init.requestId;
     this.params = init.params;
     this.fieldErrors = init.fieldErrors ?? [];
+    this.retryAfterSeconds = init.retryAfterSeconds;
   }
 }
 

@@ -53,9 +53,10 @@ Feature codes from `api-contract` enter the catalogue in the commit that first t
 | 401 | Authentication | `INVALID_CREDENTIALS`, `MFA_REQUIRED` |
 | 403 | Account or permission state | `EMAIL_NOT_VERIFIED`, `ACCOUNT_LOCKED` |
 | 404 | Hidden ownership | `NOT_A_MANAGED_PATIENT` |
-| 409 | Business rule or state conflict | `ALREADY_JOINED`, `SLOT_NOT_AVAILABLE`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `PATIENT_PROFILE_INCOMPLETE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `NOTE_NOT_EDITABLE`, `FILE_NOT_READY`, `FILE_REJECTED` |
+| 409 | Business rule or state conflict | `ALREADY_JOINED`, `SLOT_NOT_AVAILABLE`, `APPOINTMENT_OVERLAP`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `PATIENT_PROFILE_INCOMPLETE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `NOTE_NOT_EDITABLE`, `FILE_NOT_READY`, `FILE_REJECTED` |
 | 410 | Expired | `INVITATION_EXPIRED` |
 | 413 · 415 | File limits | `FILE_TOO_LARGE` · `FILE_TYPE_NOT_ALLOWED` |
+| 429 | A limit whose wait a person should be told, with the real `Retry-After` | `JOIN_LIMIT_REACHED` |
 
 422 is not used; clients branch on `code`. A code is never reused with another meaning.
 
@@ -63,7 +64,7 @@ Field codes (`field-error-codes.ts`): `REQUIRED`, `INVALID_TYPE`, `INVALID_FORMA
 
 ### 1.2 Throwing
 
-- `throw new DomainException(code, { detail?, params?, fieldErrors?, cause? })`. The status comes from the catalogue, so code and status cannot disagree.
+- `throw new DomainException(code, { detail?, params?, fieldErrors?, retryAfterSeconds?, cause? })`. The status comes from the catalogue, so code and status cannot disagree. `retryAfterSeconds` is answered as `Retry-After`.
 - `detail` is English text for developers and never contains personal data. `params` holds only public values, for example `{ maxFutureAppointments: 2 }`.
 - Services translate expected database errors themselves: a unique violation on `practice_slugs` in the platform database becomes `PRACTICE_SLUG_TAKEN`; the `EXCLUDE` violation (23P01) on slots becomes `SLOT_NOT_AVAILABLE`, on opening hours a field error `OVERLAPS_EXISTING`.
 - Another user's or another practice's resource is `NOT_FOUND`.
@@ -119,7 +120,7 @@ A `practiceId` field in a request body is therefore always `UNKNOWN_FIELD`: the 
 
 ### 1.6 Client: `ApiError` (`@medibooker/api-client`)
 
-`apiFetch`, the Orval mutator, throws an `ApiError { status, code, requestId?, params?, fieldErrors }`:
+`apiFetch`, the Orval mutator, throws an `ApiError { status, code, requestId?, params?, fieldErrors, retryAfterSeconds? }`; `retryAfterSeconds` is the `Retry-After` of the answer when it holds whole seconds, also of a proxy's answer:
 
 | Situation | `code` |
 |---|---|
@@ -131,7 +132,8 @@ A `practiceId` field in a request body is therefore always `UNKNOWN_FIELD`: the 
 - `isApiError(error, code?)` narrows.
 - `errorMessageKey(error)` returns `errors.<CODE>` for a known code. An unknown code from a newer server falls back by status (401 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 `CONFLICT`, 429 `RATE_LIMITED`, 5xx `INTERNAL_ERROR`, otherwise `UNEXPECTED_RESPONSE`), so released apps survive new codes.
 - `applyFieldErrors(error, setError)` turns `items[0].startsAt` into the react-hook-form path `items.0.startsAt` and returns `false` when there are no field errors.
-- `shouldRetryQuery(failureCount, error)`: queries retry at most twice and only on `NETWORK_ERROR`, `TIMEOUT` or 5xx (a 503 of one practice included), never on 4xx (429 included). Mutations never retry automatically; a booking retry by the user reuses the same `Idempotency-Key`. `createQueryClient()` uses it with `staleTime` 30 s; `createTestQueryClient()` uses it with `retryDelay: 0` and `gcTime: Infinity`.
+- `shouldRetryQuery(failureCount, error)`: queries retry at most twice and only on `NETWORK_ERROR`, `TIMEOUT` or 5xx (a 503 of one practice included), never on 4xx (429 included). Mutations never retry automatically; a booking retry by the user reuses the same `Idempotency-Key`. `createQueryClient()` uses it with `staleTime` 30 s; `createTestQueryClient()` uses it with `retryDelay: 0` and `gcTime: Infinity`. One page goes further: the upcoming appointments wait out another tab's fan-out, so `retryFanOut` also retries a 429 whose `Retry-After` is at most 5 seconds, for longer than two `ME_FANOUT_TIMEOUT_MS`, and shows a longer wait at once.
+- `createQueryClient({ onUnauthenticated })`: for the pages of a signed-in person, called from a `QueryCache` and a `MutationCache` `onError` when a query or a press answers the code `UNAUTHENTICATED`. Only that code: a wrong password also answers 401, as `INVALID_CREDENTIALS`. What it does is the platform's (web: 03 §6).
 
 ### 1.7 Messages and UI boundaries
 

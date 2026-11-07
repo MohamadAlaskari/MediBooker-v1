@@ -8,15 +8,17 @@ import { AuthShell } from './auth-shell';
 interface AuthLayoutProps {
   readonly children: ReactNode;
   readonly locale: string;
+  /** The pages of a signed-in person, as against the ways in: see AuthProviders. */
+  readonly signedIn?: boolean;
 }
 
 /** The frame of the pages about an account, with only the texts their client code uses (ADR 0013). */
-export function AuthLayout({ children, locale }: AuthLayoutProps): ReactNode {
+export function AuthLayout({ children, locale, signedIn = false }: AuthLayoutProps): ReactNode {
   if (!isLocale(locale)) notFound();
   const { a11y, auth, errors, validation } = messages[locale];
   return (
     <NextIntlClientProvider messages={{ a11y, auth, errors, validation }}>
-      <AuthProviders>
+      <AuthProviders signedIn={signedIn}>
         <AuthShell>{children}</AuthShell>
       </AuthProviders>
     </NextIntlClientProvider>

@@ -11,7 +11,7 @@ import * as zod from 'zod';
  * @summary The profiles of the caller in this practice; 404 before a join
  */
 export const ListMyPatientsParams = zod.object({
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const ListMyPatientsResponse = zod.object({
@@ -31,7 +31,7 @@ export const ListMyPatientsResponse = zod.object({
  * @summary Join a practice: copies the own details and asks for what is missing
  */
 export const JoinPracticeParams = zod.object({
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const joinPracticeBodyDateOfBirthRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
@@ -78,7 +78,7 @@ export const JoinPracticeResponse = zod.object({
  */
 export const GetMyPatientParams = zod.object({
   "patientId": zod.uuid(),
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const GetMyPatientResponse = zod.object({
@@ -97,7 +97,7 @@ export const GetMyPatientResponse = zod.object({
  */
 export const UpdateMyPatientParams = zod.object({
   "patientId": zod.uuid(),
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const updateMyPatientBodyDateOfBirthRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');

@@ -1,6 +1,7 @@
 /**
  * Accounts, sessions and their e-mails against a real platform database (08 A01, A02, A03).
  */
+import { randomUUID } from 'node:crypto';
 import { PRIVACY_NOTICE_VERSION } from '@medibooker/i18n';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request, { type Response } from 'supertest';
@@ -29,6 +30,8 @@ const PRIVACY_NOTICE = PRIVACY_NOTICE_VERSION;
 const NOW = Temporal.Instant.from('2026-11-15T07:00:00Z');
 const CONFIRMATION_SUBJECT = 'Please confirm your e-mail address';
 const RESET_SUBJECT = 'Reset your password';
+/** Much longer than a request takes here when nothing holds it up. */
+const WAITS_FOR_A_LOCK_MS = 500;
 
 interface Cookies {
   access: string;
@@ -556,6 +559,82 @@ describe('accounts on a real platform database', () => {
     it('clears no cookie for a request without one, as from another site', async () => {
       const answer = await post('logout').expect(204);
       expect(answer.headers['set-cookie']).toBeUndefined();
+    });
+
+    /** Holds a transaction open on the person's row, with what `during` does in it. */
+    const holdingTheRow = async (
+      userId: string,
+      during: (
+        tx: Parameters<Parameters<PlatformPrismaService['$transaction']>[0]>[0],
+      ) => Promise<unknown>,
+    ): Promise<{ readonly release: () => Promise<void> }> => {
+      const held = Promise.withResolvers<undefined>();
+      const release = Promise.withResolvers<undefined>();
+      const transaction = platform().$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+          await during(tx);
+          held.resolve(undefined);
+          await release.promise;
+        },
+        { timeout: 30_000 },
+      );
+      await held.promise;
+      return {
+        release: async () => {
+          release.resolve(undefined);
+          await transaction;
+        },
+      };
+    };
+
+    /** Whether a request is still waiting after a moment in which it would otherwise have answered. */
+    const isWaiting = async (answer: Promise<unknown>): Promise<boolean> => {
+      const moment = new Promise<'waiting'>((resolve) => {
+        setTimeout(() => {
+          resolve('waiting');
+        }, WAITS_FOR_A_LOCK_MS);
+      });
+      return (await Promise.race([answer, moment])) === 'waiting';
+    };
+
+    it('waits for a refresh under way, and also ends the session it is making', async () => {
+      const { email, cookies } = await signedIn();
+      const { userId, familyId, amr, expiresAt } = await platform().session.findFirstOrThrow({
+        where: { user: { email } },
+      });
+      const nextId = randomUUID();
+      // What a refresh does in its transaction, stopped just before its commit.
+      const { release } = await holdingTheRow(userId, (tx) =>
+        tx.session.create({
+          data: { id: nextId, userId, familyId, tokenHash: `next-${nextId}`, amr, expiresAt },
+        }),
+      );
+
+      const answer = post('logout')
+        .set('Cookie', `mb_refresh=${cookies.refresh}`)
+        .set('X-CSRF-Token', cookies.csrf)
+        .then(({ status }) => status);
+      expect(await isWaiting(answer)).toBe(true);
+
+      await release();
+      await expect(answer).resolves.toBe(204);
+      const made = await platform().session.findUniqueOrThrow({ where: { id: nextId } });
+      expect(made.revokedAt).not.toBeNull();
+    });
+
+    it('a refresh waits at the same row, so that a sign-out cannot miss what it makes', async () => {
+      const { email, cookies } = await signedIn();
+      const { userId } = await platform().session.findFirstOrThrow({
+        where: { user: { email } },
+      });
+      const { release } = await holdingTheRow(userId, () => Promise.resolve());
+
+      const answer = refresh(cookies).then(({ status }) => status);
+      expect(await isWaiting(answer)).toBe(true);
+
+      await release();
+      await expect(answer).resolves.toBe(200);
     });
   });
 

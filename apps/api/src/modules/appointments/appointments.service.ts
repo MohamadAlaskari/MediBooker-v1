@@ -191,7 +191,7 @@ export class AppointmentsService {
         throw new DomainException('BOOKING_LIMIT_REACHED', { params: { maxFutureAppointments } });
       }
 
-      const slotId = await this.takeSlot(wanted);
+      const slotId = await this.takeSlot(wanted, selfPatientId);
       await this.place({
         id,
         patientId: selfPatientId,
@@ -263,7 +263,7 @@ export class AppointmentsService {
       await this.requireBookable(wanted, patient, settings, now);
 
       // Before the old slot is free: the same time with the same doctor is no other time.
-      const slotId = await this.takeSlot(wanted);
+      const slotId = await this.takeSlot(wanted, selfPatientId, oldId);
       // The note moves with it: another copy would be one more to keep, export and erase.
       await this.cancelRow(old, userId, now, { keepNote: false });
       await this.place({
@@ -384,11 +384,16 @@ export class AppointmentsService {
   /**
    * SKIP LOCKED: with several doctors free at that time, a booking takes another one's slot instead
    * of waiting for a booking it would then lose to. Marked as booked here, so that the row is held.
+   * `moving` is the appointment this one replaces, which BR-25 does not count.
    */
-  private async takeSlot({ serviceId, startsAt, providerId }: Wanted): Promise<string> {
+  private async takeSlot(
+    { serviceId, startsAt, providerId }: Wanted,
+    patientId: string,
+    moving?: string,
+  ): Promise<string> {
     const db = this.txHost.tx;
-    const [slot] = await db.$queryRaw<{ id: string }[]>`
-      SELECT s.id
+    const [slot] = await db.$queryRaw<{ id: string; ends_at: Date }[]>`
+      SELECT s.id, s.ends_at
       FROM slots s
       JOIN availability_rule_services rs ON rs.rule_id = s.rule_id
       JOIN staff_members p ON p.id = s.provider_id
@@ -400,9 +405,34 @@ export class AppointmentsService {
       ORDER BY s.provider_id
       LIMIT 1
       FOR UPDATE OF s SKIP LOCKED`;
+    // Also without a free slot: the person's own appointment may be the reason, and says it better.
+    const until = slot?.ends_at ?? dbInstantOf(startsAt.add({ milliseconds: 1 }));
+    await this.requireNoOverlap(patientId, startsAt, until, moving);
     if (slot === undefined) throw new DomainException('SLOT_NOT_AVAILABLE');
     await db.slot.update({ where: { id: slot.id }, data: { status: 'BOOKED' } });
     return slot.id;
+  }
+
+  /**
+   * BR-25: BR-01 holds per slot, so with several doctors free at one time a person could get two
+   * appointments at that time, for instance by loading the page again after an answer got lost, when
+   * the key of the first try is gone. Under the patient's lock, so that two tabs cannot both pass.
+   */
+  private async requireNoOverlap(
+    patientId: string,
+    startsAt: Temporal.Instant,
+    endsAt: Date,
+    moving: string | undefined,
+  ): Promise<void> {
+    const overlapping = await this.txHost.tx.appointment.count({
+      where: {
+        patientId,
+        status: { in: [...UPCOMING_STATUSES] },
+        ...(moving === undefined ? {} : { id: { not: moving } }),
+        slot: { startsAt: { lt: endsAt }, endsAt: { gt: dbInstantOf(startsAt) } },
+      },
+    });
+    if (overlapping > 0) throw new DomainException('APPOINTMENT_OVERLAP');
   }
 
   private async place({

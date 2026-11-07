@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import * as zod from 'zod';
 import { LinkButton } from '@/components/ui/button';
+import { announceSignIn } from '@/lib/session-broadcast';
 import { useFragmentForLinks, useReturnPath } from './fragment';
 import {
   AuthForm,
@@ -42,8 +43,9 @@ export function SignInForm(): ReactNode {
       { data },
       {
         onSuccess: () => {
+          announceSignIn();
           // A new document: a practice page's style carries the nonce of its own document.
-          window.location.replace(returnPath ?? `/${locale}/account`);
+          window.location.replace(returnPath ?? `/${locale}/appointments`);
         },
       },
     );
@@ -65,7 +67,7 @@ export function SignInForm(): ReactNode {
             label={t('passwordLabel')}
             autoComplete="current-password"
           />
-          <Link href={`/${locale}/forgot-password`} className={`${TEXT_LINK} self-end`}>
+          <Link href={`/${locale}/forgot-password${fragment}`} className={`${TEXT_LINK} self-end`}>
             {t('signIn.forgot')}
           </Link>
         </div>

@@ -30,7 +30,7 @@ export function AlertDescription({ className, ...props }: ComponentProps<'div'>)
   return (
     <div
       data-slot="alert-description"
-      className={cn('text-body-small text-text-secondary', className)}
+      className={cn('text-body-small wrap-anywhere text-text-secondary', className)}
       {...props}
     />
   );

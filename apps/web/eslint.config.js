@@ -43,6 +43,14 @@ export default defineConfig(
     },
   },
   {
+    // The one exception, with its reasons at the top of the file and in 03 §13. Its lifetime is one
+    // of this browser, so this browser's clock is the right one.
+    name: 'medibooker/web/booking-choice',
+    files: ['src/features/portal/booking-choice.ts'],
+    plugins: { medibooker: plugin },
+    rules: { 'no-restricted-properties': 'off', 'medibooker/no-system-clock': 'off' },
+  },
+  {
     // The stub's practices hold colours as the API sends them: data, not styling.
     name: 'medibooker/web/e2e-data',
     files: ['e2e/support/practices.ts'],

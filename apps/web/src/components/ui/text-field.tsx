@@ -8,6 +8,7 @@ import {
   Input,
   Label,
   Text,
+  TextArea,
   TextField as TextFieldPrimitive,
   type TextFieldProps as TextFieldPrimitiveProps,
 } from 'react-aria-components';
@@ -60,11 +61,49 @@ export function TextField({
         inputMode={inputMode}
         // A browser's spell check can send what is typed to a service. Nothing here needs it.
         spellCheck={false}
-        className={cn(
-          CONTROL,
-          FOCUS_RING,
-          'w-full px-3 outline-none data-[invalid]:border-border-danger',
-        )}
+        className={cn(CONTROL, FOCUS_RING, 'w-full px-3 data-[invalid]:border-border-danger')}
+      />
+      {hint === undefined ? null : (
+        <Text slot="description" className={HINT}>
+          {hint}
+        </Text>
+      )}
+      <FieldError className={ERROR}>{error}</FieldError>
+    </TextFieldPrimitive>
+  );
+}
+
+interface TextAreaFieldProps extends Omit<
+  TextFieldProps,
+  'inputRef' | 'autoComplete' | 'inputMode'
+> {
+  /** For a page that moves the focus here, when the API refuses what was written. */
+  readonly inputRef?: Ref<HTMLTextAreaElement> | undefined;
+}
+
+/** The same field over several lines. */
+export function TextAreaField({
+  label,
+  hint,
+  error,
+  inputRef,
+  className,
+  ...props
+}: TextAreaFieldProps): ReactNode {
+  return (
+    <TextFieldPrimitive
+      data-slot="text-area-field"
+      validationBehavior="aria"
+      isInvalid={error !== undefined}
+      className={cn(FIELD, className)}
+      {...props}
+    >
+      <Label className={LABEL}>{label}</Label>
+      <TextArea
+        ref={inputRef}
+        spellCheck={false}
+        rows={4}
+        className={cn(CONTROL, FOCUS_RING, 'w-full px-3 py-2 data-[invalid]:border-border-danger')}
       />
       {hint === undefined ? null : (
         <Text slot="description" className={HINT}>
@@ -117,6 +156,7 @@ export function PasswordField({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
+          // The group around it draws the ring, around the button too.
           className="min-h-touch-target min-w-0 flex-1 rounded-md bg-transparent px-3 outline-none"
         />
         <Button

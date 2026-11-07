@@ -17,6 +17,20 @@ describe('signInRedirect', () => {
     });
   });
 
+  it('asks the same for the portal: the appointments and a booking', () => {
+    expect(signInRedirect('/en/appointments', false)?.pathname).toBe('/en/sign-in');
+    expect(signInRedirect('/en/appointments/a-b/c-d/reschedule', false)?.pathname).toBe(
+      '/en/sign-in',
+    );
+    expect(signInRedirect('/en/book/al-noor', false)).toEqual({
+      pathname: '/en/sign-in',
+      hash: 'next=%2Fen%2Fbook%2Fal-noor',
+    });
+    // A practice's own page stays public, also one called like the portal's first segment.
+    expect(signInRedirect('/en/book', false)).toBeUndefined();
+    expect(signInRedirect('/en/al-noor', false)).toBeUndefined();
+  });
+
   it('leaves someone with a sign-in alone: the API decides about the rest', () => {
     expect(signInRedirect('/en/account', true)).toBeUndefined();
   });

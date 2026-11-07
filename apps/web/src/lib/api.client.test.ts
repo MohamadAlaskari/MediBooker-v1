@@ -3,9 +3,16 @@ import { sessionFetch } from './api.client';
 
 const ME = '/api/v1/me';
 const REFRESH = '/api/v1/auth/refresh';
+const OTHER_TAB_WAIT_MS = 500;
 
 function answer(status: number): Response {
   return new Response(null, { status });
+}
+
+/** Past every wait of the code, for whoever comes to the answer of a request. */
+async function settled(request: Promise<Response>): Promise<Response> {
+  await vi.runAllTimersAsync();
+  return request;
 }
 
 describe('sessionFetch', () => {
@@ -14,12 +21,14 @@ describe('sessionFetch', () => {
     fetchMock.mock.calls.filter(([input]) => input === url).length;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('document', { cookie: 'other=1; mb_csrf=first' });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -47,7 +56,7 @@ describe('sessionFetch', () => {
 
   it('sends the CSRF header with the refresh, which is a cookie request', async () => {
     fetchMock.mockResolvedValue(answer(401));
-    await sessionFetch(ME);
+    await settled(sessionFetch(ME));
     const call = fetchMock.mock.calls.find(([input]) => input === REFRESH);
     expect(new Headers(call?.[1]?.headers).get('x-csrf-token')).toBe('first');
   });
@@ -61,9 +70,79 @@ describe('sessionFetch', () => {
     expect(callsTo(REFRESH)).toBe(1);
   });
 
-  it('gives the 401 back when the refresh fails: the session is really over', async () => {
+  describe('when another tab refreshed the same session first, and its own refresh lost', () => {
+    const FROM_THE_OTHER_TAB = 'mb_csrf=from-the-other-tab';
+
+    function otherTabsCookieArrives(afterMs: number): void {
+      setTimeout(() => {
+        vi.stubGlobal('document', { cookie: FROM_THE_OTHER_TAB });
+      }, afterMs);
+    }
+
+    it('asks again at once when the cookie came before its own 401', async () => {
+      fetchMock
+        .mockResolvedValueOnce(answer(401))
+        .mockImplementationOnce(() => {
+          vi.stubGlobal('document', { cookie: FROM_THE_OTHER_TAB });
+          return Promise.resolve(answer(401));
+        })
+        .mockResolvedValueOnce(answer(200));
+      // No timers run here: this order has nothing to wait for.
+      expect((await sessionFetch(ME)).status).toBe(200);
+      const headers = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
+      expect(headers.get('x-csrf-token')).toBe('from-the-other-tab');
+    });
+
+    it('still asks again when the cookie came after its own 401', async () => {
+      fetchMock
+        .mockResolvedValueOnce(answer(401))
+        .mockImplementationOnce(() => {
+          otherTabsCookieArrives(OTHER_TAB_WAIT_MS - 1);
+          return Promise.resolve(answer(401));
+        })
+        .mockResolvedValueOnce(answer(200));
+      expect((await settled(sessionFetch(ME))).status).toBe(200);
+      const headers = new Headers(fetchMock.mock.calls[2]?.[1]?.headers);
+      expect(headers.get('x-csrf-token')).toBe('from-the-other-tab');
+    });
+
+    it('does not take a cookie later than the wait for a refresh there', async () => {
+      fetchMock.mockImplementation((input) => {
+        if (input === REFRESH) otherTabsCookieArrives(OTHER_TAB_WAIT_MS + 1);
+        return Promise.resolve(answer(401));
+      });
+      const request = sessionFetch(ME);
+      await vi.advanceTimersByTimeAsync(OTHER_TAB_WAIT_MS);
+      expect((await request).status).toBe(401);
+      expect(callsTo(ME)).toBe(1);
+    });
+  });
+
+  it('does not take a sign-out in another tab for a refresh there, and does not wait for one', async () => {
+    fetchMock.mockResolvedValueOnce(answer(401)).mockImplementationOnce(() => {
+      vi.stubGlobal('document', { cookie: 'other=1' });
+      return Promise.resolve(answer(401));
+    });
+    expect((await sessionFetch(ME)).status).toBe(401);
+    expect(callsTo(ME)).toBe(1);
+  });
+
+  it('does not keep a visitor without a cookie waiting', async () => {
+    vi.stubGlobal('document', { cookie: 'other=1' });
     fetchMock.mockResolvedValue(answer(401));
     expect((await sessionFetch(ME)).status).toBe(401);
+  });
+
+  it('gives the 401 back after the wait when the refresh fails: the session is really over', async () => {
+    fetchMock.mockResolvedValue(answer(401));
+    let answered = false;
+    const request = sessionFetch(ME).finally(() => {
+      answered = true;
+    });
+    await vi.advanceTimersByTimeAsync(OTHER_TAB_WAIT_MS - 1);
+    expect(answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await request).status).toBe(401);
     expect(callsTo(ME)).toBe(1);
   });
 

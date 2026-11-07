@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { isApiError } from '../errors/api-error';
 
 const MAX_QUERY_RETRIES = 2;
@@ -13,9 +13,22 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
   return error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT' || error.status >= 500;
 }
 
+interface QueryClientOptions {
+  /**
+   * For the pages of a signed-in person: a session that is over, whichever request found out, a press
+   * included. Only this code: a wrong password also answers 401, and means something else.
+   */
+  readonly onUnauthenticated?: () => void;
+}
+
 /** Mutations never retry on their own: a booking retry is the user's, with the same key. */
-export function createQueryClient(): QueryClient {
+export function createQueryClient({ onUnauthenticated }: QueryClientOptions = {}): QueryClient {
+  const onError = (error: unknown): void => {
+    if (isApiError(error, 'UNAUTHENTICATED')) onUnauthenticated?.();
+  };
   return new QueryClient({
+    queryCache: new QueryCache({ onError }),
+    mutationCache: new MutationCache({ onError }),
     defaultOptions: {
       queries: { staleTime: QUERY_STALE_TIME_MS, retry: shouldRetryQuery },
       mutations: { retry: false },

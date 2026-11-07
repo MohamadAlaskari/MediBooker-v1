@@ -71,10 +71,9 @@ export function nextRovingIndex(
 }
 
 /**
- * The way from a chosen time to sign-in. The choice stays out of the URL, also out of its fragment:
- * a URL stays in the browser's history, where a service and a doctor say something about someone
- * on a shared computer. A05 keeps the choice in `sessionStorage`.
+ * The way from a chosen time to the booking: the same for everyone, because the proxy sends a visitor
+ * without a sign-in to signing in first, and back. The choice itself goes in `booking-choice.ts`.
  */
-export function handOffHref(locale: string, slug: string): string {
-  return `/${locale}/sign-in#next=${encodeURIComponent(`/${locale}/${slug}`)}&section=free-times`;
+export function bookHref(locale: string, slug: string): string {
+  return `/${locale}/book/${slug}`;
 }

@@ -115,6 +115,21 @@ export function fullNameOf(
     .join(' ');
 }
 
+/** Whom a person can choose in a picker of free times. */
+export function doctorsOf(team: readonly PublicTeamMemberDto[]): readonly {
+  readonly id: string;
+  readonly name: string;
+  readonly initials: string;
+}[] {
+  return team
+    .filter(({ isProvider }) => isProvider)
+    .map((member) => ({
+      id: member.id,
+      name: fullNameOf(member),
+      initials: initialsOf(member),
+    }));
+}
+
 /** A link target a practice wrote: only https reaches the page, so `javascript:` never does. */
 export function safeHttpsUrl(value: string | null): string | undefined {
   if (value === null || !URL.canParse(value)) return undefined;

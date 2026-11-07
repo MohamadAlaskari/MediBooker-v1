@@ -40,7 +40,7 @@ export class PublicPracticeService {
   }
 
   async read(acceptLanguage: string | undefined): Promise<PublicPracticeDto> {
-    const { listing } = requirePracticeContext(this.cls);
+    const { practice, listing } = requirePracticeContext(this.cls);
     if (listing === undefined) throw new PracticeContextMissingError();
     const now = this.clock.now();
     const db = this.txHost.tx;
@@ -67,6 +67,7 @@ export class PublicPracticeService {
     ]);
     return toPublicPractice(
       {
+        id: practice.id,
         slug: listing.slug,
         name: listing.name,
         settings,

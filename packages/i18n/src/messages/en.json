@@ -4,7 +4,8 @@
     "requestId": "Request ID: {id}"
   },
   "app": {
-    "tagline": "Online appointments for medical practices."
+    "tagline": "Online appointments for medical practices.",
+    "pageTitle": "{page} · MediBooker"
   },
   "a11y": {
     "skipToContent": "Skip to content",
@@ -21,6 +22,7 @@
     "PAYLOAD_TOO_LARGE": "This is too large to send. Please shorten it and try again.",
     "UNSUPPORTED_MEDIA_TYPE": "This format is not supported.",
     "RATE_LIMITED": "Too many attempts. Please wait a moment and try again.",
+    "JOIN_LIMIT_REACHED": "You have reached the limit of new practices for one day. Please try again tomorrow.",
     "INTERNAL_ERROR": "Something went wrong on our side. Please try again in a moment.",
     "SERVICE_UNAVAILABLE": "This service is unavailable right now. Please try again in a moment.",
     "NETWORK_ERROR": "We could not connect. Please check your connection and try again.",
@@ -31,10 +33,11 @@
     "EMAIL_NOT_VERIFIED": "Please confirm your e-mail address first. We sent you a link.",
     "ALREADY_JOINED": "You are already registered with this practice.",
     "SLOT_NOT_AVAILABLE": "This time was just booked. Please choose another one.",
+    "APPOINTMENT_OVERLAP": "You already have an appointment at this time. You find it under My appointments.",
     "BOOKING_LIMIT_REACHED": "You already have the most upcoming appointments this practice allows ({maxFutureAppointments}).",
     "OUTSIDE_BOOKING_WINDOW": "This time cannot be booked online. Please choose another one.",
-    "SERVICE_NOT_BOOKABLE": "This service cannot be booked online with your insurance. Please call the practice.",
-    "PATIENT_PROFILE_INCOMPLETE": "Please complete your details for this practice before you book.",
+    "SERVICE_NOT_BOOKABLE": "This service cannot be booked online for you. Please call the practice.",
+    "PATIENT_PROFILE_INCOMPLETE": "Please complete your details for this practice first.",
     "CANCELLATION_DEADLINE_PASSED": "This appointment is too soon to change online. Please call the practice.",
     "INVALID_STATUS_TRANSITION": "This appointment can no longer be changed.",
     "IDEMPOTENCY_KEY_REUSED": "Something went wrong with this booking. Please reload the page and try again."
@@ -206,7 +209,9 @@
       "resend": "Send the e-mail again",
       "resendIn": "Send the e-mail again in {seconds} seconds",
       "resent": "We sent the e-mail again.",
-      "continue": "Continue to my account"
+      "continue": "Continue to my account",
+      "continueToBooking": "Continue to your booking",
+      "continueOn": "Continue where you were"
     },
     "verifyEmail": {
       "title": "Confirm your e-mail address",
@@ -256,7 +261,8 @@
       "deleteAccount": "Delete account",
       "keepAccount": "Keep account",
       "signOut": "Sign out",
-      "loading": "Loading your account"
+      "loading": "Loading your account",
+      "appointments": "My appointments"
     }
   },
   "privacyPage": {
@@ -278,6 +284,127 @@
       "heading": "Reset your password",
       "body": "Someone asked to reset the password of your account. Choose a new one with this link.",
       "action": "Choose a new password"
+    }
+  },
+  "portal": {
+    "nav": {
+      "label": "Your pages",
+      "appointments": "My appointments",
+      "account": "Account"
+    },
+    "status": {
+      "BOOKED": "Booked",
+      "STARTED": "Date passed",
+      "CHECKED_IN": "Checked in",
+      "COMPLETED": "Completed",
+      "NO_SHOW": "Missed",
+      "CANCELLED": "Cancelled"
+    },
+    "appointment": {
+      "when": "{date}, {time}",
+      "date": "Date and time",
+      "service": "Service",
+      "doctor": "Doctor",
+      "noDoctor": "The practice will tell you who sees you",
+      "practice": "Practice",
+      "deadline": "You can cancel or change this online until {count, plural, one {{hours} hour} other {{hours} hours}} before it starts.",
+      "call": "After that, please call {phone}.",
+      "callOnly": "After that, please call the practice.",
+      "callNow": "Please call {phone}.",
+      "callNowOnly": "Please call the practice.",
+      "tooLate": "This appointment is too soon to change online."
+    },
+    "list": {
+      "title": "My appointments",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "loading": "Loading your appointments",
+      "empty": "You have no upcoming appointments.",
+      "emptyPast": "You have no past appointments here.",
+      "noPractices": "You have not booked at a practice yet. A practice's page has a link for booking.",
+      "bookAt": "Book at {practice}",
+      "rowLabel": "{service}, {date}, {time}: details of this appointment",
+      "reschedule": "Reschedule",
+      "rescheduleLabel": "Reschedule {service}, {date}, {time}",
+      "cancel": "Cancel",
+      "cancelLabel": "Cancel {service}, {date}, {time}",
+      "more": "Show more",
+      "unavailable": "We could not load your appointments at: {practices}.",
+      "limit": "You have appointments at more practices than we can show at once. Not shown: {practices}.",
+      "stale": "We could not check for changes, so what you see may be out of date.",
+      "retry": "Try again",
+      "somePractice": "a practice"
+    },
+    "book": {
+      "title": "Book an appointment",
+      "loading": "Loading your booking",
+      "notFound": "We could not find this practice.",
+      "noChoiceTitle": "No time chosen yet",
+      "noChoiceBody": "Choose a free time on the practice's page, and you come back here.",
+      "seeTimes": "See free times",
+      "timeGone": "This time is no longer on offer. Please choose another one.",
+      "doctorGoneTitle": "This doctor can no longer be chosen online",
+      "doctorGoneBody": "Please choose a time again, with another doctor or with any doctor.",
+      "confirmEmailTitle": "Please confirm your e-mail address first",
+      "confirmEmailBody": "You need a confirmed address to book an appointment. We sent you a link.",
+      "resend": "Send the e-mail again",
+      "resent": "We sent the e-mail again.",
+      "reviewTitle": "Please review your booking",
+      "noteLabel": "Reason for visit (optional)",
+      "noteHint": "Only for the practice team, and it may not be read before your appointment. For anything urgent, please call the practice.",
+      "noteRefused": "We could not send this text. Please shorten it, or write it again without special characters.",
+      "confirm": "Confirm booking",
+      "back": "Back to free times",
+      "bookedTitle": "Your appointment is booked",
+      "bookedBody": "You find it under My appointments, where you can also change it.",
+      "bookedBodyCall": "You find it under My appointments. To change it, please call the practice.",
+      "toAppointments": "My appointments",
+      "addToCalendar": "Add to calendar",
+      "calendarSummary": "Appointment at {practice}",
+      "calendarFileName": "appointment"
+    },
+    "join": {
+      "title": "Your details for {practice}",
+      "body": "These details go to {practice} when you continue, and the practice keeps them in its own records. Nothing is sent before that.",
+      "insuranceTitle": "Your insurance for {practice}",
+      "insuranceBody": "This practice takes the types shown here.",
+      "submit": "Send to the practice and continue",
+      "consent": "I accept the privacy notice",
+      "consentRequired": "Please accept the privacy notice to continue.",
+      "updateTitle": "Please check your details for {practice}",
+      "updateBody": "What the practice asks for has changed. You can go on after this.",
+      "updateSubmit": "Save and continue",
+      "consentLink": "Read the privacy notice",
+      "numberGoes": "The number ending in {end} goes to {practice} too. Enter another one only if it has changed."
+    },
+    "details": {
+      "title": "Appointment details",
+      "manage": "Manage",
+      "back": "My appointments",
+      "notFound": "We could not find this appointment."
+    },
+    "cancel": {
+      "title": "Cancel this appointment?",
+      "body": "{service}, {when}. The time becomes free for others.",
+      "confirm": "Cancel appointment",
+      "keep": "Keep appointment",
+      "close": "Close",
+      "done": "Your appointment is cancelled: {service}, {when}."
+    },
+    "reschedule": {
+      "title": "Choose a new time",
+      "current": "Your appointment now: {when}",
+      "hint": "Choose a time, and you confirm the change in the next step.",
+      "confirmTitle": "Move your appointment?",
+      "from": "From: {when}",
+      "to": "To: {when}",
+      "withDoctor": "Doctor: {doctor}",
+      "practiceAssigns": "Doctor: the practice assigns one",
+      "confirm": "Move appointment",
+      "other": "Choose another time",
+      "noPage": "This practice has no page with free times right now. Please call the practice.",
+      "closedTitle": "This appointment cannot be changed online",
+      "closedCancelled": "It was cancelled or moved. You find your current appointments under My appointments."
     }
   }
 }

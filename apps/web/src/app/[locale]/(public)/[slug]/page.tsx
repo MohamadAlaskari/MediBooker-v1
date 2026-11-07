@@ -20,7 +20,8 @@ export async function generateMetadata({ params }: PracticeRouteProps): Promise<
   const result = await loadPublicPractice(slug, locale);
   // A short outage or a throttled crawler: the page answers 200, but it is nothing to keep.
   if (result.kind === 'unavailable') return { robots: { index: false } };
-  if (result.kind !== 'found') return {};
+  // Here too, or a page that is not there would keep the title of the layout.
+  if (result.kind !== 'found') notFound();
   const { practice } = result;
   const t = await getTranslations({ locale, namespace: 'practicePage' });
   const name = practice.name ?? '';

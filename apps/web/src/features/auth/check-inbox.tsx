@@ -9,7 +9,7 @@ import { LinkButton } from '@/components/ui/button';
 import { useReturnPath } from './fragment';
 import { FormError } from './form-parts';
 import { ResendButton } from './resend-button';
-import { useSignInWhenOver } from './session-redirect';
+import { useSessionChangeElsewhere } from './sign-out-button';
 import { SignUpSteps } from './sign-up-steps';
 
 /** Screen 12. The person is already signed in and can go on: only a booking waits for the link. */
@@ -18,7 +18,7 @@ export function CheckInbox(): ReactNode {
   const locale = useLocale();
   const returnPath = useReturnPath();
   const me = useGetMe();
-  useSignInWhenOver(me.error, '/check-inbox');
+  useSessionChangeElsewhere();
   return (
     <>
       <SignUpSteps current="verify" />
@@ -36,7 +36,14 @@ export function CheckInbox(): ReactNode {
         )}
       </div>
       <div className="mt-8 flex flex-col gap-2">
-        <LinkButton href={returnPath ?? `/${locale}/account`}>{t('continue')}</LinkButton>
+        <LinkButton href={returnPath ?? `/${locale}/account`}>
+          {/* A link's name says where it leads: not every way back is a booking. */}
+          {returnPath === undefined
+            ? t('continue')
+            : returnPath.includes('/book/')
+              ? t('continueToBooking')
+              : t('continueOn')}
+        </LinkButton>
         {me.data === undefined ? null : (
           <ResendButton
             email={me.data.email}

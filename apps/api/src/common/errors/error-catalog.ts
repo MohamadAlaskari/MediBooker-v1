@@ -19,6 +19,7 @@ export const ERROR_CATALOG = {
   CONFLICT: { status: 409, title: 'Conflict' },
   ALREADY_JOINED: { status: 409, title: 'Already a patient of this practice' },
   SLOT_NOT_AVAILABLE: { status: 409, title: 'Slot not available' },
+  APPOINTMENT_OVERLAP: { status: 409, title: 'Appointment overlaps another one' },
   BOOKING_LIMIT_REACHED: { status: 409, title: 'Booking limit reached' },
   OUTSIDE_BOOKING_WINDOW: { status: 409, title: 'Outside the booking window' },
   SERVICE_NOT_BOOKABLE: { status: 409, title: 'Service not bookable' },
@@ -29,6 +30,7 @@ export const ERROR_CATALOG = {
   PAYLOAD_TOO_LARGE: { status: 413, title: 'Payload too large' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, title: 'Unsupported media type' },
   RATE_LIMITED: { status: 429, title: 'Too many requests' },
+  JOIN_LIMIT_REACHED: { status: 429, title: 'Too many new practices in a day' },
   INTERNAL_ERROR: { status: 500, title: 'Internal error' },
   SERVICE_UNAVAILABLE: { status: 503, title: 'Service unavailable' },
 } as const satisfies Readonly<Record<string, ErrorDefinition>>;

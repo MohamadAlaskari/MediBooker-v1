@@ -24,7 +24,13 @@ export function Select<T extends object>({
   ...props
 }: Omit<SelectProps<T>, 'className'> & { readonly className?: string }): ReactNode {
   return (
-    <SelectPrimitive data-slot="select" className={cn('w-full min-w-0', className)} {...props} />
+    <SelectPrimitive
+      data-slot="select"
+      // React Aria's hidden select is fixed to the window at -1 px, which in a right-to-left page is
+      // one pixel of sideways scrolling. Here it stays inside this box.
+      className={cn('w-full min-w-0 [contain:layout]', className)}
+      {...props}
+    />
   );
 }
 
@@ -33,7 +39,7 @@ export function SelectTrigger({ className }: { readonly className?: string }): R
     <ButtonPrimitive
       data-slot="select-trigger"
       className={cn(
-        'flex min-h-touch-target w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-bg-surface px-3 text-start text-body-default text-text-primary outline-none data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-border-focus data-[hovered]:bg-bg-subtle',
+        'flex min-h-touch-target w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-bg-surface px-3 text-start text-body-default text-text-primary data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-border-focus data-[hovered]:bg-bg-subtle',
         className,
       )}
     >
@@ -50,6 +56,7 @@ export function SelectContent({ children }: { readonly children: ReactNode }): R
       offset={4}
       className="z-50 w-(--trigger-width) overflow-auto rounded-md border border-border-default bg-bg-surface shadow-elevation-2"
     >
+      {/* Only a script focuses the list itself; the ring is on its items. */}
       <ListBoxPrimitive data-slot="select-list" className="outline-none">
         {children}
       </ListBoxPrimitive>
@@ -61,7 +68,8 @@ export function SelectItem({ children, ...props }: ListBoxItemProps): ReactNode 
   return (
     <ListBoxItemPrimitive
       data-slot="select-item"
-      className="flex min-h-touch-target cursor-default items-center gap-2 px-3 text-body-default text-text-primary outline-none select-none data-[focused]:bg-bg-subtle data-[selected]:text-text-brand"
+      // Inside the item: the list scrolls, and would cut off a ring around it.
+      className="flex min-h-touch-target cursor-default items-center gap-2 px-3 text-body-default text-text-primary select-none data-[focus-visible]:outline-2 data-[focus-visible]:-outline-offset-2 data-[focus-visible]:outline-border-focus data-[focused]:bg-bg-subtle data-[selected]:text-text-brand"
       {...props}
     >
       {composeRenderProps(children, (content, { isSelected }) => (

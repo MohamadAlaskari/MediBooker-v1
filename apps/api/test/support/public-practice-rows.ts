@@ -7,6 +7,7 @@ export function publicPracticeRows(
   overrides: Partial<PublicPracticeRows> = {},
 ): PublicPracticeRows {
   return {
+    id: '00000000-0000-4000-8000-000000000001',
     slug: 'al-noor',
     name: { ar: 'مركز النور', en: 'Al Noor Centre' },
     settings: {
@@ -120,10 +121,15 @@ export function keyPathsOf(value: unknown, path = ''): string[] {
 export const PUBLIC_PRACTICE_KEY_PATHS = [
   'about',
   'address',
+  'cancellationDeadlineHours',
   'defaultLocale',
   'directions',
   'email',
   'hourCycle',
+  'id',
+  'insuranceNumberTypes',
+  'insuranceProviderTypes',
+  'insuranceTypes',
   'legalNoticeUrl',
   'locale',
   'name',

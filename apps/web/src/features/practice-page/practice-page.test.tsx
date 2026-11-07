@@ -6,6 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { PracticePage } from './practice-page';
 
 const PRACTICE: PublicPracticeDto = {
+  id: '40000000-0000-4000-8000-000000000001',
+  insuranceTypes: ['PUBLIC', 'PRIVATE', 'SELF_PAY'],
+  insuranceProviderTypes: ['PUBLIC', 'PRIVATE'],
+  insuranceNumberTypes: ['PUBLIC', 'PRIVATE'],
+  cancellationDeadlineHours: 24,
   slug: 'al-noor',
   name: 'مركز النور الطبي',
   locale: 'ar',

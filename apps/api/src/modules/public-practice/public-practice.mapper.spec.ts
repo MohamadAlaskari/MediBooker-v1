@@ -15,11 +15,53 @@ describe('toPublicPractice (BR-22, BR-24)', () => {
     expect(keyPathsOf(practice)).toEqual(PUBLIC_PRACTICE_KEY_PATHS);
   });
 
-  it('keeps the booking parameters, insurance types and row timestamps inside the API', () => {
+  it('keeps the other booking parameters, what a service allows and row timestamps inside the API', () => {
     const text = JSON.stringify(toPublicPractice(publicPracticeRows(), NOW, undefined));
-    for (const hidden of ['maxHorizonDays', 'allowedInsuranceTypes', 'updatedAt', 'hiddenAt']) {
+    for (const hidden of [
+      'maxHorizonDays',
+      'minLeadTimeMinutes',
+      'maxFutureAppointmentsPerPatient',
+      'allowedInsuranceTypes',
+      'updatedAt',
+      'hiddenAt',
+    ]) {
       expect(text).not.toContain(hidden);
     }
+  });
+
+  it('publishes what the pages of a patient need, each from its own setting', () => {
+    const rows = publicPracticeRows();
+    // All different, so that a swap shows.
+    const settings = {
+      ...rows.settings,
+      insuranceTypes: ['PRIVATE', 'SELF_PAY'],
+      insuranceProviderTypes: ['PUBLIC'],
+      insuranceNumberTypes: ['PRIVATE'],
+      cancellationDeadlineHours: 36,
+      reminderHoursBefore: 12,
+    };
+    expect(toPublicPractice({ ...rows, settings }, NOW, undefined)).toMatchObject({
+      id: rows.id,
+      insuranceTypes: ['PRIVATE', 'SELF_PAY'],
+      insuranceProviderTypes: ['PUBLIC'],
+      insuranceNumberTypes: ['PRIVATE'],
+      cancellationDeadlineHours: 36,
+    });
+  });
+
+  it('publishes only the insurance types the contract names, as the columns are free text', () => {
+    const rows = publicPracticeRows();
+    const settings = {
+      ...rows.settings,
+      insuranceTypes: ['SELF_PAY', 'NOT_A_TYPE'],
+      insuranceProviderTypes: ['NOT_A_TYPE', 'PUBLIC'],
+      insuranceNumberTypes: ['NOT_A_TYPE'],
+    };
+    expect(toPublicPractice({ ...rows, settings }, NOW, undefined)).toMatchObject({
+      insuranceTypes: ['SELF_PAY'],
+      insuranceProviderTypes: ['PUBLIC'],
+      insuranceNumberTypes: [],
+    });
   });
 
   it('answers in the default locale without a language, and in English when asked', () => {

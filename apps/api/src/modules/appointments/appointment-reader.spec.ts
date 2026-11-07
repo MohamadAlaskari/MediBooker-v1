@@ -36,9 +36,12 @@ function setUp() {
     },
     patient: { findFirst: vi.fn().mockResolvedValue({ id: SELF }) },
     practiceSettings: {
-      findUniqueOrThrow: vi
-        .fn()
-        .mockResolvedValue({ timeZone: 'Asia/Riyadh', cancellationDeadlineHours: 24 }),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        timeZone: 'Asia/Riyadh',
+        numberingSystem: 'latn',
+        hourCycle: 'h23',
+        cancellationDeadlineHours: 24,
+      }),
     },
     staffMember: {
       findMany: vi
@@ -85,9 +88,13 @@ describe('AppointmentReader', () => {
       startsAt: '2026-11-17T07:00:00Z',
       endsAt: '2026-11-17T07:30:00Z',
       timeZone: 'Asia/Riyadh',
+      numberingSystem: 'latn',
+      hourCycle: 'h23',
       status: 'BOOKED',
       bookedAt: NOW.toString(),
       changeableUntil: '2026-11-16T07:00:00Z',
+      changeable: true,
+      started: false,
     });
   });
 
@@ -104,6 +111,47 @@ describe('AppointmentReader', () => {
         }) as object,
       }),
     );
+  });
+
+  it.each(['CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])(
+    'BR-04 says that it can no longer change once it is %s, however far off it is',
+    async (status) => {
+      const { reader, db, inPractice } = setUp();
+      db.appointment.findUniqueOrThrow.mockResolvedValue({ ...row(), status });
+      await expect(inPractice(() => reader.read(ID))).resolves.toMatchObject({ changeable: false });
+    },
+  );
+
+  it('BR-04 says that it can change until the deadline itself, and not a minute after', async () => {
+    const { reader, db, inPractice } = setUp();
+    const startingAt = (startsAt: string) => ({
+      ...row(),
+      slot: { ...row().slot, startsAt: new Date(startsAt) },
+    });
+    db.appointment.findUniqueOrThrow.mockResolvedValue(startingAt('2026-11-16T07:00:00Z'));
+    await expect(inPractice(() => reader.read(ID))).resolves.toMatchObject({ changeable: true });
+    db.appointment.findUniqueOrThrow.mockResolvedValue(startingAt('2026-11-16T06:59:00Z'));
+    await expect(inPractice(() => reader.read(ID))).resolves.toMatchObject({ changeable: false });
+  });
+
+  it.each([
+    ['BOOKED', '2026-11-15T07:01:00Z', false],
+    ['BOOKED', '2026-11-15T07:00:00Z', true],
+    ['BOOKED', '2026-11-14T07:00:00Z', true],
+    ['CANCELLED', '2026-11-15T07:01:00Z', false],
+    ['CANCELLED', '2026-11-14T07:00:00Z', true],
+  ])('says by its clock whether it has started: %s, from %s', async (status, startsAt, started) => {
+    const { reader, db, inPractice } = setUp();
+    db.appointment.findUniqueOrThrow.mockResolvedValue({
+      ...row(),
+      status,
+      slot: { ...row().slot, startsAt: new Date(startsAt) },
+    });
+    await expect(inPractice(() => reader.read(ID))).resolves.toMatchObject({
+      status,
+      started,
+      changeable: false,
+    });
   });
 
   it('BR-24 names nobody without a public profile, and leaves out a missing title', async () => {

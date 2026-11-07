@@ -12,10 +12,13 @@ import { cn } from '@/lib/utils';
 
 /**
  * From `shadcn add button`, adapted to the Figma component and the tokens (ADR 0007): targets of at
- * least 44 px, the type scale, the focus ring of `border/focus`.
+ * least 44 px, the type scale, the focus ring of `border/focus`. Never `outline-none` beside a ring:
+ * in Tailwind 4 it sets `--tw-outline-style`, which `outline-2` reads, and the ring stays invisible.
+ * A running request is `isPending`, which looks disabled and keeps the focus; `isDisabled` would drop
+ * it to the page, so that one is for what cannot be pressed at all.
  */
 export const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent text-label-default whitespace-nowrap transition-colors outline-none select-none data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-border-focus data-[disabled]:pointer-events-none data-[disabled]:bg-bg-disabled data-[disabled]:text-text-disabled [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent text-label-default whitespace-nowrap transition-colors select-none data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-border-focus data-[disabled]:pointer-events-none data-[disabled]:bg-bg-disabled data-[disabled]:text-text-disabled data-[pending]:cursor-progress data-[pending]:bg-bg-disabled data-[pending]:text-text-disabled [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
   {
     variants: {
       variant: {
@@ -59,7 +62,9 @@ export function LinkButton({
   variant,
   size,
   ...props
-}: Omit<LinkPrimitiveProps, 'className'> & Variants & { readonly className?: string }): ReactNode {
+}: Omit<LinkPrimitiveProps, 'className'> &
+  RefAttributes<HTMLAnchorElement> &
+  Variants & { readonly className?: string }): ReactNode {
   return (
     <LinkPrimitive
       data-slot="button"

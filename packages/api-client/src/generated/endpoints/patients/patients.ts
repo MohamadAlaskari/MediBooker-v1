@@ -54,7 +54,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getListMyPatientsUrl = (practiceId: unknown,) => {
+export const getListMyPatientsUrl = (practiceId: string,) => {
 
 
 
@@ -65,7 +65,7 @@ export const getListMyPatientsUrl = (practiceId: unknown,) => {
 /**
  * @summary The profiles of the caller in this practice; 404 before a join
  */
-export const listMyPatients = async (practiceId: unknown, options?: Parameters<typeof apiFetch>[1]): Promise<PatientListDto> => {
+export const listMyPatients = async (practiceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PatientListDto> => {
 
   return apiFetch<PatientListDto>(getListMyPatientsUrl(practiceId),
   {
@@ -80,14 +80,14 @@ export const listMyPatients = async (practiceId: unknown, options?: Parameters<t
 
 
 
-export const getListMyPatientsQueryKey = (practiceId: unknown,) => {
+export const getListMyPatientsQueryKey = (practiceId: string,) => {
     return [
     `/api/v1/practices/${practiceId}/me/patients`
     ] as const;
     }
 
 
-export const getListMyPatientsQueryOptions = <TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListMyPatientsQueryOptions = <TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -110,7 +110,7 @@ export type ListMyPatientsQueryError = ErrorType<ProblemDetailsDto>
 
 
 export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>> & Pick<
+ practiceId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyPatients>>,
           TError,
@@ -120,7 +120,7 @@ export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatien
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>> & Pick<
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyPatients>>,
           TError,
@@ -130,7 +130,7 @@ export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatien
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -138,7 +138,7 @@ export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatien
  */
 
 export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatients>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
@@ -154,7 +154,7 @@ export function useListMyPatients<TData = Awaited<ReturnType<typeof listMyPatien
 
 
 
-export const getJoinPracticeUrl = (practiceId: unknown,) => {
+export const getJoinPracticeUrl = (practiceId: string,) => {
 
 
 
@@ -165,7 +165,7 @@ export const getJoinPracticeUrl = (practiceId: unknown,) => {
 /**
  * @summary Join a practice: copies the own details and asks for what is missing
  */
-export const joinPractice = async (practiceId: unknown,
+export const joinPractice = async (practiceId: string,
     joinPracticeDto: JoinPracticeDto, options?: Parameters<typeof apiFetch>[1]): Promise<PatientDto> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -227,7 +227,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type JoinPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof joinPractice>>>
     export type JoinPracticeMutationBody = JoinPracticeDto
     export type JoinPracticeMutationError = ErrorType<ProblemDetailsDto>
-    export type JoinPracticeMutationVariables = {practiceId: unknown;data: JoinPracticeDto}
+    export type JoinPracticeMutationVariables = {practiceId: string;data: JoinPracticeDto}
 
     /**
  * @summary Join a practice: copies the own details and asks for what is missing
@@ -242,7 +242,7 @@ export const useJoinPractice = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getJoinPracticeMutationOptions(options), queryClient);
     }
-    export const getGetMyPatientUrl = (practiceId: unknown,
+    export const getGetMyPatientUrl = (practiceId: string,
     patientId: string,) => {
 
 
@@ -254,7 +254,7 @@ export const useJoinPractice = <TError = ErrorType<ProblemDetailsDto>,
 /**
  * @summary The own profile in this practice
  */
-export const getMyPatient = async (practiceId: unknown,
+export const getMyPatient = async (practiceId: string,
     patientId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PatientDto> => {
 
   return apiFetch<PatientDto>(getGetMyPatientUrl(practiceId,patientId),
@@ -270,7 +270,7 @@ export const getMyPatient = async (practiceId: unknown,
 
 
 
-export const getGetMyPatientQueryKey = (practiceId: unknown,
+export const getGetMyPatientQueryKey = (practiceId: string,
     patientId: string,) => {
     return [
     `/api/v1/practices/${practiceId}/me/patients/${patientId}`
@@ -278,7 +278,7 @@ export const getGetMyPatientQueryKey = (practiceId: unknown,
     }
 
 
-export const getGetMyPatientQueryOptions = <TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown,
+export const getGetMyPatientQueryOptions = <TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
     patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -302,7 +302,7 @@ export type GetMyPatientQueryError = ErrorType<ProblemDetailsDto>
 
 
 export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     patientId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPatient>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyPatient>>,
@@ -313,7 +313,7 @@ export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPatient>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyPatient>>,
@@ -324,7 +324,7 @@ export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -333,7 +333,7 @@ export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>
  */
 
 export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -350,7 +350,7 @@ export function useGetMyPatient<TData = Awaited<ReturnType<typeof getMyPatient>>
 
 
 
-export const getUpdateMyPatientUrl = (practiceId: unknown,
+export const getUpdateMyPatientUrl = (practiceId: string,
     patientId: string,) => {
 
 
@@ -362,7 +362,7 @@ export const getUpdateMyPatientUrl = (practiceId: unknown,
 /**
  * @summary Change the own profile in this practice; what is left out stays
  */
-export const updateMyPatient = async (practiceId: unknown,
+export const updateMyPatient = async (practiceId: string,
     patientId: string,
     updatePatientDto: UpdatePatientDto, options?: Parameters<typeof apiFetch>[1]): Promise<PatientDto> => {
 
@@ -425,7 +425,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateMyPatientMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyPatient>>>
     export type UpdateMyPatientMutationBody = UpdatePatientDto
     export type UpdateMyPatientMutationError = ErrorType<ProblemDetailsDto>
-    export type UpdateMyPatientMutationVariables = {practiceId: unknown;patientId: string;data: UpdatePatientDto}
+    export type UpdateMyPatientMutationVariables = {practiceId: string;patientId: string;data: UpdatePatientDto}
 
     /**
  * @summary Change the own profile in this practice; what is left out stays

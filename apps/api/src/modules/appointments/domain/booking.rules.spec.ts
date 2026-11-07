@@ -3,6 +3,7 @@ import { bookableWindow } from '../../scheduling/domain/slots.rules.js';
 import {
   changeableUntil,
   hasBookingPlace,
+  hasStarted,
   isChangeable,
   isInBookingWindow,
   isProfileComplete,
@@ -31,6 +32,18 @@ describe('isChangeable (BR-04)', () => {
     expect(isChangeable(at('2027-03-27T08:01:00Z'), startsAt, 24)).toBe(false);
     expect(isChangeable(at('2027-03-28T08:00:00Z'), startsAt, 0)).toBe(true);
     expect(isChangeable(at('2027-03-28T08:01:00Z'), startsAt, 0)).toBe(false);
+  });
+});
+
+describe('hasStarted', () => {
+  const startsAt = Temporal.Instant.from('2027-03-28T08:00:00Z');
+
+  it.each([
+    ['a moment before', '2027-03-28T07:59:59.999Z', false],
+    ['at the start itself', '2027-03-28T08:00:00Z', true],
+    ['after it', '2027-03-28T08:00:00.001Z', true],
+  ])('%s: %s is %s', (_, now, started) => {
+    expect(hasStarted(Temporal.Instant.from(now), startsAt)).toBe(started);
   });
 });
 

@@ -100,6 +100,12 @@ describe('react preset', () => {
     const ruleIds = (await lint('violations.jsx')).map((message) => message.ruleId);
     expect(ruleIds).toEqual(['medibooker/no-physical-direction-classes']);
   });
+
+  it('react: web storage is refused, by name and through window or globalThis', async () => {
+    const ruleIds = (await lint('web-storage.tsx')).map((message) => message.ruleId);
+    expect(ruleIds.filter((id) => id === 'no-restricted-globals')).toHaveLength(2);
+    expect(ruleIds.filter((id) => id === 'no-restricted-properties')).toHaveLength(4);
+  });
 });
 
 describe('nest preset', () => {

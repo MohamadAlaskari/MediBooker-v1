@@ -5,6 +5,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { ProfileDto } from '@medibooker/api-client';
+import { bodyOf, numberEndOf, problem, respond } from './answers.ts';
 
 interface Account {
   readonly id: string;
@@ -14,6 +16,13 @@ interface Account {
   locale: string;
 }
 
+/** What a person sends: what is left out is not known. */
+type ProfileBody = Pick<ProfileDto, 'firstName' | 'lastName' | 'dateOfBirth' | 'insuranceType'> & {
+  readonly phone?: string;
+  readonly insuranceProvider?: string;
+  readonly insuranceNumber?: string;
+};
+
 const BREACHED = '1234567890';
 const accounts = new Map<string, Account>();
 const accessTokens = new Map<string, string>();
@@ -21,38 +30,7 @@ const refreshTokens = new Map<string, string>();
 /** A link's token and what it may do, once. */
 const links = new Map<string, { email: string; purpose: 'confirm' | 'reset' }>();
 const newestLink = new Map<string, string>();
-const profiles = new Map<string, Record<string, unknown>>();
-
-function respond(response: ServerResponse, status: number, body?: unknown): void {
-  response.writeHead(status, { 'Content-Type': 'application/json' });
-  response.end(body === undefined ? undefined : JSON.stringify(body));
-}
-
-function problem(
-  response: ServerResponse,
-  status: number,
-  code: string,
-  errors?: readonly { field: string; code: string }[],
-): void {
-  response.writeHead(status, { 'Content-Type': 'application/problem+json' });
-  response.end(
-    JSON.stringify({
-      type: `urn:medibooker:problem:${code.toLowerCase().replaceAll('_', '-')}`,
-      title: code,
-      status,
-      detail: code,
-      code,
-      requestId: '30000000-0000-4000-8000-000000000002',
-      ...(errors === undefined ? {} : { errors }),
-    }),
-  );
-}
-
-async function bodyOf(request: IncomingMessage): Promise<Record<string, string | undefined>> {
-  let text = '';
-  for await (const chunk of request) text += String(chunk);
-  return text === '' ? {} : (JSON.parse(text) as Record<string, string | undefined>);
-}
+const profiles = new Map<string, ProfileDto>();
 
 function cookiesOf(request: IncomingMessage): Map<string, string> {
   return new Map(
@@ -102,7 +80,7 @@ function endSessions(email: string): void {
 }
 
 /** The CSRF header of a cookie request: the value of the session's own readable cookie. */
-function hasCsrfHeader(request: IncomingMessage): boolean {
+export function hasCsrfHeader(request: IncomingMessage): boolean {
   const header = request.headers['x-csrf-token'];
   return header !== undefined && header === cookiesOf(request).get('mb_csrf');
 }
@@ -116,9 +94,9 @@ async function handleRoute(
   const { email = '', password = '', token = '' } = body;
   if (route === 'register') {
     if (password === BREACHED) {
-      problem(response, 400, 'VALIDATION_FAILED', [
-        { field: 'password', code: 'PASSWORD_BREACHED' },
-      ]);
+      problem(response, 'VALIDATION_FAILED', {
+        errors: [{ field: 'password', code: 'PASSWORD_BREACHED' }],
+      });
       return;
     }
     if (!accounts.has(email)) {
@@ -132,7 +110,7 @@ async function handleRoute(
   if (route === 'login') {
     const account = accounts.get(email);
     if (account?.password !== password) {
-      problem(response, 401, 'INVALID_CREDENTIALS');
+      problem(response, 'INVALID_CREDENTIALS');
       return;
     }
     setSession(response, email);
@@ -143,11 +121,11 @@ async function handleRoute(
     const link = links.get(token);
     const account = accounts.get(link?.email ?? '');
     if (link?.purpose !== 'confirm' || account === undefined) {
-      problem(response, 400, 'INVALID_TOKEN');
+      problem(response, 'INVALID_TOKEN');
       return;
     }
     if (account.password !== password) {
-      problem(response, 401, 'INVALID_CREDENTIALS');
+      problem(response, 'INVALID_CREDENTIALS');
       return;
     }
     links.delete(token);
@@ -169,13 +147,13 @@ async function handleRoute(
     const link = links.get(token);
     const account = accounts.get(link?.email ?? '');
     if (link?.purpose !== 'reset' || account === undefined) {
-      problem(response, 400, 'INVALID_TOKEN');
+      problem(response, 'INVALID_TOKEN');
       return;
     }
     if (password === BREACHED) {
-      problem(response, 400, 'VALIDATION_FAILED', [
-        { field: 'password', code: 'PASSWORD_BREACHED' },
-      ]);
+      problem(response, 'VALIDATION_FAILED', {
+        errors: [{ field: 'password', code: 'PASSWORD_BREACHED' }],
+      });
       return;
     }
     links.delete(token);
@@ -189,11 +167,11 @@ async function handleRoute(
     const presented = cookiesOf(request).get('mb_refresh') ?? '';
     const owner = accounts.get(refreshTokens.get(presented) ?? '');
     if (owner === undefined) {
-      problem(response, 401, 'UNAUTHENTICATED');
+      problem(response, 'UNAUTHENTICATED');
       return;
     }
     if (!hasCsrfHeader(request)) {
-      problem(response, 403, 'FORBIDDEN');
+      problem(response, 'FORBIDDEN');
       return;
     }
     refreshTokens.delete(presented);
@@ -208,7 +186,7 @@ async function handleRoute(
       return;
     }
     if (!hasCsrfHeader(request)) {
-      problem(response, 403, 'FORBIDDEN');
+      problem(response, 'FORBIDDEN');
       return;
     }
     endSessions(refreshTokens.get(presented) ?? '');
@@ -216,40 +194,61 @@ async function handleRoute(
     respond(response, 204);
     return;
   }
-  problem(response, 404, 'NOT_FOUND');
+  problem(response, 'NOT_FOUND');
 }
 
 async function handleProfile(request: IncomingMessage, response: ServerResponse): Promise<void> {
   const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '') ?? '';
   if (!accounts.has(owner)) {
-    problem(response, 401, 'UNAUTHENTICATED');
+    problem(response, 'UNAUTHENTICATED');
     return;
   }
   if (request.method === 'GET') {
     const profile = profiles.get(owner);
-    if (profile === undefined) problem(response, 404, 'NOT_FOUND');
+    if (profile === undefined) problem(response, 'NOT_FOUND');
     else respond(response, 200, profile);
     return;
   }
   if (!hasCsrfHeader(request)) {
-    problem(response, 403, 'FORBIDDEN');
+    problem(response, 'FORBIDDEN');
     return;
   }
-  const { insuranceNumber, ...details } = await bodyOf(request);
+  const { insuranceNumber, ...details } = await bodyOf<ProfileBody>(request);
   if (details.dateOfBirth === '2030-01-01') {
-    problem(response, 400, 'VALIDATION_FAILED', [{ field: 'dateOfBirth', code: 'INVALID_VALUE' }]);
+    problem(response, 'VALIDATION_FAILED', {
+      errors: [{ field: 'dateOfBirth', code: 'INVALID_VALUE' }],
+    });
     return;
   }
   const known = profiles.get(owner)?.insuranceNumberEnd ?? null;
-  const profile = {
+  const profile: ProfileDto = {
     phone: null,
     insuranceProvider: null,
     ...details,
     insuranceNumberEnd:
-      details.insuranceType === 'SELF_PAY' ? null : (insuranceNumber?.slice(-4) ?? known),
+      details.insuranceType === 'SELF_PAY'
+        ? null
+        : insuranceNumber === undefined
+          ? known
+          : numberEndOf(insuranceNumber),
   };
   profiles.set(owner, profile);
   respond(response, 200, profile);
+}
+
+/** Whose access cookie a request carries, for the stub's other parts. */
+export function ownerOf(request: IncomingMessage): string | undefined {
+  const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '');
+  return owner !== undefined && accounts.has(owner) ? owner : undefined;
+}
+
+export function isVerified(email: string): boolean {
+  return accounts.get(email)?.verified === true;
+}
+
+/** What the account knows of a person, which a join copies. */
+export function profileOf(email: string): ProfileDto | undefined {
+  return profiles.get(email);
 }
 
 /** Takes the requests about accounts, and answers whether it did. */
@@ -260,6 +259,7 @@ export function handleAccounts(
   response: ServerResponse,
 ): boolean {
   const email = searchParams.get('email') ?? '';
+  const { method } = request;
   if (pathname === '/__links') {
     respond(response, 200, {
       confirm: newestLink.get(`${email}:confirm`),
@@ -280,13 +280,11 @@ export function handleAccounts(
   if (pathname === '/api/v1/me/unconfirmed') {
     const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '') ?? '';
     const account = accounts.get(owner);
-    if (account === undefined) {
-      problem(response, 401, 'UNAUTHENTICATED');
-    } else if (account.verified) {
-      problem(response, 409, 'CONFLICT');
-    } else if (!hasCsrfHeader(request)) {
-      problem(response, 403, 'FORBIDDEN');
-    } else {
+    if (method !== 'DELETE') problem(response, 'NOT_FOUND');
+    else if (account === undefined) problem(response, 'UNAUTHENTICATED');
+    else if (!hasCsrfHeader(request)) problem(response, 'FORBIDDEN');
+    else if (account.verified) problem(response, 'CONFLICT');
+    else {
       accounts.delete(owner);
       profiles.delete(owner);
       endSessions(owner);
@@ -296,18 +294,22 @@ export function handleAccounts(
     return true;
   }
   if (pathname === '/api/v1/me/profile') {
-    void handleProfile(request, response);
+    if (method === 'GET' || method === 'PUT') void handleProfile(request, response);
+    else problem(response, 'NOT_FOUND');
     return true;
   }
   if (pathname === '/api/v1/me') {
     const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '');
     const account = accounts.get(owner ?? '');
-    if (account === undefined) problem(response, 401, 'UNAUTHENTICATED');
+    if (method !== 'GET') problem(response, 'NOT_FOUND');
+    else if (account === undefined) problem(response, 'UNAUTHENTICATED');
     else respond(response, 200, accountDto(account));
     return true;
   }
   if (pathname.startsWith('/api/v1/auth/')) {
-    void handleRoute(pathname.slice('/api/v1/auth/'.length), request, response);
+    if (method === 'POST')
+      void handleRoute(pathname.slice('/api/v1/auth/'.length), request, response);
+    else problem(response, 'NOT_FOUND');
     return true;
   }
   return false;

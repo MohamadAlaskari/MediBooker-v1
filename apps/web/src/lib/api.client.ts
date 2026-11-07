@@ -4,6 +4,8 @@ import { SESSION_HINT_COOKIE } from './session-hint';
 const CSRF_HEADER = 'x-csrf-token';
 const AUTH_PATH = '/api/v1/auth/';
 const REFRESH_PATH = `${AUTH_PATH}refresh`;
+/** Nothing orders two answers on two connections, but the winner's follows the loser's closely. */
+const OTHER_TAB_WAIT_MS = 500;
 
 function cookieValue(cookies: string, name: string): string | undefined {
   const prefix = `${name}=`;
@@ -22,8 +24,28 @@ function withCsrfToken(headers: HeadersInit | undefined): Headers {
 
 let refreshing: Promise<boolean> | undefined;
 
+function sessionHint(): string | undefined {
+  return cookieValue(document.cookie, SESSION_HINT_COOKIE);
+}
+
+/**
+ * Whether a refresh that failed lost to another tab's: the token was just spent, the cookie changes,
+ * and the session is alive. The cookie can land after this tab's answer, so an unchanged one gets a
+ * second look; a session that is really over only waits that much longer.
+ */
+async function refreshedElsewhere(before: string | undefined): Promise<boolean> {
+  const changed = (): boolean => sessionHint() !== undefined && sessionHint() !== before;
+  // No cookie at all is a sign-out, here or in another tab: nothing is on its way.
+  if (changed() || sessionHint() === undefined) return changed();
+  await new Promise((resolve) => {
+    setTimeout(resolve, OTHER_TAB_WAIT_MS);
+  });
+  return changed();
+}
+
 /** One refresh for everything that found its access token over at the same moment. */
 function refreshedSession(): Promise<boolean> {
+  const before = sessionHint();
   refreshing ??= globalThis
     .fetch(REFRESH_PATH, {
       method: 'POST',
@@ -32,7 +54,7 @@ function refreshedSession(): Promise<boolean> {
       body: '{}',
     })
     .then(
-      ({ ok }) => ok,
+      async ({ ok }) => ok || (await refreshedElsewhere(before)),
       () => false,
     )
     .finally(() => {

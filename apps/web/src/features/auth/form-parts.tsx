@@ -2,7 +2,14 @@
 
 import { isApiError } from '@medibooker/api-client';
 import { useTranslations } from 'next-intl';
-import { useSyncExternalStore, type BaseSyntheticEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  type BaseSyntheticEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Controller,
   type Control,
@@ -64,20 +71,24 @@ interface FormErrorProps {
   readonly error: unknown;
   /** The fields of this form that show their own errors. */
   readonly fields?: readonly string[];
+  /** Where a 404 means something else than a page that is not there. */
+  readonly notFound?: string;
 }
 
 /** A failure of the whole form: in a live region, and only when no field of it already says so. */
-export function FormError({ error, fields = [] }: FormErrorProps): ReactNode {
+export function FormError({ error, fields = [], notFound }: FormErrorProps): ReactNode {
   const t = useTranslations('errors');
   if (error === null || error === undefined) return null;
   if (isApiError(error) && error.fieldErrors.some(({ field }) => fields.includes(field))) {
     return null;
   }
   const code = isApiError(error) ? error.code : 'UNEXPECTED_RESPONSE';
+  const params = isApiError(error) ? error.params : undefined;
+  const text = t.has(code as never) ? t(code as never, params as never) : t('INTERNAL_ERROR');
   return (
     <Alert role="alert" className="bg-bg-danger-subtle">
       <AlertDescription className="text-text-danger">
-        {t.has(code as never) ? t(code as never) : t('INTERNAL_ERROR')}
+        {code === 'NOT_FOUND' ? (notFound ?? text) : text}
       </AlertDescription>
     </Alert>
   );
@@ -168,6 +179,12 @@ export function AuthForm({ onSubmit, children }: AuthFormProps): ReactNode {
       noValidate
       className="flex flex-col gap-4"
       onSubmit={(event) => {
+        // A waiting button is no submit button, and without one Enter in a single field still sends
+        // the form: a token that works once would answer the second time with an error.
+        if (event.currentTarget.querySelector('[data-pending]') !== null) {
+          event.preventDefault();
+          return;
+        }
         void onSubmit(event);
       }}
     >
@@ -184,28 +201,55 @@ interface SubmitButtonProps {
 /**
  * Disabled until the page has come to life: before that the browser would send the form itself,
  * passwords included, and neither a click nor the Enter key can do that with this button disabled.
+ * A running request only makes it wait: disabled, it would drop the focus to the page.
  */
 export function SubmitButton({ pending, children }: SubmitButtonProps): ReactNode {
   const ready = useFormReady();
   return (
     // Without a transition: a colour between disabled and enabled is readable by nobody.
-    <Button type="submit" isDisabled={pending || !ready} className="transition-none">
+    <Button type="submit" isPending={pending} isDisabled={!ready} className="transition-none">
       {children}
     </Button>
   );
 }
 
+/**
+ * A step that replaces another on the same page: a screen reader should land on its heading, when it
+ * mounts and whenever `enabled` turns true. The same for what takes the place of a button with the
+ * focus, because the focus would otherwise drop to the page.
+ */
+export function useFocusOnArrival<Target extends HTMLElement = HTMLHeadingElement>(
+  enabled = true,
+): RefObject<Target | null> {
+  const target = useRef<Target>(null);
+  useEffect(() => {
+    if (enabled) target.current?.focus();
+  }, [enabled]);
+  return target;
+}
+
 interface PageHeadingProps {
   readonly title: string;
   readonly body?: string;
+  /** See useFocusOnArrival. Two steps need different keys, or React keeps one heading for both. */
+  readonly focusOnArrival?: boolean;
 }
 
-export function PageHeading({ title, body }: PageHeadingProps): ReactNode {
+export function PageHeading({ title, body, focusOnArrival = false }: PageHeadingProps): ReactNode {
+  const heading = useFocusOnArrival(focusOnArrival);
   return (
     <header className="mb-6 text-start">
-      <h1 className="text-heading-h1 text-text-primary">{title}</h1>
+      {/* Only a script can focus it: the focus is shown by what is read out, not by a ring. */}
+      {/* A practice's name can stand in it, longer than a phone is wide and in one word too. */}
+      <h1
+        ref={heading}
+        tabIndex={focusOnArrival ? -1 : undefined}
+        className="text-heading-h1 wrap-anywhere text-text-primary outline-none"
+      >
+        {title}
+      </h1>
       {body === undefined ? null : (
-        <p className="mt-2 text-body-default text-text-secondary">{body}</p>
+        <p className="mt-2 text-body-default wrap-anywhere text-text-secondary">{body}</p>
       )}
     </header>
   );

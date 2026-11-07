@@ -112,6 +112,55 @@ describe('apiFetch: a problem document', () => {
   });
 });
 
+describe('apiFetch: Retry-After', () => {
+  const PROBLEM = 'application/problem+json';
+
+  it('is kept on the ApiError of a problem document', async () => {
+    answer(JSON.stringify({ code: 'RATE_LIMITED' }), {
+      status: 429,
+      headers: { 'Content-Type': PROBLEM, 'Retry-After': '60' },
+    });
+
+    const error = await failureOf(apiFetch(PATH));
+
+    expect(error.code).toBe('RATE_LIMITED');
+    expect(error.retryAfterSeconds).toBe(60);
+  });
+
+  it('is kept when a proxy answers, too', async () => {
+    answer('<html>Busy</html>', {
+      status: 503,
+      headers: { 'Content-Type': 'text/html', 'Retry-After': '30' },
+    });
+
+    const error = await failureOf(apiFetch(PATH));
+
+    expect(error.code).toBe('UNEXPECTED_RESPONSE');
+    expect(error.retryAfterSeconds).toBe(30);
+  });
+
+  it('is undefined without the header', async () => {
+    answer(JSON.stringify({ code: 'RATE_LIMITED' }), {
+      status: 429,
+      headers: { 'Content-Type': PROBLEM },
+    });
+
+    expect((await failureOf(apiFetch(PATH))).retryAfterSeconds).toBeUndefined();
+  });
+
+  it.each(['Wed, 21 Oct 2026 07:28:00 GMT', '-1', '1.5', 'soon'])(
+    'is undefined for %s, which is no number of whole seconds',
+    async (value) => {
+      answer(JSON.stringify({ code: 'RATE_LIMITED' }), {
+        status: 429,
+        headers: { 'Content-Type': PROBLEM, 'Retry-After': value },
+      });
+
+      expect((await failureOf(apiFetch(PATH))).retryAfterSeconds).toBeUndefined();
+    },
+  );
+});
+
 describe('apiFetch: anything else', () => {
   it.each([
     ['an HTML 502 from a proxy', '<html>Bad gateway</html>', 502, 'text/html'],

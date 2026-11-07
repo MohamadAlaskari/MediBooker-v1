@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { CursorPage } from '../../common/http/cursor-page.js';
+import {
+  INSURANCE_TYPES,
+  type InsuranceTypeName,
+} from '../account-profile/domain/profile.rules.js';
 
 /**
  * What leaves the API about a practice without sign-in: exactly these fields (BR-22, BR-24).
@@ -123,6 +127,35 @@ export class PublicTeamMemberDto {
 }
 
 export class PublicPracticeDto {
+  @ApiProperty({ format: 'uuid', description: 'What the routes of a signed-in patient name it by' })
+  readonly id!: string;
+
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The insurance types this practice takes (BR-10)',
+  })
+  readonly insuranceTypes!: readonly InsuranceTypeName[];
+
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The insurance types for which this practice asks for a provider (BR-10)',
+  })
+  readonly insuranceProviderTypes!: readonly InsuranceTypeName[];
+
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The insurance types for which this practice asks for a number (BR-10)',
+  })
+  readonly insuranceNumberTypes!: readonly InsuranceTypeName[];
+
+  @ApiProperty({
+    description: 'Until how many hours before the start a patient can change an appointment online',
+  })
+  readonly cancellationDeadlineHours!: number;
+
   @ApiProperty({
     description: 'The current slug, also when the request used a retired one',
     example: 'al-noor',

@@ -3,6 +3,7 @@ import { isolate } from '@medibooker/i18n';
 import { describe, expect, it } from 'vitest';
 import { practiceFormat } from '@/lib/format';
 import {
+  doctorsOf,
   fullNameOf,
   initialsOf,
   isoWeekdayOf,
@@ -19,6 +20,27 @@ const format = practiceFormat('en', {
   numberingSystem: 'latn',
   hourCycle: 'h23',
   timeZone: 'Asia/Riyadh',
+});
+
+describe('doctorsOf', () => {
+  const member = {
+    title: 'Dr.',
+    firstName: 'Lina',
+    lastName: 'Mansour',
+    specialty: null,
+    position: null,
+    languages: [],
+    photoUrl: null,
+  };
+
+  it('offers who sees patients, by name and initials', () => {
+    expect(
+      doctorsOf([
+        { ...member, id: 'a', isProvider: true },
+        { ...member, id: 'b', isProvider: false, title: null, firstName: 'Sara' },
+      ]),
+    ).toEqual([{ id: 'a', name: 'Dr. Lina Mansour', initials: 'LM' }]);
+  });
 });
 
 describe('openStatusOf', () => {

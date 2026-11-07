@@ -101,6 +101,7 @@ export class AuthService {
     }
     if (decision !== 'ROTATE') throw new DomainException('UNAUTHENTICATED');
     return this.txHost.withTransaction(async () => {
+      await this.lockSessionsOf(session.userId);
       const { count } = await this.txHost.tx.session.updateMany({
         where: { id: session.id, rotatedAt: null, revokedAt: null },
         data: { rotatedAt: dbInstantOf(now) },
@@ -135,12 +136,23 @@ export class AuthService {
     outcome: 'SUCCEEDED' | 'FAILED',
   ): Promise<void> {
     await this.txHost.withTransaction(async () => {
+      await this.lockSessionsOf(userId);
       await this.txHost.tx.session.updateMany({
         where: { familyId, revokedAt: null },
         data: { revokedAt: dbInstantOf(this.clock.now()) },
       });
       await this.audit.record({ actor: auditActorOf(userId), action, outcome });
     });
+  }
+
+  /**
+   * Whoever ends or replaces a person's sessions waits here for the others. An update sees only what
+   * was committed when it began, so a sign-out would otherwise miss the session a refresh is making at
+   * that moment, and that session would live on. A sign-in and a new password wait at the same row,
+   * through their updates of it.
+   */
+  private async lockSessionsOf(userId: string): Promise<void> {
+    await this.txHost.tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
   }
 
   private async issue(

@@ -5,7 +5,6 @@ import {
   useDeleteUnconfirmedAccount,
   useGetMe,
   useGetProfile,
-  useLogout,
 } from '@medibooker/api-client';
 import { isolateLtr } from '@medibooker/i18n';
 import { CircleCheck } from 'lucide-react';
@@ -13,9 +12,11 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, LinkButton } from '@/components/ui/button';
+import { announceSignOut } from '@/lib/session-broadcast';
+import { clearChoice } from '../portal/booking-choice';
 import { FormError, PageHeading } from './form-parts';
 import { ResendButton } from './resend-button';
-import { useSignInWhenOver } from './session-redirect';
+import { SignOutButton, useSessionChangeElsewhere } from './sign-out-button';
 
 /** What the account knows about a person, and the way to change it. */
 function DetailsSummary(): ReactNode {
@@ -76,11 +77,13 @@ function DeleteUnconfirmed(): ReactNode {
       <AlertDescription>{t('wrongAddressBody')}</AlertDescription>
       <FormError error={remove.error} />
       <Button
-        isDisabled={remove.isPending}
+        isPending={remove.isPending}
         className="bg-bg-danger text-text-on-danger data-[hovered]:bg-bg-danger-hover data-[pressed]:bg-bg-danger-hover"
         onPress={() => {
           remove.mutate(undefined, {
             onSuccess: () => {
+              announceSignOut();
+              clearChoice();
               window.location.replace(`/${locale}/sign-up`);
             },
           });
@@ -100,13 +103,12 @@ function DeleteUnconfirmed(): ReactNode {
   );
 }
 
-/** Where a sign-in leads until the portal exists (B04): who is signed in, and how to get out. */
+/** Who is signed in, and how to get out. */
 export function AccountOverview(): ReactNode {
   const t = useTranslations('auth.account');
   const locale = useLocale();
   const me = useGetMe();
-  useSignInWhenOver(me.error, '/account');
-  const logout = useLogout();
+  useSessionChangeElsewhere();
   if (me.data === undefined) {
     return (
       <>
@@ -138,25 +140,10 @@ export function AccountOverview(): ReactNode {
         </Alert>
       )}
       <DetailsSummary />
-      <FormError error={logout.error} />
-      <Button
-        variant="outline"
-        className="mt-2"
-        isDisabled={logout.isPending}
-        onPress={() => {
-          logout.mutate(
-            { data: {} },
-            {
-              onSuccess: () => {
-                // A new document: nothing of this person stays in memory for whoever comes next.
-                window.location.replace(`/${locale}/sign-in`);
-              },
-            },
-          );
-        }}
-      >
-        {t('signOut')}
-      </Button>
+      <LinkButton variant="outline" href={`/${locale}/appointments`} className="mb-2">
+        {t('appointments')}
+      </LinkButton>
+      <SignOutButton className="mt-2" />
       {emailVerified ? null : <DeleteUnconfirmed />}
     </>
   );

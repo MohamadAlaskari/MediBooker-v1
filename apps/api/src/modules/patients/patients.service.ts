@@ -19,7 +19,7 @@ import { requirePracticeContext } from '../../common/tenancy/practice-context.js
 import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
-import { dbDateOf, dbInstantOf, plainDateOf } from '../../common/time/convert.js';
+import { dbDateOf, dbInstantOf, instantOf, plainDateOf } from '../../common/time/convert.js';
 import {
   insuranceNumberEnd,
   type InsuranceTypeName,
@@ -98,6 +98,12 @@ function isUniqueViolation(error: unknown): boolean {
   return isPrismaKnownRequestError(error) && error.code === 'P2002';
 }
 
+/** In whole seconds, and past the end of the day: its last moment still counts as inside. */
+function secondsUntilPlace(now: Temporal.Instant, createdAt: Date): number {
+  const end = instantOf(createdAt).add({ hours: JOIN_WINDOW_HOURS });
+  return Math.floor(now.until(end).total('seconds')) + 1;
+}
+
 /**
  * A person's profile in a practice (D16 option B, BR-10): a join copies the account's details and
  * asks only for what is missing, re-encrypting the number under the practice's own key. A request
@@ -140,13 +146,20 @@ export class PatientsService {
     ]);
     const type = input.insuranceType ?? profile?.insuranceType;
     const sameType = profile !== null && type === profile.insuranceType;
+    // Only what this practice asks for: the rest of the account's details stays with the account.
+    const asksNumber = type !== undefined && rules.insuranceNumberTypes.includes(type);
+    const asksProvider = type !== undefined && rules.insuranceProviderTypes.includes(type);
     const copiedNumber =
-      input.insuranceNumber === undefined && sameType && profile.insuranceNumberEncrypted !== null
+      input.insuranceNumber === undefined &&
+      sameType &&
+      asksNumber &&
+      profile.insuranceNumberEncrypted !== null
         ? await this.profileNumberOf(userId, profile.insuranceNumberEncrypted)
         : undefined;
     const insurance = checkedInsurance(rules, practice.market, {
       type,
-      provider: input.insuranceProvider ?? (sameType ? profile.insuranceProvider : null),
+      provider:
+        input.insuranceProvider ?? (sameType && asksProvider ? profile.insuranceProvider : null),
       number: input.insuranceNumber ?? copiedNumber,
       numberKnown: false,
     });
@@ -365,15 +378,24 @@ export class PatientsService {
         select: { revokedAt: true },
       });
       if (session?.revokedAt !== null) throw new DomainException('UNAUTHENTICATED');
-      const others = await db.practiceAccess.count({
+      const others = await db.practiceAccess.findMany({
         where: {
           userId,
           capacity: 'PATIENT',
           practiceId: { not: practiceId },
           createdAt: { gte: dbInstantOf(now.subtract({ hours: JOIN_WINDOW_HOURS })) },
         },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: JOINS_PER_DAY,
       });
-      if (others >= JOINS_PER_DAY) throw new DomainException('RATE_LIMITED');
+      // The last of the newest: once it has left the day, there is a place again.
+      const holding = others[JOINS_PER_DAY - 1];
+      if (holding !== undefined) {
+        throw new DomainException('JOIN_LIMIT_REACHED', {
+          retryAfterSeconds: secondsUntilPlace(now, holding.createdAt),
+        });
+      }
       await db.practiceAccess.createMany({
         data: [
           {

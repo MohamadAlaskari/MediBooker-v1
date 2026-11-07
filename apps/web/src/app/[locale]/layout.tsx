@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
+import { SkipLink } from '@/components/skip-link';
 import { FONT_VARIABLES } from '@/lib/fonts';
 import '@/styles/globals.css';
 
@@ -39,12 +40,7 @@ export default async function LocaleLayout({
         <meta property="csp-nonce" nonce={nonce} suppressHydrationWarning />
       </head>
       <body>
-        <a
-          href="#main"
-          className="sr-only rounded-md bg-bg-surface text-label-default text-text-brand focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:z-20 focus:flex focus:min-h-touch-target focus:items-center focus:px-3 focus:shadow-elevation-2"
-        >
-          {t('skipToContent')}
-        </a>
+        <SkipLink>{t('skipToContent')}</SkipLink>
         {/* Only what client components need: the page itself renders on the server. */}
         <NextIntlClientProvider messages={{ common, errorPage }}>{children}</NextIntlClientProvider>
       </body>

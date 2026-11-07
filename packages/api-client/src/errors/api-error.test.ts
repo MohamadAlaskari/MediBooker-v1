@@ -15,12 +15,16 @@ describe('isApiError', () => {
 });
 
 describe('errorMessageKey', () => {
-  it.each(['NOT_FOUND', 'VALIDATION_FAILED', 'NETWORK_ERROR', 'TIMEOUT', 'UNEXPECTED_RESPONSE'])(
-    'uses the key of the known code %s',
-    (code) => {
-      expect(errorMessageKey(new ApiError({ status: 400, code }))).toBe(`errors.${code}`);
-    },
-  );
+  it.each([
+    'NOT_FOUND',
+    'VALIDATION_FAILED',
+    'JOIN_LIMIT_REACHED',
+    'NETWORK_ERROR',
+    'TIMEOUT',
+    'UNEXPECTED_RESPONSE',
+  ])('uses the key of the known code %s', (code) => {
+    expect(errorMessageKey(new ApiError({ status: 400, code }))).toBe(`errors.${code}`);
+  });
 
   it.each([
     [401, 'UNAUTHENTICATED'],

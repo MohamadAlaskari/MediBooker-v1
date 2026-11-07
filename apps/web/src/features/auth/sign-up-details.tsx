@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { useFragmentForLinks } from './fragment';
-import { PageHeading } from './form-parts';
 import { ProfileForm } from './profile-form';
 import { SignUpSteps } from './sign-up-steps';
 
@@ -18,9 +17,8 @@ export function SignUpDetails(): ReactNode {
     <>
       <SignUpSteps current="details" />
       <ProfileForm
-        path="/sign-up/details"
-        personHeading={<PageHeading title={t('title')} body={t('body')} />}
-        insuranceHeading={<PageHeading title={t('insuranceTitle')} body={t('insuranceBody')} />}
+        personHeading={{ title: t('title'), body: t('body') }}
+        insuranceHeading={{ title: t('insuranceTitle'), body: t('insuranceBody') }}
         submitLabel={t('continue')}
         onSaved={() => {
           router.replace(`/${locale}/check-inbox${fragment}`);

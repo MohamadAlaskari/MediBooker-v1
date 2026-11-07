@@ -83,3 +83,8 @@ export function isChangeable(
 ): boolean {
   return Temporal.Instant.compare(now, changeableUntil(startsAt, deadlineHours)) <= 0;
 }
+
+/** Its start has come, at the same moment as an appointment leaves the upcoming list. */
+export function hasStarted(now: Temporal.Instant, startsAt: Temporal.Instant): boolean {
+  return Temporal.Instant.compare(now, startsAt) >= 0;
+}

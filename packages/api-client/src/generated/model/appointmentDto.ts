@@ -9,10 +9,16 @@ import type { AppointmentDtoStatus } from './appointmentDtoStatus';
 
 export interface AppointmentDto {
   bookedAt: string;
+  /** Whether the patient can cancel or reschedule it online right now */
+  changeable: boolean;
   /** The last moment the patient can cancel or reschedule online (BR-04) */
   changeableUntil: string;
   endsAt: string;
+  /** The practice's hour cycle, for showing the times */
+  hourCycle: string;
   id: string;
+  /** The practice's digits, for showing the times */
+  numberingSystem: string;
   patientId: string;
   practiceId: string;
   /**
@@ -28,6 +34,8 @@ export interface AppointmentDto {
   serviceId: string;
   /** The name of the service per locale */
   serviceName: AppointmentDtoServiceName;
+  /** Whether its start has come, by the clock of the API; the status does not say so until staff set it */
+  started: boolean;
   startsAt: string;
   status: AppointmentDtoStatus;
   /** The practice's IANA time zone, in which to show the times */

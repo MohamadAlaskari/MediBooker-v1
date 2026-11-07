@@ -130,6 +130,12 @@ export class AppointmentDto {
   @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
   readonly timeZone!: string;
 
+  @ApiProperty({ description: "The practice's digits, for showing the times" })
+  readonly numberingSystem!: string;
+
+  @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
+  readonly hourCycle!: string;
+
   @ApiProperty({ enum: STATUSES })
   readonly status!: (typeof STATUSES)[number];
 
@@ -141,6 +147,15 @@ export class AppointmentDto {
     description: 'The last moment the patient can cancel or reschedule online (BR-04)',
   })
   readonly changeableUntil!: string;
+
+  @ApiProperty({ description: 'Whether the patient can cancel or reschedule it online right now' })
+  readonly changeable!: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether its start has come, by the clock of the API; the status does not say so until staff set it',
+  })
+  readonly started!: boolean;
 }
 
 export class AppointmentPageDto {

@@ -45,13 +45,21 @@ function fieldErrorsOf(value: unknown): ApiFieldError[] {
   });
 }
 
+/** Whole seconds, as the API writes it. The date a proxy may send would need this device's clock. */
+function retryAfterOf(response: Response): number | undefined {
+  const value = response.headers.get('retry-after');
+  return value !== null && /^\d+$/.test(value) ? Number(value) : undefined;
+}
+
 /** Any other body than a problem document is not the API talking: a proxy, for example. */
 function errorOf(response: Response, text: string): ApiError {
   const requestIdHeader = response.headers.get('x-request-id') ?? undefined;
+  const retryAfterSeconds = retryAfterOf(response);
   const unexpected = new ApiError({
     status: response.status,
     code: 'UNEXPECTED_RESPONSE',
     requestId: requestIdHeader,
+    retryAfterSeconds,
   });
   if (!response.headers.get('content-type')?.includes('application/problem+json')) {
     return unexpected;
@@ -70,6 +78,7 @@ function errorOf(response: Response, text: string): ApiError {
     requestId: typeof requestId === 'string' ? requestId : requestIdHeader,
     params: isRecord(params) ? params : undefined,
     fieldErrors: fieldErrorsOf(errors),
+    retryAfterSeconds,
   });
 }
 

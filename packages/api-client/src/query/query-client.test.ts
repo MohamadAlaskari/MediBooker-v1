@@ -1,6 +1,7 @@
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import type { QueryClient } from '@tanstack/react-query';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../errors/api-error';
 import { getGetPublicPracticeQueryOptions, useGetPublicPractice } from '../generated/endpoints';
 import { configureApiClient } from '../http/fetcher';
@@ -42,6 +43,50 @@ describe('createQueryClient', () => {
     expect(queries?.retry).toBe(shouldRetryQuery);
     expect(queries?.staleTime).toBe(30_000);
     expect(mutations?.retry).toBe(false);
+  });
+});
+
+describe('a session that is over', () => {
+  const over = new ApiError({ status: 401, code: 'UNAUTHENTICATED' });
+  const wrongPassword = new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' });
+
+  const failQuery = (client: QueryClient, error: Error): Promise<unknown> =>
+    client
+      .query({ queryKey: ['a query'], queryFn: () => Promise.reject(error) })
+      .catch(() => undefined);
+
+  const failMutation = (client: QueryClient, error: Error): Promise<unknown> =>
+    client
+      .getMutationCache()
+      .build(client, { mutationFn: () => Promise.reject(error) })
+      .execute(undefined)
+      .catch(() => undefined);
+
+  it.each([
+    ['a query', failQuery],
+    ['a press', failMutation],
+  ])('is reported when %s finds out', async (_, fail) => {
+    const onUnauthenticated = vi.fn();
+    await fail(createQueryClient({ onUnauthenticated }), over);
+    expect(onUnauthenticated).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['a query', failQuery],
+    ['a press', failMutation],
+  ])('is not what any other failure of %s means, a wrong password included', async (_, fail) => {
+    const onUnauthenticated = vi.fn();
+    const client = createQueryClient({ onUnauthenticated });
+    await fail(client, wrongPassword);
+    await fail(client, new ApiError({ status: 404, code: 'NOT_FOUND' }));
+    await fail(client, new TypeError('x is not a function'));
+    expect(onUnauthenticated).not.toHaveBeenCalled();
+  });
+
+  it('passes unnoticed on a client that did not ask, as on a public page', async () => {
+    const client = createQueryClient();
+    await expect(failQuery(client, over)).resolves.toBeUndefined();
+    await expect(failMutation(client, over)).resolves.toBeUndefined();
   });
 });
 

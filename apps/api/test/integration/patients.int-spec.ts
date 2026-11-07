@@ -407,15 +407,22 @@ describe('patient profiles on real databases (08 B01)', () => {
         });
       };
 
-      it('answers the sixth join of a day with 429, and takes it the next day', async () => {
+      it('answers the sixth join of a day with 429 and the real wait, and takes it after that', async () => {
         const who = await person();
         await saveProfile(who);
         for (let done = 0; done < 5; done += 1) await earlierJoin(who);
         const refused = await join(who, riyadh.practiceId).expect(429);
-        expect(refused.body).toMatchObject({ code: 'RATE_LIMITED' });
+        expect(refused.body).toMatchObject({ code: 'JOIN_LIMIT_REACHED' });
+        const waitSeconds = 24 * 60 * 60 + 1;
+        expect(refused.headers['retry-after']).toBe(String(waitSeconds));
         await expect(rowOf(riyadh, who.userId)).resolves.toBeUndefined();
-        clock.set(NOW.add({ hours: 25 }));
-        await join({ ...who, token: await signIn(who.email) }, riyadh.practiceId).expect(201);
+
+        clock.set(NOW.add({ seconds: waitSeconds - 1 }));
+        const fresh = { ...who, token: await signIn(who.email) };
+        const tooEarly = await join(fresh, riyadh.practiceId).expect(429);
+        expect(tooEarly.headers['retry-after']).toBe('1');
+        clock.set(NOW.add({ seconds: waitSeconds }));
+        await join(fresh, riyadh.practiceId).expect(201);
       });
 
       it('holds with joins at the same time', async () => {

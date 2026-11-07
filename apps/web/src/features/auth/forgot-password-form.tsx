@@ -3,11 +3,11 @@
 import { useForgotPassword } from '@medibooker/api-client';
 import { ForgotPasswordBody } from '@medibooker/api-client/zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import type * as zod from 'zod';
+import { useFragmentForLinks } from './fragment';
 import {
   AuthForm,
   EmailField,
@@ -24,6 +24,7 @@ type Values = zod.infer<typeof ForgotPasswordBody>;
 export function ForgotPasswordForm(): ReactNode {
   const t = useTranslations('auth');
   const locale = useLocale();
+  const fragment = useFragmentForLinks();
   const error = useValidationError();
   const { control, handleSubmit } = useForm<Values>({
     resolver: zodResolver(ForgotPasswordBody, { error }),
@@ -33,10 +34,12 @@ export function ForgotPasswordForm(): ReactNode {
   const submit = handleSubmit((data) => {
     forgot.mutate({ data });
   });
+  // A new document: on its way back to a page it holds, Next writes the fragment twice, and a way
+  // back in it is then no way back any more.
   const back = (
-    <Link href={`/${locale}/sign-in`} className={`${TEXT_LINK} mt-4`}>
+    <a href={`/${locale}/sign-in${fragment}`} className={`${TEXT_LINK} mt-4`}>
       {t('forgot.back')}
-    </Link>
+    </a>
   );
   if (forgot.isSuccess) {
     return (

@@ -9,6 +9,8 @@ const isCi = process.env.CI !== undefined && process.env.CI !== '';
  */
 export default defineConfig({
   testDir: 'e2e',
+  // A person's way through several pages, with axe at each state of it at two widths.
+  timeout: 60_000,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,
   failOnFlakyTests: isCi,
@@ -28,8 +30,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], locale: 'en-GB', timezoneId: 'Europe/Berlin' },
     },
   ],
-  // A stub stands in for the API, so every case exists on demand; the CI job images proves the
-  // whole way to a practice's database.
+  // A stub stands in for the API, so every case exists on demand, and e2e/support/contract.ts holds
+  // what crosses the proxy against the OpenAPI document. The CI job images checks the real way only
+  // for reads of a practice (its page, its free times, the sitemap) and for the e-mail of a sign-up:
+  // no test yet signs in, books, moves or cancels against the real API.
   webServer: [
     {
       command: 'node e2e/support/api-stub.ts',

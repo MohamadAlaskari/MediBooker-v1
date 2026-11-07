@@ -14,3 +14,8 @@ export function safeReturnPath(next: string | null | undefined): string | undefi
   const locale = PATH.exec(next)?.[1];
   return locale !== undefined && isLocale(locale) ? next : undefined;
 }
+
+/** The same page in another language: a safe path starts with its locale. */
+export function inLocale(path: string, locale: string): string {
+  return path.replace(/^\/[^/]+/, `/${locale}`);
+}

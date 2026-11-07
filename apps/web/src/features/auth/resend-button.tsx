@@ -40,7 +40,8 @@ export function ResendButton({
     <div className="flex flex-col gap-2">
       <Button
         variant="outline"
-        isDisabled={counting || resend.isPending}
+        // The wait starts with the press, on a button that has the focus.
+        isPending={counting || resend.isPending}
         onPress={() => {
           resend.mutate(
             { data: { email } },

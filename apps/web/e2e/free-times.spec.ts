@@ -54,7 +54,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
       await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in#next=`));
       const url = new URL(page.url());
       expect(url.search).toBe('');
-      expect(new URLSearchParams(url.hash.slice(1)).get('next')).toBe(`/${locale}/al-noor`);
+      expect(new URLSearchParams(url.hash.slice(1)).get('next')).toBe(`/${locale}/book/al-noor`);
       expect(page.url()).not.toContain(SERVICE);
     });
   }

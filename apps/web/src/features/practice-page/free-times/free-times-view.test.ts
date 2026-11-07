@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { safeReturnPath } from '@/lib/safe-return-path';
 import {
   addDays,
-  handOffHref,
+  bookHref,
   nextRovingIndex,
   partsOfDay,
   selectedDay,
@@ -89,14 +89,10 @@ describe('nextRovingIndex', () => {
   });
 });
 
-describe('the hand-off to sign-in', () => {
-  it('names the practice in the fragment, and survives safeReturnPath', () => {
-    const url = new URL(handOffHref('ar', 'al-noor'), 'https://site.example');
-    expect(url.pathname).toBe('/ar/sign-in');
-    expect(url.search).toBe('');
-    const next = new URLSearchParams(url.hash.slice(1)).get('next');
-    expect(next).toBe('/ar/al-noor');
-    expect(safeReturnPath(next)).toBe(next);
-    expect(new URLSearchParams(url.hash.slice(1)).get('section')).toBe('free-times');
+describe('the way to the booking', () => {
+  it('names only the practice, and survives safeReturnPath for the way through sign-in', () => {
+    const href = bookHref('ar', 'al-noor');
+    expect(href).toBe('/ar/book/al-noor');
+    expect(safeReturnPath(href)).toBe(href);
   });
 });

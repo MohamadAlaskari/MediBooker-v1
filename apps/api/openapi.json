@@ -37,6 +37,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "changeable": {
+            "description": "Whether the patient can cancel or reschedule it online right now",
+            "type": "boolean"
+          },
           "changeableUntil": {
             "description": "The last moment the patient can cancel or reschedule online (BR-04)",
             "format": "date-time",
@@ -46,8 +50,16 @@
             "format": "date-time",
             "type": "string"
           },
+          "hourCycle": {
+            "description": "The practice's hour cycle, for showing the times",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits, for showing the times",
             "type": "string"
           },
           "patientId": {
@@ -84,6 +96,10 @@
             "description": "The name of the service per locale",
             "type": "object"
           },
+          "started": {
+            "description": "Whether its start has come, by the clock of the API; the status does not say so until staff set it",
+            "type": "boolean"
+          },
           "startsAt": {
             "format": "date-time",
             "type": "string"
@@ -114,9 +130,13 @@
           "startsAt",
           "endsAt",
           "timeZone",
+          "numberingSystem",
+          "hourCycle",
           "status",
           "bookedAt",
-          "changeableUntil"
+          "changeableUntil",
+          "changeable",
+          "started"
         ],
         "type": "object"
       },
@@ -214,6 +234,7 @@
           "CONFLICT",
           "ALREADY_JOINED",
           "SLOT_NOT_AVAILABLE",
+          "APPOINTMENT_OVERLAP",
           "BOOKING_LIMIT_REACHED",
           "OUTSIDE_BOOKING_WINDOW",
           "SERVICE_NOT_BOOKABLE",
@@ -224,6 +245,7 @@
           "PAYLOAD_TOO_LARGE",
           "UNSUPPORTED_MEDIA_TYPE",
           "RATE_LIMITED",
+          "JOIN_LIMIT_REACHED",
           "INTERNAL_ERROR",
           "SERVICE_UNAVAILABLE"
         ],
@@ -699,6 +721,10 @@
               "null"
             ]
           },
+          "cancellationDeadlineHours": {
+            "description": "Until how many hours before the start a patient can change an appointment online",
+            "type": "number"
+          },
           "defaultLocale": {
             "example": "ar",
             "type": "string"
@@ -719,6 +745,47 @@
           "hourCycle": {
             "example": "h23",
             "type": "string"
+          },
+          "id": {
+            "description": "What the routes of a signed-in patient name it by",
+            "format": "uuid",
+            "type": "string"
+          },
+          "insuranceNumberTypes": {
+            "description": "The insurance types for which this practice asks for a number (BR-10)",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "insuranceProviderTypes": {
+            "description": "The insurance types for which this practice asks for a provider (BR-10)",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "insuranceTypes": {
+            "description": "The insurance types this practice takes (BR-10)",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
           "legalNoticeUrl": {
             "type": [
@@ -841,6 +908,11 @@
           }
         },
         "required": [
+          "id",
+          "insuranceTypes",
+          "insuranceProviderTypes",
+          "insuranceNumberTypes",
+          "cancellationDeadlineHours",
           "slug",
           "name",
           "locale",
@@ -2571,7 +2643,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -2699,7 +2772,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -2817,7 +2891,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -2945,7 +3020,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -3098,7 +3174,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -3207,7 +3284,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -3314,7 +3392,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -3442,7 +3521,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -3558,7 +3638,8 @@
             "name": "practiceId",
             "required": true,
             "schema": {
-              "format": "uuid"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],

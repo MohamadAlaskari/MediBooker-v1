@@ -4,7 +4,10 @@
  * tests which visitor addresses reached it.
  */
 import { createServer, type ServerResponse } from 'node:http';
-import { handleAccounts } from './auth-stub.ts';
+import type { PublicPracticeDto } from '@medibooker/api-client';
+import { problem, respond } from './answers.ts';
+import { handleAccounts, ownerOf } from './auth-stub.ts';
+import { freeStarts, handleBooking, isOffered, publicPracticeFor } from './booking-stub.ts';
 import { PRACTICES } from './practices.ts';
 
 const LIST_PATH = '/api/v1/public/practices';
@@ -18,35 +21,7 @@ const forwardedFor = new Set<string>();
 const TODAY = Date.UTC(2026, 10, 8);
 const DAY_MS = 86_400_000;
 const AVAILABILITY_DAYS = 42;
-const ISO_FRIDAY = 5;
-const ISO_SATURDAY = 6;
-const CLOSED_DAY = '2026-11-19';
-/** Local 09:00, 09:30 and 16:00 in Riyadh, and only the second for a chosen doctor. */
-const TIMES_UTC = ['06:00', '06:30', '13:00'];
-
-function json(response: ServerResponse, body: unknown): void {
-  response.writeHead(200, { 'Content-Type': 'application/json' });
-  response.end(JSON.stringify(body));
-}
-
-function availability(response: ServerResponse, slug: string): void {
-  const days = Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
-    const day = new Date(TODAY + offset * DAY_MS);
-    const date = day.toISOString().slice(0, 10);
-    const weekday = day.getUTCDay() === 0 ? 7 : day.getUTCDay();
-    const closed = weekday === ISO_FRIDAY || weekday === ISO_SATURDAY || date === CLOSED_DAY;
-    return { date, hasFreeTimes: slug !== 'no-times' && !closed };
-  });
-  json(response, { days });
-}
-
-function freeTimes(response: ServerResponse, date: string, providerId: string | null): void {
-  const hours = providerId === null ? TIMES_UTC : TIMES_UTC.slice(1, 2);
-  json(response, {
-    date,
-    times: hours.map((time) => ({ startsAt: `${date}T${time}:00Z` })),
-  });
-}
+const PRACTICE_RETRY_AFTER_SECONDS = '30';
 
 const LISTED = ['al-noor', 'ocean', 'closed'];
 /** Smaller than the list, so the tests see the web walk through the pages. */
@@ -55,27 +30,36 @@ const LIST_PAGE_SIZE = 2;
 function list(response: ServerResponse, cursor: string | null): void {
   const start = cursor === null ? 0 : Number(cursor);
   const end = start + LIST_PAGE_SIZE;
-  response.writeHead(200, { 'Content-Type': 'application/json' });
-  response.end(
-    JSON.stringify({
-      items: LISTED.slice(start, end).map((slug) => ({ slug })),
-      nextCursor: end < LISTED.length ? String(end) : null,
-    }),
-  );
+  respond(response, 200, {
+    items: LISTED.slice(start, end).map((slug) => ({ slug })),
+    nextCursor: end < LISTED.length ? String(end) : null,
+  });
 }
 
-function problem(response: ServerResponse, status: number, code: string): void {
-  response.writeHead(status, { 'Content-Type': 'application/problem+json' });
-  response.end(
-    JSON.stringify({
-      type: `urn:medibooker:problem:${code.toLowerCase().replaceAll('_', '-')}`,
-      title: code,
-      status,
-      detail: code,
-      code,
-      requestId: '30000000-0000-4000-8000-000000000001',
-    }),
-  );
+function freeTimes(
+  response: ServerResponse,
+  route: string | undefined,
+  practice: PublicPracticeDto,
+  owner: string | undefined,
+  searchParams: URLSearchParams,
+): void {
+  const providerId = searchParams.get('providerId');
+  if (!isOffered(owner, practice, searchParams.get('serviceId'), providerId)) {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  const startsOf = (date: string): readonly string[] =>
+    freeStarts(owner, practice, date, providerId);
+  if (route === 'availability') {
+    const days = Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
+      const date = new Date(TODAY + offset * DAY_MS).toISOString().slice(0, 10);
+      return { date, hasFreeTimes: startsOf(date).length > 0 };
+    });
+    respond(response, 200, { days });
+    return;
+  }
+  const date = searchParams.get('date') ?? '';
+  respond(response, 200, { date, times: startsOf(date).map((startsAt) => ({ startsAt })) });
 }
 
 const server = createServer((request, response) => {
@@ -91,31 +75,36 @@ const server = createServer((request, response) => {
   const visitor = request.headers['x-forwarded-for'];
   if (typeof visitor === 'string') forwardedFor.add(visitor);
   const { pathname, searchParams } = new URL(url, 'http://stub');
+  const owner = ownerOf(request);
+  if (handleBooking(owner, pathname, searchParams, request, response)) return;
   if (handleAccounts(pathname, searchParams, request, response)) return;
+  // Everything public only reads.
+  if (request.method !== 'GET') {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
   if (pathname === LIST_PATH) {
     list(response, searchParams.get('cursor'));
     return;
   }
-  const times = FREE_TIMES_PATH.exec(pathname);
-  if (times !== null) {
-    const [, slug = '', route] = times;
-    if (route === 'availability') availability(response, slug);
-    else freeTimes(response, searchParams.get('date') ?? '', searchParams.get('providerId'));
-    return;
-  }
-  const slug = PATH.exec(url)?.[1] ?? '';
+  const [, slugOfTimes = '', route] = FREE_TIMES_PATH.exec(pathname) ?? [];
+  const slug = PATH.exec(pathname)?.[1] ?? slugOfTimes;
   if (slug === 'broken') {
-    problem(response, 503, 'SERVICE_UNAVAILABLE');
+    problem(response, 'SERVICE_UNAVAILABLE', {}, { 'Retry-After': PRACTICE_RETRY_AFTER_SECONDS });
     return;
   }
-  const practice = PRACTICE_BY_SLUG.get(slug);
-  if (typeof practice !== 'function') {
-    problem(response, 404, 'NOT_FOUND');
+  const answer = PRACTICE_BY_SLUG.get(slug);
+  if (typeof answer !== 'function') {
+    problem(response, 'NOT_FOUND');
     return;
   }
   const language = request.headers['accept-language'] ?? 'ar';
-  response.writeHead(200, { 'Content-Type': 'application/json' });
-  response.end(JSON.stringify(practice(language)));
+  const practice = answer(language);
+  if (slugOfTimes !== '') {
+    freeTimes(response, route, practice, owner, searchParams);
+    return;
+  }
+  respond(response, 200, publicPracticeFor(owner, practice));
 });
 
 server.listen(Number(process.env.API_STUB_PORT ?? 3901), '127.0.0.1');

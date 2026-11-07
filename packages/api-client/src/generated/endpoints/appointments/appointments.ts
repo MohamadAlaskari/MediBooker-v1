@@ -57,7 +57,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getBookAppointmentUrl = (practiceId: unknown,) => {
+export const getBookAppointmentUrl = (practiceId: string,) => {
 
 
 
@@ -68,7 +68,7 @@ export const getBookAppointmentUrl = (practiceId: unknown,) => {
 /**
  * @summary Book a free time for the own profile in this practice
  */
-export const bookAppointment = async (practiceId: unknown,
+export const bookAppointment = async (practiceId: string,
     bookAppointmentDto: BookAppointmentDto,
     headers: BookAppointmentHeaders, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
 
@@ -131,7 +131,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type BookAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof bookAppointment>>>
     export type BookAppointmentMutationBody = BookAppointmentDto
     export type BookAppointmentMutationError = ErrorType<ProblemDetailsDto>
-    export type BookAppointmentMutationVariables = {practiceId: unknown;data: BookAppointmentDto;headers: BookAppointmentHeaders}
+    export type BookAppointmentMutationVariables = {practiceId: string;data: BookAppointmentDto;headers: BookAppointmentHeaders}
 
     /**
  * @summary Book a free time for the own profile in this practice
@@ -146,7 +146,7 @@ export const useBookAppointment = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getBookAppointmentMutationOptions(options), queryClient);
     }
-    export const getGetMyAppointmentUrl = (practiceId: unknown,
+    export const getGetMyAppointmentUrl = (practiceId: string,
     appointmentId: string,) => {
 
 
@@ -158,7 +158,7 @@ export const useBookAppointment = <TError = ErrorType<ProblemDetailsDto>,
 /**
  * @summary An own appointment in this practice
  */
-export const getMyAppointment = async (practiceId: unknown,
+export const getMyAppointment = async (practiceId: string,
     appointmentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
 
   return apiFetch<AppointmentDto>(getGetMyAppointmentUrl(practiceId,appointmentId),
@@ -174,7 +174,7 @@ export const getMyAppointment = async (practiceId: unknown,
 
 
 
-export const getGetMyAppointmentQueryKey = (practiceId: unknown,
+export const getGetMyAppointmentQueryKey = (practiceId: string,
     appointmentId: string,) => {
     return [
     `/api/v1/practices/${practiceId}/appointments/${appointmentId}`
@@ -182,7 +182,7 @@ export const getGetMyAppointmentQueryKey = (practiceId: unknown,
     }
 
 
-export const getGetMyAppointmentQueryOptions = <TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown,
+export const getGetMyAppointmentQueryOptions = <TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
     appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -206,7 +206,7 @@ export type GetMyAppointmentQueryError = ErrorType<ProblemDetailsDto>
 
 
 export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     appointmentId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyAppointment>>,
@@ -217,7 +217,7 @@ export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppoi
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyAppointment>>,
@@ -228,7 +228,7 @@ export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppoi
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -237,7 +237,7 @@ export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppoi
  */
 
 export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -254,7 +254,7 @@ export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppoi
 
 
 
-export const getCancelAppointmentUrl = (practiceId: unknown,
+export const getCancelAppointmentUrl = (practiceId: string,
     appointmentId: string,) => {
 
 
@@ -266,7 +266,7 @@ export const getCancelAppointmentUrl = (practiceId: unknown,
 /**
  * @summary Cancel an own appointment, until the deadline of the practice
  */
-export const cancelAppointment = async (practiceId: unknown,
+export const cancelAppointment = async (practiceId: string,
     appointmentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
 
   return apiFetch<AppointmentDto>(getCancelAppointmentUrl(practiceId,appointmentId),
@@ -314,7 +314,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CancelAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAppointment>>>
 
     export type CancelAppointmentMutationError = ErrorType<ProblemDetailsDto>
-    export type CancelAppointmentMutationVariables = {practiceId: unknown;appointmentId: string}
+    export type CancelAppointmentMutationVariables = {practiceId: string;appointmentId: string}
 
     /**
  * @summary Cancel an own appointment, until the deadline of the practice
@@ -329,7 +329,7 @@ export const useCancelAppointment = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getCancelAppointmentMutationOptions(options), queryClient);
     }
-    export const getRescheduleAppointmentUrl = (practiceId: unknown,
+    export const getRescheduleAppointmentUrl = (practiceId: string,
     appointmentId: string,) => {
 
 
@@ -341,7 +341,7 @@ export const useCancelAppointment = <TError = ErrorType<ProblemDetailsDto>,
 /**
  * @summary Move an own appointment to another free time; the service and the note stay
  */
-export const rescheduleAppointment = async (practiceId: unknown,
+export const rescheduleAppointment = async (practiceId: string,
     appointmentId: string,
     rescheduleAppointmentDto: RescheduleAppointmentDto,
     headers: RescheduleAppointmentHeaders, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
@@ -405,7 +405,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RescheduleAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof rescheduleAppointment>>>
     export type RescheduleAppointmentMutationBody = RescheduleAppointmentDto
     export type RescheduleAppointmentMutationError = ErrorType<ProblemDetailsDto>
-    export type RescheduleAppointmentMutationVariables = {practiceId: unknown;appointmentId: string;data: RescheduleAppointmentDto;headers: RescheduleAppointmentHeaders}
+    export type RescheduleAppointmentMutationVariables = {practiceId: string;appointmentId: string;data: RescheduleAppointmentDto;headers: RescheduleAppointmentHeaders}
 
     /**
  * @summary Move an own appointment to another free time; the service and the note stay
@@ -420,7 +420,7 @@ export const useRescheduleAppointment = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getRescheduleAppointmentMutationOptions(options), queryClient);
     }
-    export const getListMyAppointmentsInPracticeUrl = (practiceId: unknown,
+    export const getListMyAppointmentsInPracticeUrl = (practiceId: string,
     params?: ListMyAppointmentsInPracticeParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -439,7 +439,7 @@ export const useRescheduleAppointment = <TError = ErrorType<ProblemDetailsDto>,
 /**
  * @summary The own appointments in this practice, a page at a time
  */
-export const listMyAppointmentsInPractice = async (practiceId: unknown,
+export const listMyAppointmentsInPractice = async (practiceId: string,
     params?: ListMyAppointmentsInPracticeParams, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentPageDto> => {
 
   return apiFetch<AppointmentPageDto>(getListMyAppointmentsInPracticeUrl(practiceId,params),
@@ -455,7 +455,7 @@ export const listMyAppointmentsInPractice = async (practiceId: unknown,
 
 
 
-export const getListMyAppointmentsInPracticeQueryKey = (practiceId: unknown,
+export const getListMyAppointmentsInPracticeQueryKey = (practiceId: string,
     params?: ListMyAppointmentsInPracticeParams,) => {
     return [
     `/api/v1/practices/${practiceId}/me/appointments`, ...(params ? [params] : [])
@@ -463,7 +463,7 @@ export const getListMyAppointmentsInPracticeQueryKey = (practiceId: unknown,
     }
 
 
-export const getListMyAppointmentsInPracticeQueryOptions = <TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown,
+export const getListMyAppointmentsInPracticeQueryOptions = <TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
     params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -487,7 +487,7 @@ export type ListMyAppointmentsInPracticeQueryError = ErrorType<ProblemDetailsDto
 
 
 export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     params: undefined |  ListMyAppointmentsInPracticeParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyAppointmentsInPractice>>,
@@ -498,7 +498,7 @@ export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyAppointmentsInPractice>>,
@@ -509,7 +509,7 @@ export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -518,7 +518,7 @@ export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeo
  */
 
 export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
- practiceId: unknown,
+ practiceId: string,
     params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {

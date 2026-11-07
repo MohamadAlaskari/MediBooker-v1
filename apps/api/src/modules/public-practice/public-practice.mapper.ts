@@ -8,12 +8,17 @@ import type {
   SpecialDay,
   StaffMember,
 } from '../../generated/practice/client.js';
+import {
+  INSURANCE_TYPES,
+  type InsuranceTypeName,
+} from '../account-profile/domain/profile.rules.js';
 import { negotiateLocale, textFor } from './domain/locale.js';
 import { computeOpenNow } from './domain/open-now.js';
 import type { PublicPracticeDto } from './public-practice.dto.js';
 
 /** What the database and the registry say about a practice, as the service read it. */
 export interface PublicPracticeRows {
+  readonly id: string;
   readonly slug: string;
   readonly name: unknown;
   readonly settings: PracticeSettings;
@@ -34,6 +39,11 @@ export function clockOf(minutes: number): string {
 
 function nullableClockOf(minutes: number | null): string | null {
   return minutes === null ? null : clockOf(minutes);
+}
+
+/** The columns are free text, and the contract names the types: a client knows no other. */
+function insuranceTypesOf(stored: readonly string[]): readonly InsuranceTypeName[] {
+  return INSURANCE_TYPES.filter((type) => stored.includes(type));
 }
 
 /**
@@ -67,6 +77,11 @@ export function toPublicPractice(
       })
     : null;
   return {
+    id: rows.id,
+    insuranceTypes: insuranceTypesOf(settings.insuranceTypes),
+    insuranceProviderTypes: insuranceTypesOf(settings.insuranceProviderTypes),
+    insuranceNumberTypes: insuranceTypesOf(settings.insuranceNumberTypes),
+    cancellationDeadlineHours: settings.cancellationDeadlineHours,
     slug: rows.slug,
     name: text(rows.name),
     locale,

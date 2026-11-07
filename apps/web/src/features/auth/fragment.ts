@@ -1,7 +1,8 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useSyncExternalStore } from 'react';
-import { safeReturnPath } from '@/lib/safe-return-path';
+import { inLocale, safeReturnPath } from '@/lib/safe-return-path';
 
 function subscribe(onChange: () => void): () => void {
   window.addEventListener('hashchange', onChange);
@@ -27,15 +28,14 @@ export function useFragmentValue(name: string): string | undefined {
     : (new URLSearchParams(fragment.slice(1)).get(name) ?? undefined);
 }
 
-/** A section of the page to come back to: letters and hyphens, so nothing else gets through. */
-const SECTION = /^[a-z-]+$/;
-
-/** Where to go after signing in, when a page of this site asked for it. */
+/**
+ * Where to go after signing in, when a page of this site asked for it. In the language of this page:
+ * the language switch keeps the fragment, and whoever chose Arabic here should not land in English.
+ */
 export function useReturnPath(): string | undefined {
+  const locale = useLocale();
   const path = safeReturnPath(useFragmentValue('next'));
-  const section = useFragmentValue('section');
-  if (path === undefined || section === undefined || !SECTION.test(section)) return path;
-  return `${path}#${section}`;
+  return path === undefined ? undefined : inLocale(path, locale);
 }
 
 /** The fragment as it is, for a link to the next step of the same way. */

@@ -21,7 +21,12 @@ import type {
   AppointmentListQueryDto,
   AppointmentPageDto,
 } from './appointments.dto.js';
-import { changeableUntil, UPCOMING_STATUSES } from './domain/booking.rules.js';
+import {
+  changeableUntil,
+  hasStarted,
+  isChangeable,
+  UPCOMING_STATUSES,
+} from './domain/booking.rules.js';
 
 const APPOINTMENT_FIELDS = {
   id: true,
@@ -175,7 +180,12 @@ export class AppointmentReader {
     const { practice } = requirePracticeContext(this.cls);
     const settings = await db.practiceSettings.findUniqueOrThrow({
       where: { id: 1 },
-      select: { timeZone: true, cancellationDeadlineHours: true },
+      select: {
+        timeZone: true,
+        numberingSystem: true,
+        hourCycle: true,
+        cancellationDeadlineHours: true,
+      },
     });
     const doctors = await db.staffMember.findMany({
       where: {
@@ -185,6 +195,8 @@ export class AppointmentReader {
       select: { id: true, title: true, firstName: true, lastName: true },
     });
     const named = new Map(doctors.map((doctor) => [doctor.id, doctor]));
+    const now = this.clock.now();
+    const hours = settings.cancellationDeadlineHours;
     return (row): AppointmentDto => {
       const startsAt = instantOf(row.slot.startsAt);
       const doctor = named.get(row.slot.providerId);
@@ -199,9 +211,13 @@ export class AppointmentReader {
         startsAt: startsAt.toString(),
         endsAt: instantOf(row.slot.endsAt).toString(),
         timeZone: settings.timeZone,
+        numberingSystem: settings.numberingSystem,
+        hourCycle: settings.hourCycle,
         status: row.status,
         bookedAt: instantOf(row.bookedAt).toString(),
-        changeableUntil: changeableUntil(startsAt, settings.cancellationDeadlineHours).toString(),
+        changeableUntil: changeableUntil(startsAt, hours).toString(),
+        changeable: row.status === 'BOOKED' && isChangeable(now, startsAt, hours),
+        started: hasStarted(now, startsAt),
       };
     };
   }

@@ -11,7 +11,7 @@ import * as zod from 'zod';
  * @summary Book a free time for the own profile in this practice
  */
 export const BookAppointmentParams = zod.object({
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const BookAppointmentHeader = zod.object({
@@ -34,15 +34,19 @@ export const BookAppointmentBody = zod.object({
 
 export const BookAppointmentResponse = zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeable": zod.boolean().describe('Whether the patient can cancel or reschedule it online right now'),
   "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
   "id": zod.uuid(),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
   "patientId": zod.uuid(),
   "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
   "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API; the status does not say so until staff set it'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
@@ -53,20 +57,24 @@ export const BookAppointmentResponse = zod.object({
  */
 export const GetMyAppointmentParams = zod.object({
   "appointmentId": zod.uuid(),
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const GetMyAppointmentResponse = zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeable": zod.boolean().describe('Whether the patient can cancel or reschedule it online right now'),
   "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
   "id": zod.uuid(),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
   "patientId": zod.uuid(),
   "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
   "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API; the status does not say so until staff set it'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
@@ -77,20 +85,24 @@ export const GetMyAppointmentResponse = zod.object({
  */
 export const CancelAppointmentParams = zod.object({
   "appointmentId": zod.uuid(),
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const CancelAppointmentResponse = zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeable": zod.boolean().describe('Whether the patient can cancel or reschedule it online right now'),
   "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
   "id": zod.uuid(),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
   "patientId": zod.uuid(),
   "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
   "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API; the status does not say so until staff set it'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
@@ -101,7 +113,7 @@ export const CancelAppointmentResponse = zod.object({
  */
 export const RescheduleAppointmentParams = zod.object({
   "appointmentId": zod.uuid(),
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const RescheduleAppointmentHeader = zod.object({
@@ -118,15 +130,19 @@ export const RescheduleAppointmentBody = zod.object({
 
 export const RescheduleAppointmentResponse = zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeable": zod.boolean().describe('Whether the patient can cancel or reschedule it online right now'),
   "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
   "id": zod.uuid(),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
   "patientId": zod.uuid(),
   "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
   "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API; the status does not say so until staff set it'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
@@ -136,7 +152,7 @@ export const RescheduleAppointmentResponse = zod.object({
  * @summary The own appointments in this practice, a page at a time
  */
 export const ListMyAppointmentsInPracticeParams = zod.object({
-  "practiceId": zod.unknown()
+  "practiceId": zod.uuid()
 })
 
 export const listMyAppointmentsInPracticeQueryLimitDefault = 20;
@@ -153,15 +169,19 @@ export const ListMyAppointmentsInPracticeQueryParams = zod.object({
 export const ListMyAppointmentsInPracticeResponse = zod.object({
   "items": zod.array(zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeable": zod.boolean().describe('Whether the patient can cancel or reschedule it online right now'),
   "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
   "id": zod.uuid(),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
   "patientId": zod.uuid(),
   "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
   "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API; the status does not say so until staff set it'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')

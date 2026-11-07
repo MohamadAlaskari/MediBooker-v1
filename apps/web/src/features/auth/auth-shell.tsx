@@ -36,13 +36,13 @@ export function AuthShell({ children }: { readonly children: ReactNode }): React
         </Link>
       </aside>
       <div className="flex min-h-screen flex-col px-4 py-4 desktop:col-span-3">
-        <div className="flex items-center justify-between">
+        <header className="flex items-center justify-between">
           <p className="flex items-center gap-2 text-label-large text-text-primary desktop:invisible">
             <CalendarPlus aria-hidden className="size-6 text-icon-brand" />
             MediBooker
           </p>
           <LanguageSwitch />
-        </div>
+        </header>
         <main
           id="main"
           tabIndex={-1}

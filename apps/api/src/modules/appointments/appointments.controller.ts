@@ -46,7 +46,7 @@ const IDEMPOTENCY_HEADER = {
 @ApiTags('appointments')
 @ApiBearerAuth()
 @ApiCookieAuth('mb_access')
-@ApiParam({ name: 'practiceId', format: 'uuid' })
+@ApiParam({ name: 'practiceId', type: String, format: 'uuid' })
 @Controller('practices/:practiceId/appointments')
 export class AppointmentsController {
   constructor(
@@ -117,7 +117,7 @@ export class AppointmentsController {
 @ApiTags('appointments')
 @ApiBearerAuth()
 @ApiCookieAuth('mb_access')
-@ApiParam({ name: 'practiceId', format: 'uuid' })
+@ApiParam({ name: 'practiceId', type: String, format: 'uuid' })
 @Controller('practices/:practiceId/me/appointments')
 export class MyPracticeAppointmentsController {
   constructor(private readonly reader: AppointmentReader) {}

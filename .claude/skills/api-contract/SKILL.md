@@ -43,7 +43,7 @@ description: Contract-first API rules for MediBooker v2 — how the OpenAPI spec
 
 Extend this list; never reuse a code with a different meaning.
 
-`VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `RATE_LIMITED`, `INTERNAL_ERROR`, `SERVICE_UNAVAILABLE`, `EMAIL_NOT_VERIFIED`, `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `MFA_REQUIRED`, `SLOT_NOT_AVAILABLE`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `PATIENT_PROFILE_INCOMPLETE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `RATE_LIMITED`, `NOT_A_MANAGED_PATIENT`, `GUARDIAN_DECLARATION_REQUIRED`, `INVITATION_EXPIRED`, `NOTE_NOT_EDITABLE`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `FILE_REJECTED`, `FILE_NOT_READY`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `VERIFICATION_CODE_INVALID`, `THEME_COLOR_INVALID`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`.
+`VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `RATE_LIMITED`, `JOIN_LIMIT_REACHED`, `INTERNAL_ERROR`, `SERVICE_UNAVAILABLE`, `EMAIL_NOT_VERIFIED`, `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `MFA_REQUIRED`, `SLOT_NOT_AVAILABLE`, `APPOINTMENT_OVERLAP`, `BOOKING_LIMIT_REACHED`, `OUTSIDE_BOOKING_WINDOW`, `SERVICE_NOT_BOOKABLE`, `PATIENT_PROFILE_INCOMPLETE`, `CANCELLATION_DEADLINE_PASSED`, `INVALID_STATUS_TRANSITION`, `SLOT_HAS_APPOINTMENT`, `IDEMPOTENCY_KEY_REUSED`, `RATE_LIMITED`, `NOT_A_MANAGED_PATIENT`, `GUARDIAN_DECLARATION_REQUIRED`, `INVITATION_EXPIRED`, `NOTE_NOT_EDITABLE`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `FILE_REJECTED`, `FILE_NOT_READY`, `NOTIFICATION_PREFERENCE_LOCKED`, `PHONE_NOT_VERIFIED`, `SMS_NOT_ENABLED`, `VERIFICATION_CODE_INVALID`, `THEME_COLOR_INVALID`, `PRACTICE_SLUG_TAKEN`, `CONSENT_REQUIRED`.
 
 ## Endpoint catalogue (initial proposal)
 
@@ -81,7 +81,7 @@ Extend this list; never reuse a code with a different meaning.
 | GET, PATCH /settings | admin (GET also staff) | Booking rules, practice data | |
 | GET /audit-events | admin | Audit log | |
 | GET /app-config | public | Minimum app version, feature flags | |
-| POST /practices/{practiceId}/me/patients | confirmed account | Join: copies the account's details into the practice and names what is missing (D16) | BR-09, BR-10 |
+| POST /practices/{practiceId}/me/patients | confirmed account | Join: copies the account's details into the practice and names what is missing (D16); the sixth new practice in 24 hours is `JOIN_LIMIT_REACHED` | BR-09, BR-10 |
 | GET /practices/{practiceId}/me/patients | patient | The caller's profiles in this practice; 404 before a join | BR-10 |
 | GET, PATCH /practices/{practiceId}/me/patients/{patientId} | patient (own) | The own profile; the number is masked | BR-10 |
 | GET /me/practices | account | The practices of the account with the capacity, from the platform database | |

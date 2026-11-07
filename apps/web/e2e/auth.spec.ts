@@ -21,6 +21,10 @@ async function linkOf(email: string, purpose: 'confirm' | 'reset'): Promise<stri
   return links[purpose] ?? '';
 }
 
+function otherThan(locale: 'ar' | 'en'): 'ar' | 'en' {
+  return locale === 'ar' ? 'en' : 'ar';
+}
+
 function texts(locale: 'ar' | 'en') {
   return messages[locale].auth;
 }
@@ -66,6 +70,19 @@ async function signIn(page: Page, locale: 'ar' | 'en', email: string, password =
   await emailField(page, locale).fill(email);
   await passwordField(page, locale).fill(password);
   await page.getByRole('button', { name: texts(locale).signIn.submit }).click();
+}
+
+/** Signed in without another way back: the page has come to life, and has read what it needs. */
+async function atAppointments(page: Page, locale: 'ar' | 'en'): Promise<void> {
+  await expect(page).toHaveURL(`/${locale}/appointments`);
+  await expect(page.getByRole('main')).toContainText(messages[locale].portal.list.noPractices);
+}
+
+/** What a person chose on a practice's page, just now: only what ends a session removes it here. */
+async function keepAChoice(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    sessionStorage.setItem('medibooker.booking-choice', JSON.stringify({ savedAt: Date.now() }));
+  });
 }
 
 /** An account that exists, for whoever comes to sign in. */
@@ -243,7 +260,7 @@ test.describe('the details of a person (D16)', () => {
     await page.getByRole('button', { name: t.continue }).click();
     // The number stays out of the form: only its end is known here.
     await expect(page.getByLabel(t.insuranceNumber, { exact: true })).toHaveValue('');
-    await expect(page.getByRole('main')).toContainText('4821-77'.slice(-4));
+    await expect(page.getByRole('main')).toContainText('2177');
     await page.getByRole('button', { name: t.save }).click();
     await expect(page.getByText('Salma Ahmed')).toBeVisible();
   });
@@ -265,9 +282,12 @@ test.describe('the details of a person (D16)', () => {
     await page.getByRole('button', { name: account.keepAccount }).click();
     await expect(page.getByRole('heading', { name: account.title })).toBeVisible();
 
+    await keepAChoice(page);
     await page.getByRole('button', { name: account.wrongAddress }).click();
     await page.getByRole('button', { name: account.deleteAccount }).click();
+    // Who mistyped wants to sign up again, not to sign in.
     await expect(page).toHaveURL(`/${locale}/sign-up`);
+    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
     await page.goto(`/${locale}/account`);
     await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in`));
   });
@@ -280,7 +300,7 @@ test.describe('the details of a person (D16)', () => {
     await passwordField(page, locale).fill(PASSWORD);
     await page.getByRole('button', { name: t.verifyEmail.submit }).click();
     await expect(page.getByRole('heading', { name: t.verifyEmail.doneTitle })).toBeVisible();
-    await page.goto(`/${locale}/sign-in`);
+    await page.goto(`/${locale}/account`);
     await signIn(page, locale, email);
     await expect(page.getByText(t.account.confirmed)).toBeVisible();
     await expect(page.getByRole('button', { name: t.account.wrongAddress })).toBeHidden();
@@ -333,7 +353,7 @@ test.describe('signing in and out (08 A05)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/account`);
+    await expect(page).toHaveURL(`/${locale}/appointments`);
 
     const cookies = await context.cookies();
     const byName = new Map(cookies.map((cookie) => [cookie.name, cookie]));
@@ -363,6 +383,7 @@ test.describe('signing in and out (08 A05)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, await existingAccount(testInfo));
+    await atAppointments(page, locale);
     await page.getByRole('button', { name: texts(locale).account.signOut }).click();
     await expect(page).toHaveURL(`/${locale}/sign-in`);
 
@@ -375,7 +396,7 @@ test.describe('signing in and out (08 A05)', () => {
   test('goes on by itself when only the access token is over', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const email = await existingAccount(testInfo);
-    await page.goto(`/${locale}/sign-in`);
+    await page.goto(`/${locale}/account`);
     await signIn(page, locale, email);
     await expect(page.getByRole('main')).toContainText(email);
 
@@ -390,7 +411,7 @@ test.describe('signing in and out (08 A05)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const email = await existingAccount(testInfo);
-    await page.goto(`/${locale}/sign-in`);
+    await page.goto(`/${locale}/account`);
     await signIn(page, locale, email);
     await expect(page.getByRole('main')).toContainText(email);
 
@@ -427,25 +448,6 @@ test.describe('the way back from a practice page (08 A05)', () => {
     await expect(page).toHaveURL(practice);
   });
 
-  test('comes back to the free times, the section the person left', async ({ page }, testInfo) => {
-    const locale = localeOf(testInfo);
-    const practice = encodeURIComponent(`/${locale}/al-noor`);
-    // The section is in view at once, so its reveal must not be what the page is judged by.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(`/${locale}/sign-in#next=${practice}&section=free-times`);
-    await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/al-noor#free-times`);
-  });
-
-  test('takes nothing but a section for one', async ({ page }, testInfo) => {
-    const locale = localeOf(testInfo);
-    const practice = encodeURIComponent(`/${locale}/al-noor`);
-    const section = encodeURIComponent('x/../../evil');
-    await page.goto(`/${locale}/sign-in#next=${practice}&section=${section}`);
-    await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/al-noor`);
-  });
-
   test('stays with a person who has to sign up first', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const practice = `/${locale}/al-noor`;
@@ -457,15 +459,83 @@ test.describe('the way back from a practice page (08 A05)', () => {
     await enterPerson(page, locale);
     await enterInsurance(page, locale);
     await expect(page).toHaveURL(new RegExp(`/${locale}/check-inbox#next=`));
-    await page.getByRole('link', { name: t.checkInbox.continue }).click();
+    await expect(page.getByRole('link', { name: t.checkInbox.continueToBooking })).toHaveCount(0);
+    await page.getByRole('link', { name: t.checkInbox.continueOn }).click();
     await expect(page).toHaveURL(practice);
+  });
+
+  test('calls the way back a booking only when it leads to one', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const t = texts(locale);
+    const booking = `/${locale}/book/al-noor`;
+    await page.goto(`/${locale}/sign-up#next=${encodeURIComponent(booking)}`);
+    await signUp(page, locale, newAddress(testInfo));
+    await enterPerson(page, locale);
+    await enterInsurance(page, locale);
+    await expect(page).toHaveURL(new RegExp(`/${locale}/check-inbox#next=`));
+    await expect(page.getByRole('link', { name: t.checkInbox.continueToBooking })).toHaveAttribute(
+      'href',
+      booking,
+    );
+  });
+
+  test('a language switch on the way: lands in the language chosen', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const other = otherThan(locale);
+    const way = encodeURIComponent(`/${locale}/al-noor`);
+    await page.goto(`/${locale}/sign-in#next=${way}`);
+    await page.locator(`a[hreflang="${other}"]`).click();
+    await expect(page).toHaveURL(`/${other}/sign-in#next=${way}`);
+    await signIn(page, other, await existingAccount(testInfo));
+    await expect(page).toHaveURL(`/${other}/al-noor`);
+  });
+
+  test('a way back in another language: lands in the language of this page', async ({
+    page,
+  }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const way = encodeURIComponent(`/${otherThan(locale)}/book/al-noor`);
+    await page.goto(`/${locale}/sign-in#next=${way}`);
+    await signIn(page, locale, await existingAccount(testInfo));
+    await expect(page).toHaveURL(`/${locale}/book/al-noor`);
+  });
+
+  test('a forgotten password on the way keeps it, there and back', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const t = texts(locale);
+    const practice = `/${locale}/al-noor`;
+    const way = encodeURIComponent(practice);
+    await page.goto(`/${locale}/sign-in#next=${way}`);
+    await page.getByRole('link', { name: t.signIn.forgot }).click();
+    await expect(page).toHaveURL(`/${locale}/forgot-password#next=${way}`);
+    await page.getByRole('link', { name: t.forgot.back }).click();
+    await expect(page).toHaveURL(`/${locale}/sign-in#next=${way}`);
+    await signIn(page, locale, await existingAccount(testInfo));
+    await expect(page).toHaveURL(practice);
+  });
+
+  test('a session that ends on the e-mail step keeps the way back it had', async ({
+    page,
+  }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const email = await existingAccount(testInfo);
+    const way = encodeURIComponent(`/${locale}/al-noor`);
+    await page.goto(`/${locale}/sign-in`);
+    await signIn(page, locale, email);
+    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await page.goto(`/${locale}/check-inbox#next=${way}`);
+    await expect(page.getByRole('main')).toContainText(email);
+
+    await fetch(`${STUB}/__end-sessions?email=${encodeURIComponent(email)}`);
+    await page.reload();
+    await expect(page).toHaveURL(`/${locale}/sign-in#next=${way}`);
   });
 
   test('never leads away from this site', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in#next=${encodeURIComponent('//evil.example/en/x')}`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/account`);
+    await expect(page).toHaveURL(`/${locale}/appointments`);
   });
 
   test('is not for search engines', async ({ page }, testInfo) => {
@@ -498,7 +568,7 @@ test.describe('a forgotten password (08 A05)', () => {
     await signIn(page, locale, email);
     await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
     await signIn(page, locale, email, NEW_PASSWORD);
-    await expect(page).toHaveURL(`/${locale}/account`);
+    await expect(page).toHaveURL(`/${locale}/appointments`);
   });
 
   test('answers the same for an address without an account', async ({ page }, testInfo) => {
@@ -517,6 +587,164 @@ test.describe('a forgotten password (08 A05)', () => {
     await page.locator(`a[hreflang="${other}"]`).click();
     await expect(page).toHaveURL(`/${other}/reset-password#token=a-token`);
     await expect(page.locator('html')).toHaveAttribute('dir', other === 'ar' ? 'rtl' : 'ltr');
+  });
+});
+
+test.describe('the skip link (08 B04)', () => {
+  /** The first stop of the keyboard, pressed. */
+  async function skip(page: Page, locale: 'ar' | 'en'): Promise<void> {
+    await page.keyboard.press('Tab');
+    await expect(
+      page.getByRole('link', { name: messages[locale].a11y.skipToContent }),
+    ).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main')).toBeFocused();
+  }
+
+  test('keeps the way back in the fragment, and signing in lands on it', async ({
+    page,
+  }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const practice = `/${locale}/al-noor`;
+    const way = encodeURIComponent(practice);
+    await page.goto(`/${locale}/sign-in#next=${way}`);
+    await expect(page.getByRole('button', { name: texts(locale).signIn.submit })).toBeEnabled();
+    await skip(page, locale);
+    await expect(page).toHaveURL(`/${locale}/sign-in#next=${way}`);
+    await signIn(page, locale, await existingAccount(testInfo));
+    await expect(page).toHaveURL(practice);
+  });
+
+  for (const path of ['verify-email', 'reset-password']) {
+    test(`keeps the token of a link and its form on /${path}`, async ({ page }, testInfo) => {
+      const locale = localeOf(testInfo);
+      await page.goto(`/${locale}/${path}#token=a-token`);
+      const submit = page.locator('form button[type="submit"]');
+      await expect(submit).toBeEnabled();
+      await skip(page, locale);
+      await expect(page).toHaveURL(`/${locale}/${path}#token=a-token`);
+      await expect(submit).toBeVisible();
+    });
+  }
+});
+
+test.describe('signing out reaches every tab (08 B04)', () => {
+  // What each shows once it has read what it needs: a question still on its way when the session
+  // ends would find that out by itself, and keep this page as the way back.
+  const tabs = [
+    { path: 'account/details', shows: (locale: 'ar' | 'en') => texts(locale).details.continue },
+    {
+      path: 'appointments',
+      shows: (locale: 'ar' | 'en') => messages[locale].portal.list.noPractices,
+    },
+    { path: 'check-inbox', shows: (locale: 'ar' | 'en') => texts(locale).checkInbox.resend },
+  ];
+  for (const { path, shows } of tabs) {
+    test(`a tab on /${path} lands on signing in`, async ({ page, context }, testInfo) => {
+      const locale = localeOf(testInfo);
+      await page.goto(`/${locale}/sign-in`);
+      await signIn(page, locale, await existingAccount(testInfo));
+      await atAppointments(page, locale);
+
+      const other = await context.newPage();
+      await other.goto(`/${locale}/${path}`);
+      await expect(other.getByRole('main')).toContainText(shows(locale));
+      await page.getByRole('button', { name: texts(locale).account.signOut }).click();
+      await expect(page).toHaveURL(`/${locale}/sign-in`);
+      await expect(other).toHaveURL(`/${locale}/sign-in`);
+    });
+  }
+
+  test('a stored choice ends with it', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    await page.goto(`/${locale}/sign-in`);
+    await signIn(page, locale, await existingAccount(testInfo));
+    await atAppointments(page, locale);
+    await keepAChoice(page);
+    await page.getByRole('button', { name: texts(locale).account.signOut }).click();
+    await expect(page).toHaveURL(`/${locale}/sign-in`);
+    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+  });
+
+  test('signing in elsewhere renews a tab left open, without what it kept', async ({
+    page,
+    context,
+  }, testInfo) => {
+    const locale = localeOf(testInfo);
+    // Open since before anyone signed in, as on a shared computer: nothing has sent it away.
+    const other = await context.newPage();
+    await other.goto(`/${locale}/sign-in`);
+
+    const email = await existingAccount(testInfo);
+    await page.goto(`/${locale}/sign-in`);
+    await signIn(page, locale, email);
+    await atAppointments(page, locale);
+    await keepAChoice(page);
+
+    const renewed = page.waitForEvent('load');
+    await signIn(other, locale, email);
+    await atAppointments(other, locale);
+    await renewed;
+    await atAppointments(page, locale);
+    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+  });
+});
+
+test.describe('a form that waits for its answer (08 B04)', () => {
+  /** Keeps what is sent to a route waiting until the test lets go, and counts it. */
+  async function holdAndCount(
+    page: Page,
+    url: string,
+  ): Promise<{ readonly letGo: () => void; readonly sent: () => number }> {
+    let count = 0;
+    let letGo = (): void => undefined;
+    const waiting = new Promise<void>((resolve) => {
+      letGo = resolve;
+    });
+    await page.route(url, async (route) => {
+      count += 1;
+      await waiting;
+      await route.fallback();
+    });
+    return { letGo, sent: () => count };
+  }
+
+  test('Enter twice in a single field asks once', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const t = texts(locale);
+    const { letGo, sent } = await holdAndCount(page, '**/api/v1/auth/password/forgot');
+    await page.goto(`/${locale}/forgot-password`);
+    await emailField(page, locale).fill(newAddress(testInfo));
+    await emailField(page, locale).press('Enter');
+    const submit = page.getByRole('button', { name: t.forgot.submit });
+    await expect(submit).toHaveAttribute('aria-disabled', 'true');
+    await emailField(page, locale).press('Enter');
+    letGo();
+    await expect(page.getByRole('heading', { name: t.forgot.doneTitle })).toBeVisible();
+    expect(sent()).toBe(1);
+  });
+
+  test('a token that works once is not sent twice', async ({ page }, testInfo) => {
+    const locale = localeOf(testInfo);
+    const t = texts(locale);
+    const email = await existingAccount(testInfo);
+    await fetch(`${STUB}/api/v1/auth/password/forgot`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    const { letGo, sent } = await holdAndCount(page, '**/api/v1/auth/password/reset');
+    await page.goto(`/${locale}/reset-password#token=${await linkOf(email, 'reset')}`);
+    const password = page.getByLabel(t.newPasswordLabel, { exact: true });
+    await password.fill(NEW_PASSWORD);
+    await password.press('Enter');
+    await expect(page.getByRole('button', { name: t.reset.submit })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await password.press('Enter');
+    letGo();
+    await expect(page.getByRole('heading', { name: t.reset.doneTitle })).toBeVisible();
+    expect(sent()).toBe(1);
   });
 });
 

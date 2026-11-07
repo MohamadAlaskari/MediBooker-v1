@@ -12,6 +12,7 @@ import { Controller, useForm } from 'react-hook-form';
 import * as zod from 'zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
+import { announceSignIn } from '@/lib/session-broadcast';
 import { useFragmentForLinks } from './fragment';
 import {
   AuthForm,
@@ -69,6 +70,7 @@ export function SignUpForm(): ReactNode {
                 setSignInFailed(isApiError(failure) && failure.status === 401);
               },
               onSuccess: () => {
+                announceSignIn();
                 router.replace(`/${locale}/sign-up/details${fragment}`);
               },
             },
@@ -125,7 +127,10 @@ export function SignUpForm(): ReactNode {
           <Alert role="alert">
             <AlertDescription>
               {t('signUp.signInFailed')}{' '}
-              <Link href={`/${locale}/forgot-password`} className="text-text-brand underline">
+              <Link
+                href={`/${locale}/forgot-password${fragment}`}
+                className="text-text-brand underline"
+              >
                 {t('signUp.forgot')}
               </Link>
             </AlertDescription>

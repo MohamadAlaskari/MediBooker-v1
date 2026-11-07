@@ -34,7 +34,7 @@ const JOIN_LIMIT = { default: { limit: 10, ttl: 60_000 } };
 @ApiTags('patients')
 @ApiBearerAuth()
 @ApiCookieAuth('mb_access')
-@ApiParam({ name: 'practiceId', format: 'uuid' })
+@ApiParam({ name: 'practiceId', type: String, format: 'uuid' })
 @Controller('practices/:practiceId/me/patients')
 export class PatientsController {
   constructor(private readonly patients: PatientsService) {}

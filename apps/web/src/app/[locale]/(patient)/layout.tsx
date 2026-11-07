@@ -11,5 +11,9 @@ interface LayoutProps {
 
 export default async function Layout({ children, params }: LayoutProps): Promise<ReactNode> {
   const { locale } = await params;
-  return <AuthLayout locale={locale}>{children}</AuthLayout>;
+  return (
+    <AuthLayout locale={locale} signedIn>
+      {children}
+    </AuthLayout>
+  );
 }

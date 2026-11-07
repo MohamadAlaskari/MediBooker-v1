@@ -275,6 +275,71 @@ describe('booking an appointment on real databases (08 B02)', () => {
     });
   });
 
+  describe('BR-25', () => {
+    const bookingOf = (practice: ReturnType<typeof world.alNoor>, startsAt: Temporal.Instant) => ({
+      serviceId: practice.serviceId,
+      startsAt: startsAt.toString(),
+    });
+
+    it('refuses the time a person has already, also with another doctor free then', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const startsAt = await world.freshSlot(practice);
+      await world.slotAt(practice, startsAt, { other: true });
+      const body = bookingOf(practice, startsAt);
+      await world.book(who, practice, body).expect(201);
+
+      // A new key: the page was loaded again, after an answer got lost.
+      const response = await world.book(who, practice, body).expect(409);
+      expect(response.body).toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+      await expect(world.activeAt(practice, startsAt)).resolves.toHaveLength(1);
+    });
+
+    it('says so also when it is the reason that no slot is free', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const startsAt = await world.freshSlot(practice);
+      const body = bookingOf(practice, startsAt);
+      await world.book(who, practice, body).expect(201);
+      const response = await world.book(who, practice, body).expect(409);
+      expect(response.body).toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+    });
+
+    it.each([10, -10])('refuses a time that only overlaps, %i minutes away', async (minutes) => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      const startsAt = await world.freshSlot(practice);
+      // Room for the overlapping slot: one doctor's slots cannot overlap, also with the next test's.
+      world.freshTime();
+      await world.book(who, practice, bookingOf(practice, startsAt)).expect(201);
+      const other = startsAt.add({ minutes });
+      await world.slotAt(practice, other, { other: true });
+      const response = await world.book(who, practice, bookingOf(practice, other)).expect(409);
+      expect(response.body).toMatchObject({ code: 'APPOINTMENT_OVERLAP' });
+    });
+
+    it('takes the time right after, the same time after a cancel, and other people', async () => {
+      const practice = world.alNoor();
+      const who = await world.patient(practice);
+      // Far enough ahead to cancel (BR-04), with room for the slot right after this one.
+      const startsAt = await world.changeableSlot(practice);
+      world.freshTime();
+      await world.slotAt(practice, startsAt, { other: true });
+      const first = await world.book(who, practice, bookingOf(practice, startsAt)).expect(201);
+
+      const someoneElse = await world.patient(practice);
+      await world.book(someoneElse, practice, bookingOf(practice, startsAt)).expect(201);
+
+      const { endsAt } = first.body as { endsAt: string };
+      const after = Temporal.Instant.from(endsAt);
+      await world.slotAt(practice, after);
+      const next = await world.book(who, practice, bookingOf(practice, after)).expect(201);
+      await world.cancel(who, practice, (next.body as AppointmentBody).id).expect(200);
+      const again = await world.book(who, practice, bookingOf(practice, after)).expect(201);
+      expect(again.body).toMatchObject({ status: 'BOOKED' });
+    });
+  });
+
   describe('BR-02', () => {
     it('counts per patient, in the future, and only what is still to come', async () => {
       const practice = world.alNoor();
