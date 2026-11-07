@@ -493,10 +493,18 @@ model Appointment {
   bookedById           String            @map("booked_by_id") @db.Uuid
   /// class: health
   bookedAt             DateTime          @map("booked_at") @db.Timestamptz(3)
+  /// class: health (set exactly when the status is CANCELLED; CHECK in the migration)
+  cancelledAt          DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  /// class: personal (the account that cancelled)
+  cancelledById        String?           @map("cancelled_by_id") @db.Uuid
+  /// class: health (the appointment this one replaced, BR-05)
+  rescheduledFromId    String?           @unique(map: "appointments_rescheduled_from_id_key") @map("rescheduled_from_id") @db.Uuid
 
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  slot    Slot    @relation(fields: [slotId], references: [id], onDelete: Restrict)
-  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  slot            Slot         @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  service         Service      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  rescheduledFrom Appointment? @relation("Reschedule", fields: [rescheduledFromId], references: [id], onDelete: Restrict)
+  rescheduledTo   Appointment? @relation("Reschedule")
 
   @@unique([slotId], map: "appointments_slot_active_key", where: raw("(status <> 'CANCELLED'::appointment_status)"))
   @@index([patientId])

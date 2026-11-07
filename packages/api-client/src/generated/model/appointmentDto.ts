@@ -4,19 +4,32 @@
  * MediBooker API
  * OpenAPI spec version: 1
  */
+import type { AppointmentDtoServiceName } from './appointmentDtoServiceName';
 import type { AppointmentDtoStatus } from './appointmentDtoStatus';
 
 export interface AppointmentDto {
   bookedAt: string;
+  /** The last moment the patient can cancel or reschedule online (BR-04) */
+  changeableUntil: string;
   endsAt: string;
   id: string;
   patientId: string;
+  practiceId: string;
   /**
      * The doctor, only with a public profile (BR-24); null, the practice will say who
      * @nullable
      */
   providerId: string | null;
+  /**
+     * Only with a public profile, too
+     * @nullable
+     */
+  providerName: string | null;
   serviceId: string;
+  /** The name of the service per locale */
+  serviceName: AppointmentDtoServiceName;
   startsAt: string;
   status: AppointmentDtoStatus;
+  /** The practice's IANA time zone, in which to show the times */
+  timeZone: string;
 }

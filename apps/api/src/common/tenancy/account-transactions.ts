@@ -4,12 +4,9 @@ import { ClsService } from 'nestjs-cls';
 import { ENV } from '../../config/env.module.js';
 import type { Env } from '../../config/env.schema.js';
 import type { RequestContext } from '../context/request-context.js';
-import { DomainException } from '../errors/domain.exception.js';
 import { requirePracticeContext } from './practice-context.js';
 import type { PracticeTransactionHost } from './practice-transactional.adapter.js';
-
-/** What is under way ends soon: at the latest with its wait for a lock. */
-const RETRY_AFTER_SECONDS = 1;
+import { RunningLimit } from './running-limit.js';
 
 /**
  * Transactions of one account that wait for row locks in a practice database. All of a person's
@@ -22,7 +19,7 @@ const RETRY_AFTER_SECONDS = 1;
  */
 @Injectable()
 export class AccountTransactions {
-  private readonly underWay = new Map<string, number>();
+  private readonly underWay = new RunningLimit();
 
   constructor(
     @Inject(ENV) private readonly env: Env,
@@ -30,27 +27,15 @@ export class AccountTransactions {
     private readonly cls: ClsService<RequestContext>,
   ) {}
 
-  async run<T>(userId: string, work: () => Promise<T>): Promise<T> {
+  run<T>(userId: string, work: () => Promise<T>): Promise<T> {
     const key = `${requirePracticeContext(this.cls).practice.id}:${userId}`;
-    const running = this.underWay.get(key) ?? 0;
-    if (running >= Math.max(1, this.env.PRACTICE_POOL_MAX - 1)) {
-      throw new DomainException('RATE_LIMITED', { retryAfterSeconds: RETRY_AFTER_SECONDS });
-    }
-    this.underWay.set(key, running + 1);
-    try {
-      return await this.txHost.withTransaction(async () => {
+    const limit = Math.max(1, this.env.PRACTICE_POOL_MAX - 1);
+    return this.underWay.run(key, limit, () =>
+      this.txHost.withTransaction(async () => {
         const lockWait = `${String(this.env.DATABASE_LOCK_TIMEOUT_MS)}ms`;
         await this.txHost.tx.$executeRaw`SELECT set_config('lock_timeout', ${lockWait}, true)`;
         return work();
-      });
-    } finally {
-      this.leave(key);
-    }
-  }
-
-  private leave(key: string): void {
-    const left = (this.underWay.get(key) ?? 1) - 1;
-    if (left === 0) this.underWay.delete(key);
-    else this.underWay.set(key, left);
+      }),
+    );
   }
 }

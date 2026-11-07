@@ -18,7 +18,7 @@ export type StatusAnswer = 'SERVE' | 'NOT_FOUND' | 'UNAVAILABLE';
  * A01, so every signed-in request gets 503 until then.
  */
 const STATUS_TABLE: Readonly<
-  Record<PracticeStatus, Readonly<Record<PracticePurpose, StatusAnswer>>>
+  Record<PracticeStatus, Readonly<Record<Exclude<PracticePurpose, 'fanOut'>, StatusAnswer>>>
 > = {
   PROVISIONING: { public: 'NOT_FOUND', request: 'NOT_FOUND', job: 'NOT_FOUND' },
   ACTIVE: { public: 'SERVE', request: 'SERVE', job: 'SERVE' },
@@ -29,8 +29,9 @@ const STATUS_TABLE: Readonly<
   FINALIZED: { public: 'NOT_FOUND', request: 'NOT_FOUND', job: 'NOT_FOUND' },
 };
 
+/** A fan-out is a signed-in request with a budget of its own: the table has no column for it. */
 export function statusAnswer(status: PracticeStatus, purpose: PracticePurpose): StatusAnswer {
-  return STATUS_TABLE[status][purpose];
+  return STATUS_TABLE[status][purpose === 'fanOut' ? 'request' : purpose];
 }
 
 /** The deployment-wide inputs of the checks. */

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { bookableWindow } from '../../scheduling/domain/slots.rules.js';
 import {
+  changeableUntil,
   hasBookingPlace,
+  isChangeable,
   isInBookingWindow,
   isProfileComplete,
   isServiceBookable,
@@ -13,6 +15,24 @@ const INSURANCE_RULES = {
   insuranceProviderTypes: ['PUBLIC'],
   insuranceNumberTypes: ['PUBLIC'],
 };
+
+describe('isChangeable (BR-04)', () => {
+  // 10:00 in Berlin on the day the clocks go forward: 24 elapsed hours, not the same wall-clock time.
+  const startsAt = Temporal.Instant.from('2027-03-28T08:00:00Z');
+  const at = (text: string): Temporal.Instant => Temporal.Instant.from(text);
+
+  it('BR-04 counts elapsed hours, and allows the last moment itself', () => {
+    expect(changeableUntil(startsAt, 24).toString()).toBe('2027-03-27T08:00:00Z');
+    expect(isChangeable(at('2027-03-27T07:59:00Z'), startsAt, 24)).toBe(true);
+    expect(isChangeable(at('2027-03-27T08:00:00Z'), startsAt, 24)).toBe(true);
+  });
+
+  it('BR-04 refuses a minute after the deadline, and whatever has begun', () => {
+    expect(isChangeable(at('2027-03-27T08:01:00Z'), startsAt, 24)).toBe(false);
+    expect(isChangeable(at('2027-03-28T08:00:00Z'), startsAt, 0)).toBe(true);
+    expect(isChangeable(at('2027-03-28T08:01:00Z'), startsAt, 0)).toBe(false);
+  });
+});
 
 describe('isProfileComplete (BR-09, BR-10)', () => {
   const complete = { type: 'PUBLIC', provider: 'Synthetic', numberKnown: true } as const;

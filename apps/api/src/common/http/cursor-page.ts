@@ -35,14 +35,9 @@ export function encodeCursor(position: string): string {
   return Buffer.from(position, 'utf8').toString('base64url');
 }
 
-/**
- * The position in a cursor. Any text a client encodes decodes, and a NUL byte in it would fail in
- * the database as a 500, so `isPosition` says what a position of this list looks like.
- */
-export function decodeCursor(cursor: string, isPosition: (text: string) => boolean): string {
-  const position = Buffer.from(cursor, 'base64url').toString('utf8');
-  if (isPosition(position)) return position;
-  throw new DomainException('VALIDATION_FAILED', {
+/** What a list answers to a cursor it cannot use: the same, whatever is wrong with it. */
+export function invalidCursor(): DomainException {
+  return new DomainException('VALIDATION_FAILED', {
     fieldErrors: [
       {
         field: 'cursor',
@@ -52,6 +47,16 @@ export function decodeCursor(cursor: string, isPosition: (text: string) => boole
       },
     ],
   });
+}
+
+/**
+ * The position in a cursor. Any text a client encodes decodes, and a NUL byte in it would fail in
+ * the database as a 500, so `isPosition` says what a position of this list looks like.
+ */
+export function decodeCursor(cursor: string, isPosition: (text: string) => boolean): string {
+  const position = Buffer.from(cursor, 'base64url').toString('utf8');
+  if (isPosition(position)) return position;
+  throw invalidCursor();
 }
 
 /**

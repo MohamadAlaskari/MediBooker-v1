@@ -5,20 +5,33 @@
  * OpenAPI spec version: 1
  */
 import {
-  useMutation
+  useMutation,
+  useQuery
 } from '@tanstack/react-query';
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
-  UseMutationResult
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
   AppointmentDto,
+  AppointmentPageDto,
   BookAppointmentDto,
   BookAppointmentHeaders,
-  ProblemDetailsDto
+  ListMyAppointmentsInPracticeParams,
+  ProblemDetailsDto,
+  RescheduleAppointmentDto,
+  RescheduleAppointmentHeaders
 } from '../../model';
 
 import { apiFetch } from '../../../http/fetcher';
@@ -28,6 +41,21 @@ import type { ErrorType } from '../../../http/fetcher';
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
+
+const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === 'queryKey') continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
 
 export const getBookAppointmentUrl = (practiceId: unknown,) => {
 
@@ -118,3 +146,392 @@ export const useBookAppointment = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getBookAppointmentMutationOptions(options), queryClient);
     }
+    export const getGetMyAppointmentUrl = (practiceId: unknown,
+    appointmentId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/appointments/${appointmentId}`
+}
+
+/**
+ * @summary An own appointment in this practice
+ */
+export const getMyAppointment = async (practiceId: unknown,
+    appointmentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
+
+  return apiFetch<AppointmentDto>(getGetMyAppointmentUrl(practiceId,appointmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyAppointmentQueryKey = (practiceId: unknown,
+    appointmentId: string,) => {
+    return [
+    `/api/v1/practices/${practiceId}/appointments/${appointmentId}`
+    ] as const;
+    }
+
+
+export const getGetMyAppointmentQueryOptions = <TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown,
+    appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyAppointmentQueryKey(practiceId,appointmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyAppointment>>> = ({ signal }) => getMyAppointment(practiceId,appointmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined && appointmentId !== null && appointmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyAppointmentQueryResult = NonNullable<Awaited<ReturnType<typeof getMyAppointment>>>
+export type GetMyAppointmentQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    appointmentId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyAppointment>>,
+          TError,
+          Awaited<ReturnType<typeof getMyAppointment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyAppointment>>,
+          TError,
+          Awaited<ReturnType<typeof getMyAppointment>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary An own appointment in this practice
+ */
+
+export function useGetMyAppointment<TData = Awaited<ReturnType<typeof getMyAppointment>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    appointmentId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyAppointment>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyAppointmentQueryOptions(practiceId,appointmentId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getCancelAppointmentUrl = (practiceId: unknown,
+    appointmentId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/appointments/${appointmentId}/cancel`
+}
+
+/**
+ * @summary Cancel an own appointment, until the deadline of the practice
+ */
+export const cancelAppointment = async (practiceId: unknown,
+    appointmentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
+
+  return apiFetch<AppointmentDto>(getCancelAppointmentUrl(practiceId,appointmentId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelAppointmentMutationKey = () => ['cancelAppointment'] as const;
+
+export const getCancelAppointmentMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAppointment>>, TError,CancelAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelAppointment>>, TError,CancelAppointmentMutationVariables, TContext> => {
+
+const mutationKey = getCancelAppointmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelAppointment>>, CancelAppointmentMutationVariables> = (props) => {
+          const {practiceId,appointmentId} = props ?? {};
+
+          return  cancelAppointment(practiceId,appointmentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAppointment>>>
+
+    export type CancelAppointmentMutationError = ErrorType<ProblemDetailsDto>
+    export type CancelAppointmentMutationVariables = {practiceId: unknown;appointmentId: string}
+
+    /**
+ * @summary Cancel an own appointment, until the deadline of the practice
+ */
+export const useCancelAppointment = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAppointment>>, TError,CancelAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelAppointment>>,
+        TError,
+        CancelAppointmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelAppointmentMutationOptions(options), queryClient);
+    }
+    export const getRescheduleAppointmentUrl = (practiceId: unknown,
+    appointmentId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/appointments/${appointmentId}/reschedule`
+}
+
+/**
+ * @summary Move an own appointment to another free time; the service and the note stay
+ */
+export const rescheduleAppointment = async (practiceId: unknown,
+    appointmentId: string,
+    rescheduleAppointmentDto: RescheduleAppointmentDto,
+    headers: RescheduleAppointmentHeaders, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<AppointmentDto>(getRescheduleAppointmentUrl(practiceId,appointmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',...headers, ...getHeaders(options?.headers) },
+    body: JSON.stringify(rescheduleAppointmentDto)
+  }
+);}
+
+
+
+
+
+export const getRescheduleAppointmentMutationKey = () => ['rescheduleAppointment'] as const;
+
+export const getRescheduleAppointmentMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleAppointment>>, TError,RescheduleAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rescheduleAppointment>>, TError,RescheduleAppointmentMutationVariables, TContext> => {
+
+const mutationKey = getRescheduleAppointmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rescheduleAppointment>>, RescheduleAppointmentMutationVariables> = (props) => {
+          const {practiceId,appointmentId,data,headers} = props ?? {};
+
+          return  rescheduleAppointment(practiceId,appointmentId,data,headers,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RescheduleAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof rescheduleAppointment>>>
+    export type RescheduleAppointmentMutationBody = RescheduleAppointmentDto
+    export type RescheduleAppointmentMutationError = ErrorType<ProblemDetailsDto>
+    export type RescheduleAppointmentMutationVariables = {practiceId: unknown;appointmentId: string;data: RescheduleAppointmentDto;headers: RescheduleAppointmentHeaders}
+
+    /**
+ * @summary Move an own appointment to another free time; the service and the note stay
+ */
+export const useRescheduleAppointment = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleAppointment>>, TError,RescheduleAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rescheduleAppointment>>,
+        TError,
+        RescheduleAppointmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRescheduleAppointmentMutationOptions(options), queryClient);
+    }
+    export const getListMyAppointmentsInPracticeUrl = (practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/practices/${practiceId}/me/appointments?${stringifiedParams}` : `/api/v1/practices/${practiceId}/me/appointments`
+}
+
+/**
+ * @summary The own appointments in this practice, a page at a time
+ */
+export const listMyAppointmentsInPractice = async (practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams, options?: Parameters<typeof apiFetch>[1]): Promise<AppointmentPageDto> => {
+
+  return apiFetch<AppointmentPageDto>(getListMyAppointmentsInPracticeUrl(practiceId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyAppointmentsInPracticeQueryKey = (practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams,) => {
+    return [
+    `/api/v1/practices/${practiceId}/me/appointments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMyAppointmentsInPracticeQueryOptions = <TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyAppointmentsInPracticeQueryKey(practiceId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>> = ({ signal }) => listMyAppointmentsInPractice(practiceId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyAppointmentsInPracticeQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>>
+export type ListMyAppointmentsInPracticeQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    params: undefined |  ListMyAppointmentsInPracticeParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAppointmentsInPractice>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAppointmentsInPractice>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAppointmentsInPractice>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAppointmentsInPractice>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The own appointments in this practice, a page at a time
+ */
+
+export function useListMyAppointmentsInPractice<TData = Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: unknown,
+    params?: ListMyAppointmentsInPracticeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointmentsInPractice>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyAppointmentsInPracticeQueryOptions(practiceId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+

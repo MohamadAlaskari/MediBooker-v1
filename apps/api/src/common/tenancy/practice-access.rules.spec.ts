@@ -18,7 +18,7 @@ const PRODUCTION: DeploymentScope = {
   practiceSchemaRequired: REQUIRED,
 };
 
-const PURPOSES: PracticePurpose[] = ['public', 'request', 'job'];
+const PURPOSES: PracticePurpose[] = ['public', 'request', 'job', 'fanOut'];
 
 describe('statusAnswer: the status table of ADR 0005 §5.1', () => {
   it.each<[PracticeStatus, 'SERVE' | 'NOT_FOUND' | 'UNAVAILABLE']>([

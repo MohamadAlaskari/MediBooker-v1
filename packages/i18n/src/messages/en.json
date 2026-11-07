@@ -35,6 +35,8 @@
     "OUTSIDE_BOOKING_WINDOW": "This time cannot be booked online. Please choose another one.",
     "SERVICE_NOT_BOOKABLE": "This service cannot be booked online with your insurance. Please call the practice.",
     "PATIENT_PROFILE_INCOMPLETE": "Please complete your details for this practice before you book.",
+    "CANCELLATION_DEADLINE_PASSED": "This appointment is too soon to change online. Please call the practice.",
+    "INVALID_STATUS_TRANSITION": "This appointment can no longer be changed.",
     "IDEMPOTENCY_KEY_REUSED": "Something went wrong with this booking. Please reload the page and try again."
   },
   "validation": {

@@ -67,3 +67,19 @@ export function hasBookingPlace(futureActive: number, maxFutureAppointments: num
 
 /** The statuses that count towards BR-02: what has not happened yet. */
 export const UPCOMING_STATUSES = ['BOOKED', 'CHECKED_IN'] as const;
+
+/** BR-04: the last moment a patient can cancel or reschedule, in elapsed hours (ADR 0014). */
+export function changeableUntil(
+  startsAt: Temporal.Instant,
+  deadlineHours: number,
+): Temporal.Instant {
+  return startsAt.subtract({ hours: deadlineHours });
+}
+
+export function isChangeable(
+  now: Temporal.Instant,
+  startsAt: Temporal.Instant,
+  deadlineHours: number,
+): boolean {
+  return Temporal.Instant.compare(now, changeableUntil(startsAt, deadlineHours)) <= 0;
+}

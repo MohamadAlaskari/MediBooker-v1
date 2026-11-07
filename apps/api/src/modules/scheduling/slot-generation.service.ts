@@ -18,6 +18,10 @@ function keyOf(providerId: string, startsAtMilliseconds: number): string {
  * Brings the future slots of the practice of the current context in line with its rules (BR-06).
  * Idempotent: the unique index and EXCLUDE skip what exists. Only OPEN slots are removed, so a
  * BOOKED or BLOCKED one survives any change of a rule (BR-07).
+ *
+ * An OPEN slot can hold the history of a cancelled appointment, which needs its time, so it stays.
+ * Without a rule it can be booked for no service and is offered to nobody, and it gets a rule again
+ * when its time is wanted again.
  */
 @Injectable()
 export class SlotGenerationService {
@@ -42,7 +46,7 @@ export class SlotGenerationService {
       }),
       db.slot.findMany({
         where: { status: 'OPEN', startsAt: { gt: dbInstantOf(now) } },
-        select: { id: true, providerId: true, startsAt: true },
+        select: { id: true, providerId: true, startsAt: true, ruleId: true },
       }),
     ]);
 
@@ -64,16 +68,23 @@ export class SlotGenerationService {
       to,
     }).filter(({ startsAt }) => Temporal.Instant.compare(startsAt, now) > 0);
 
-    const wantedKeys = new Set(
-      wanted.map(({ providerId, startsAt }) => keyOf(providerId, startsAt.epochMilliseconds)),
+    const wantedRules = new Map(
+      wanted.map(({ providerId, startsAt, ruleId }) => [
+        keyOf(providerId, startsAt.epochMilliseconds),
+        ruleId,
+      ]),
     );
     const stale = open
-      .filter(({ providerId, startsAt }) => !wantedKeys.has(keyOf(providerId, startsAt.getTime())))
+      .filter(({ providerId, startsAt }) => !wantedRules.has(keyOf(providerId, startsAt.getTime())))
       .map(({ id }) => id);
     // First: a new slot may overlap one that is going, and EXCLUDE would skip it. The status is
     // asked again here, so a slot that was booked in the meantime stays.
-    const { count: removed } = await db.slot.deleteMany({
-      where: { id: { in: stale }, status: 'OPEN' },
+    const { count: deleted } = await db.slot.deleteMany({
+      where: { id: { in: stale }, status: 'OPEN', appointments: { none: {} } },
+    });
+    const { count: withdrawn } = await db.slot.updateMany({
+      where: { id: { in: stale }, status: 'OPEN', ruleId: { not: null } },
+      data: { ruleId: null },
     });
     const { count: created } = await db.slot.createMany({
       data: wanted.map(({ ruleId, providerId, startsAt, endsAt }) => ({
@@ -84,6 +95,14 @@ export class SlotGenerationService {
       })),
       skipDuplicates: true,
     });
-    return { created, removed };
+    for (const { id, providerId, startsAt, ruleId } of open) {
+      const wantedRule = wantedRules.get(keyOf(providerId, startsAt.getTime()));
+      if (ruleId !== null || wantedRule === undefined) continue;
+      await db.slot.updateMany({
+        where: { id, status: 'OPEN', ruleId: null },
+        data: { ruleId: wantedRule },
+      });
+    }
+    return { created, removed: deleted + withdrawn };
   }
 }

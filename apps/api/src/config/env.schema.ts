@@ -193,6 +193,11 @@ const envObject = z.object({
   PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(40),
   PRACTICE_CLIENT_IDLE_MS: integer(1000, 86_400_000).default(60_000),
   PUBLIC_PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(10),
+  /** A request across a person's practices (ADR 0005 §9.1): how many, how many at once, how long. */
+  ME_FANOUT_MAX_PRACTICES: integer(1, 100).default(20),
+  ME_FANOUT_CONCURRENCY: integer(1, 20).default(4),
+  ME_FANOUT_TIMEOUT_MS: integer(1, 60_000).default(2000),
+  FANOUT_PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(20),
   JOB_PRACTICE_CLIENTS_MAX: integer(1, 10_000).default(4),
   PRACTICE_CLIENT_CREATIONS_PER_SECOND: integer(1, 1000).default(5),
   PRACTICE_SECRET_TTL_MS: integer(0, 86_400_000).default(600_000),

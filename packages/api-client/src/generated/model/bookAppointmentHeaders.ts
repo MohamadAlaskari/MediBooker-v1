@@ -6,6 +6,6 @@
  */
 
 export type BookAppointmentHeaders = {
-  /** A new UUID per attempt: sent again, it answers with the first booking */
+  /** A new UUID per attempt: sent again, it answers with the first result */
   'Idempotency-Key': string;
 };

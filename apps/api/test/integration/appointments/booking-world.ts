@@ -186,6 +186,45 @@ export function useBookingWorld(env: Readonly<Record<string, string>> = {}) {
       .send(body);
   };
 
+  const reschedule = (
+    who: Person | undefined,
+    fixture: Fixture,
+    appointmentId: string,
+    body: object,
+    key: string = randomUUID(),
+  ): request.Test => {
+    nextClient();
+    return send(
+      request(server()).post(
+        `${API}/practices/${fixture.practice.practiceId}/appointments/${appointmentId}/reschedule`,
+      ),
+      who,
+    )
+      .set('Idempotency-Key', key)
+      .send(body);
+  };
+
+  const cancel = (
+    who: Person | undefined,
+    fixture: Fixture,
+    appointmentId: string,
+  ): request.Test => {
+    nextClient();
+    return send(
+      request(server()).post(
+        `${API}/practices/${fixture.practice.practiceId}/appointments/${appointmentId}/cancel`,
+      ),
+      who,
+    );
+  };
+
+  /** A time far enough ahead that BR-04's deadline of a day has not passed. */
+  const changeableSlot = async (fixture: Fixture): Promise<Temporal.Instant> => {
+    const startsAt = freshTime().add({ hours: 48 });
+    await slotAt(fixture, startsAt);
+    return startsAt;
+  };
+
   const fixtureOf = async (
     seed: (typeof SEED_PRACTICES)[number],
     name: string,
@@ -234,13 +273,13 @@ export function useBookingWorld(env: Readonly<Record<string, string>> = {}) {
   /** The rules of BR-02 and BR-03 at their defaults, so that a test can read them here. */
   const setRules = async (
     fixture: Fixture,
-    { limit = 2, leadMinutes = 120, horizonDays = 90 } = {},
+    { limit = 2, leadMinutes = 120, horizonDays = 90, deadlineHours = 24 } = {},
   ): Promise<void> => {
     await asOwner(fixture, (owner) =>
       owner.query(
         `UPDATE practice_settings SET max_future_appointments_per_patient = $1,
-           min_lead_time_minutes = $2, max_horizon_days = $3`,
-        [limit, leadMinutes, horizonDays],
+           min_lead_time_minutes = $2, max_horizon_days = $3, cancellation_deadline_hours = $4`,
+        [limit, leadMinutes, horizonDays, deadlineHours],
       ),
     );
   };
@@ -282,8 +321,12 @@ export function useBookingWorld(env: Readonly<Record<string, string>> = {}) {
     slotAt,
     freshTime,
     freshSlot,
+    changeableSlot,
     book,
+    reschedule,
+    cancel,
     setRules,
+    platformOwnerUrl: (): string => databases.platformOwnerUrl,
     /** Rows of the practice's appointments table for a time. */
     activeAt: (fixture: Fixture, startsAt: Temporal.Instant) =>
       asOwner(fixture, async (owner) => {

@@ -3,10 +3,11 @@ import { ClsServiceManager } from 'nestjs-cls';
 import { describe, expect, it, vi } from 'vitest';
 import type { RequestContext } from '../../common/context/request-context.js';
 import type { AccountTransactions } from '../../common/tenancy/account-transactions.js';
-import type { PracticeAudit } from '../../common/tenancy/practice-audit.js';
+import type { PracticeAudit, PracticeAuditEntry } from '../../common/tenancy/practice-audit.js';
 import type { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { FixedClock } from '../../common/time/fixed-clock.js';
+import type { AppointmentReader } from './appointment-reader.js';
 import { AppointmentsService } from './appointments.service.js';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
@@ -17,36 +18,50 @@ const SERVICE = '00000000-0000-4000-8000-0000000000bb';
 const PROVIDER = '00000000-0000-4000-8000-0000000000cc';
 const SLOT = '00000000-0000-4000-8000-0000000000dd';
 const KEY = '00000000-0000-4000-8000-0000000000ee';
+const OLD = '00000000-0000-4000-8000-0000000000ff';
+const OLD_SLOT = '00000000-0000-4000-8000-000000000011';
 const ACTOR = { userId: USER, sessionId: 'session', amr: ['pwd'] };
 const STARTS_AT = '2026-11-16T07:00:00Z';
 const SETTINGS = {
   minLeadTimeMinutes: 120,
   maxHorizonDays: 90,
   maxFutureAppointmentsPerPatient: 2,
+  cancellationDeadlineHours: 24,
   insuranceTypes: ['PUBLIC', 'SELF_PAY'],
   insuranceProviderTypes: ['PUBLIC'],
   insuranceNumberTypes: ['PUBLIC'],
 };
 const SELF_PAYER = { insurance_type: 'SELF_PAY', insurance_provider: null, number_known: false };
 const INPUT = { serviceId: SERVICE, startsAt: STARTS_AT };
+/** An appointment two days ahead: before BR-04's deadline. */
+const OLD_ROW = {
+  id: OLD,
+  status: 'BOOKED',
+  slotId: OLD_SLOT,
+  serviceId: SERVICE,
+  slot: { startsAt: new Date('2026-11-17T07:00:00Z') },
+  rescheduledTo: null,
+};
+const VIEW = { id: 'view' };
 
 /** The answers of $queryRaw in their order: the key's row, the patient, the slot. */
 function setUp({
   stored = { request_hash: 'hash', appointment_id: null },
   patient = SELF_PAYER,
   slot = { id: SLOT },
+  row = OLD_ROW,
 }: {
   readonly stored?: object | null;
   readonly patient?: object | null;
   readonly slot?: object | null;
+  readonly row?: object | null;
 } = {}) {
-  const queryRaw = vi
-    .fn()
-    .mockResolvedValueOnce(stored === null ? [] : [stored])
-    .mockResolvedValueOnce(patient === null ? [] : [patient])
-    .mockResolvedValueOnce(slot === null ? [] : [slot]);
   const db = {
-    $queryRaw: queryRaw,
+    $queryRaw: vi
+      .fn()
+      .mockResolvedValueOnce(stored === null ? [] : [stored])
+      .mockResolvedValueOnce(patient === null ? [] : [patient])
+      .mockResolvedValueOnce(slot === null ? [] : [slot]),
     $executeRaw: vi.fn().mockResolvedValue(1),
     practiceSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue(SETTINGS) },
     service: {
@@ -60,35 +75,31 @@ function setUp({
     appointment: {
       count: vi.fn().mockResolvedValue(0),
       create: vi.fn().mockResolvedValue({}),
-      findUniqueOrThrow: vi.fn().mockResolvedValue({
-        id: 'appointment',
-        patientId: SELF,
-        serviceId: SERVICE,
-        status: 'BOOKED',
-        bookedAt: new Date(NOW.epochMilliseconds),
-        slot: {
-          providerId: PROVIDER,
-          startsAt: new Date('2026-11-16T07:00:00Z'),
-          endsAt: new Date('2026-11-16T07:30:00Z'),
-        },
-      }),
+      update: vi.fn().mockResolvedValue({}),
+      findFirst: vi.fn().mockResolvedValue(row),
     },
-    slot: { update: vi.fn().mockResolvedValue({}) },
+    slot: {
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     idempotencyKey: { update: vi.fn().mockResolvedValue({}) },
   };
   const txHost = { tx: db } as unknown as PracticeTransactionHost;
   const run = vi.fn(<T>(_userId: string, work: () => Promise<T>): Promise<T> => work());
   const encrypt = vi.fn().mockResolvedValue('sealed-note');
+  const decrypt = vi.fn().mockResolvedValue('Synthetic');
   const keyedHash = vi.fn().mockResolvedValue('hash');
-  const keys = { encrypt, keyedHash } as unknown as PracticeKeys;
-  const record = vi.fn().mockResolvedValue(undefined);
+  const keys = { encrypt, decrypt, keyedHash } as unknown as PracticeKeys;
+  const record = vi.fn<(entry: PracticeAuditEntry) => Promise<void>>().mockResolvedValue(undefined);
   const audit = {
     record,
     ipHashOf: vi.fn().mockResolvedValue('ip-hash'),
   } as unknown as PracticeAudit;
+  const read = vi.fn().mockResolvedValue(VIEW);
   const service = new AppointmentsService(
     txHost,
     { run } as unknown as AccountTransactions,
+    { read } as unknown as AppointmentReader,
     cls,
     new FixedClock(NOW),
     keys,
@@ -103,7 +114,15 @@ function setUp({
       });
       return work();
     });
-  return { service, db, run, encrypt, keyedHash, record, inPractice };
+  const outside = <T>(work: () => Promise<T>) =>
+    cls.run(() => {
+      cls.set('practice', {
+        practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
+        lease: {} as never,
+      });
+      return work();
+    });
+  return { service, db, run, read, encrypt, decrypt, keyedHash, record, inPractice, outside };
 }
 
 describe('AppointmentsService.book', () => {
@@ -135,16 +154,8 @@ describe('AppointmentsService.book', () => {
       subjectId: data.id,
       ipHash: 'ip-hash',
     });
-    expect(dto).toEqual({
-      id: 'appointment',
-      patientId: SELF,
-      serviceId: SERVICE,
-      providerId: PROVIDER,
-      startsAt: '2026-11-16T07:00:00Z',
-      endsAt: '2026-11-16T07:30:00Z',
-      status: 'BOOKED',
-      bookedAt: NOW.toString(),
-    });
+    expect(context.read).toHaveBeenCalledWith(data.id);
+    expect(dto).toBe(VIEW);
   });
 
   it('seals a note for this row, and hashes the request with a key of the practice', async () => {
@@ -188,9 +199,7 @@ describe('AppointmentsService.book', () => {
   it('answers a replay with the first booking, without taking a lock on anything else', async () => {
     const context = setUp({ stored: { request_hash: 'hash', appointment_id: 'first' } });
     await context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x'));
-    expect(context.db.appointment.findUniqueOrThrow).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'first' } }),
-    );
+    expect(context.read).toHaveBeenCalledWith('first');
     expect(context.db.$queryRaw).toHaveBeenCalledTimes(1);
     expect(context.db.appointment.create).not.toHaveBeenCalled();
   });
@@ -230,13 +239,7 @@ describe('AppointmentsService.book', () => {
   it('answers 404 without an own profile, and when it went away', async () => {
     const context = setUp();
     await expect(
-      cls.run(() => {
-        cls.set('practice', {
-          practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
-          lease: {} as never,
-        });
-        return context.service.book(ACTOR, INPUT, KEY, 'x');
-      }),
+      context.outside(() => context.service.book(ACTOR, INPUT, KEY, 'x')),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     const gone = setUp({ patient: null });
     await expect(
@@ -267,24 +270,19 @@ describe('AppointmentsService.book', () => {
     expect(context.run).toHaveBeenCalledWith(USER, expect.any(Function));
   });
 
-  it('refuses a doctor named without a public profile', async () => {
+  it('refuses a doctor named without a public profile, and asks only when one is named', async () => {
     const context = setUp();
-    context.db.staffMember.findFirst.mockResolvedValue(null);
+    await context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x'));
+    expect(context.db.staffMember.findFirst).not.toHaveBeenCalled();
+
+    const named = setUp();
+    named.db.staffMember.findFirst.mockResolvedValue(null);
     await expect(
-      context.inPractice(() =>
-        context.service.book(ACTOR, { ...INPUT, providerId: PROVIDER }, KEY, 'x'),
+      named.inPractice(() =>
+        named.service.book(ACTOR, { ...INPUT, providerId: PROVIDER }, KEY, 'x'),
       ),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(context.db.appointment.create).not.toHaveBeenCalled();
-  });
-
-  it('books any doctor, and names one only with a public profile (BR-24)', async () => {
-    const context = setUp();
-    context.db.staffMember.findFirst.mockResolvedValue(null);
-    await expect(
-      context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x')),
-    ).resolves.toMatchObject({ providerId: null });
-    expect(context.db.appointment.create).toHaveBeenCalledOnce();
+    expect(named.db.appointment.create).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -338,5 +336,212 @@ describe('AppointmentsService.book', () => {
     await expect(down.inPractice(() => down.service.book(ACTOR, INPUT, KEY, 'x'))).rejects.toThrow(
       'down',
     );
+  });
+});
+
+describe('AppointmentsService.cancel', () => {
+  it('BR-04 cancels with who and when, frees the slot and audits it', async () => {
+    const context = setUp({ stored: SELF_PAYER, patient: null });
+    await expect(
+      context.inPractice(() => context.service.cancel(ACTOR, OLD.toUpperCase(), 'x')),
+    ).resolves.toBe(VIEW);
+    expect(context.db.appointment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: OLD, patientId: SELF } }),
+    );
+    expect(context.db.appointment.update).toHaveBeenCalledWith({
+      where: { id: OLD },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(NOW.epochMilliseconds),
+        cancelledById: USER,
+      },
+    });
+    expect(context.db.slot.updateMany).toHaveBeenCalledWith({
+      where: { id: OLD_SLOT, status: 'BOOKED' },
+      data: { status: 'OPEN' },
+    });
+    expect(context.record).toHaveBeenCalledWith({
+      userId: USER,
+      action: 'appointment.cancel',
+      subjectId: OLD,
+      ipHash: 'ip-hash',
+    });
+    expect(context.run).toHaveBeenCalledWith(USER, expect.any(Function));
+  });
+
+  it('changes nothing for what is cancelled already, whenever that is', async () => {
+    const context = setUp({
+      stored: SELF_PAYER,
+      row: {
+        ...OLD_ROW,
+        status: 'CANCELLED',
+        slot: { startsAt: new Date('2026-11-01T07:00:00Z') },
+      },
+    });
+    await expect(context.inPractice(() => context.service.cancel(ACTOR, OLD, 'x'))).resolves.toBe(
+      VIEW,
+    );
+    expect(context.db.appointment.update).not.toHaveBeenCalled();
+    expect(context.record).not.toHaveBeenCalled();
+  });
+
+  it('refuses a row that was moved: the new appointment still stands', async () => {
+    const context = setUp({
+      stored: SELF_PAYER,
+      row: { ...OLD_ROW, status: 'CANCELLED', rescheduledTo: { id: 'new' } },
+    });
+    await expect(
+      context.inPractice(() => context.service.cancel(ACTOR, OLD, 'x')),
+    ).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
+    expect(context.db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('BR-04 refuses after the deadline, and names it', async () => {
+    const context = setUp({
+      stored: SELF_PAYER,
+      row: { ...OLD_ROW, slot: { startsAt: new Date('2026-11-16T06:59:00Z') } },
+    });
+    await expect(
+      context.inPractice(() => context.service.cancel(ACTOR, OLD, 'x')),
+    ).rejects.toMatchObject({
+      code: 'CANCELLATION_DEADLINE_PASSED',
+      params: { cancellationDeadlineHours: 24 },
+    });
+    expect(context.db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses what has moved on', async () => {
+    const context = setUp({ stored: SELF_PAYER, row: { ...OLD_ROW, status: 'CHECKED_IN' } });
+    await expect(
+      context.inPractice(() => context.service.cancel(ACTOR, OLD, 'x')),
+    ).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
+  });
+
+  it('answers 404 for no own profile, for what is no id, and for what is not there', async () => {
+    const none = setUp();
+    await expect(none.outside(() => none.service.cancel(ACTOR, OLD, 'x'))).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    const noId = setUp();
+    await expect(
+      noId.inPractice(() => noId.service.cancel(ACTOR, 'not-an-id', 'x')),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const gone = setUp({ stored: SELF_PAYER, row: null });
+    await expect(gone.inPractice(() => gone.service.cancel(ACTOR, OLD, 'x'))).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    );
+    expect(gone.db.appointment.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppointmentsService.reschedule (BR-05)', () => {
+  const MOVE = { startsAt: STARTS_AT };
+
+  it('takes the new slot before it frees the old one, and links the new row to the old', async () => {
+    const context = setUp();
+    context.db.appointment.findFirst
+      .mockResolvedValueOnce({ patientNoteEncrypted: null })
+      .mockResolvedValueOnce(OLD_ROW);
+    await expect(
+      context.inPractice(() => context.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x')),
+    ).resolves.toBe(VIEW);
+    const taken = context.db.slot.update.mock.invocationCallOrder[0] ?? 0;
+    const freed = context.db.slot.updateMany.mock.invocationCallOrder[0] ?? 0;
+    expect(taken).toBeLessThan(freed);
+    const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data).toMatchObject({
+      patientId: SELF,
+      slotId: SLOT,
+      serviceId: SERVICE,
+      rescheduledFromId: OLD,
+    });
+    expect(context.db.appointment.update).toHaveBeenCalledWith({
+      where: { id: OLD },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(NOW.epochMilliseconds),
+        cancelledById: USER,
+        patientNoteEncrypted: null,
+      },
+    });
+    expect(context.record.mock.calls.map(([entry]) => [entry.action, entry.subjectId])).toEqual([
+      ['appointment.cancel', OLD],
+      ['appointment.reschedule', data.id],
+    ]);
+    expect(context.db.appointment.count).not.toHaveBeenCalled();
+  });
+
+  it('keeps the note, sealed for the new row', async () => {
+    const context = setUp();
+    context.db.appointment.findFirst
+      .mockResolvedValueOnce({ patientNoteEncrypted: 'old-seal' })
+      .mockResolvedValueOnce(OLD_ROW);
+    await context.inPractice(() => context.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x'));
+    const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
+      data: { id: string; patientNoteEncrypted: string };
+    };
+    expect(context.decrypt).toHaveBeenCalledWith(
+      'practice-a',
+      'old-seal',
+      `appointment:${OLD}:patient-note`,
+    );
+    expect(context.encrypt).toHaveBeenCalledWith(
+      'practice-a',
+      'Synthetic',
+      `appointment:${data.id}:patient-note`,
+    );
+    expect(data.patientNoteEncrypted).toBe('sealed-note');
+  });
+
+  it('hashes a request of its own: a key of a booking does not fit', async () => {
+    const context = setUp();
+    context.db.appointment.findFirst
+      .mockResolvedValueOnce({ patientNoteEncrypted: null })
+      .mockResolvedValueOnce(OLD_ROW);
+    await context.inPractice(() =>
+      context.service.reschedule(ACTOR, OLD, { ...MOVE, providerId: PROVIDER }, KEY, 'x'),
+    );
+    expect(context.keyedHash).toHaveBeenCalledWith(
+      'practice-a',
+      'idempotency-request',
+      JSON.stringify(['reschedule', OLD, STARTS_AT, PROVIDER]),
+    );
+  });
+
+  it('answers a replay with the new appointment, and cancels nothing again', async () => {
+    const context = setUp({ stored: { request_hash: 'hash', appointment_id: 'new' } });
+    context.db.appointment.findFirst.mockResolvedValueOnce({ patientNoteEncrypted: null });
+    await context.inPractice(() => context.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x'));
+    expect(context.read).toHaveBeenCalledWith('new');
+    expect(context.db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('leaves the old appointment alone when no new slot is free', async () => {
+    const context = setUp({ slot: null });
+    context.db.appointment.findFirst
+      .mockResolvedValueOnce({ patientNoteEncrypted: null })
+      .mockResolvedValueOnce(OLD_ROW);
+    await expect(
+      context.inPractice(() => context.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'SLOT_NOT_AVAILABLE' });
+    expect(context.db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for no own profile, for what is no id, and for what is not own', async () => {
+    const none = setUp();
+    await expect(
+      none.outside(() => none.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const noId = setUp();
+    await expect(
+      noId.inPractice(() => noId.service.reschedule(ACTOR, 'not-an-id', MOVE, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const notOwn = setUp({ row: null });
+    await expect(
+      notOwn.inPractice(() => notOwn.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x')),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(notOwn.run).not.toHaveBeenCalled();
   });
 });

@@ -78,7 +78,9 @@ describe('booking at the same time on real PostgreSQL (06 §5)', () => {
   /** Here only BR-01 is at work: these people book many times, and BR-02 has its own test. */
   const freePlaces = async (fixture: Fixture): Promise<void> => {
     await world.asOwner(fixture, (owner) =>
-      owner.query("UPDATE appointments SET status = 'CANCELLED' WHERE status = 'BOOKED'"),
+      owner.query(
+        "UPDATE appointments SET status = 'CANCELLED', cancelled_at = now(), cancelled_by_id = booked_by_id WHERE status = 'BOOKED'",
+      ),
     );
   };
 
@@ -144,6 +146,40 @@ describe('booking at the same time on real PostgreSQL (06 §5)', () => {
     expect(second?.id).toBe(first?.id);
     await expect(world.activeAt(practice, startsAt)).resolves.toHaveLength(1);
     await freePlaces(practice);
+  });
+
+  it('BR-05 a reschedule racing a booking of the target slot: exactly one gets it, and the loser loses nothing', async () => {
+    const practice = world.alNoor();
+    const [mover, rival] = alNoorPatients;
+    for (let round = 0; round < ROUNDS; round += 1) {
+      const current = world.freshTime().add({ hours: 48 });
+      await world.slotAt(practice, current);
+      const held = answerOf(
+        await world.book(mover, practice, {
+          serviceId: practice.serviceId,
+          startsAt: current.toString(),
+        }),
+      );
+      expect(held.status).toBe(201);
+      const target = await world.freshSlot(practice);
+      const [moved, booked] = await Promise.all([
+        world.reschedule(mover, practice, held.id ?? '', { startsAt: target.toString() }),
+        world.book(rival, practice, {
+          serviceId: practice.serviceId,
+          startsAt: target.toString(),
+        }),
+      ]);
+      const answers = [answerOf(moved), answerOf(booked)];
+      expect(answers.filter(({ status }) => status === 201)).toHaveLength(1);
+      expect(answers.filter(({ status }) => status !== 201)).toEqual([
+        { status: 409, code: 'SLOT_NOT_AVAILABLE' },
+      ]);
+      await expect(world.activeAt(practice, target)).resolves.toHaveLength(1);
+      // The mover has one appointment: the new one, or the old one if the rival was first.
+      const stillHeld = await world.activeAt(practice, current);
+      expect(stillHeld).toHaveLength(moved.status === 201 ? 0 : 1);
+      await freePlaces(practice);
+    }
   });
 
   it('BR-02 a patient with a limit of 2 sends 3 parallel bookings: exactly 2 get through', async () => {

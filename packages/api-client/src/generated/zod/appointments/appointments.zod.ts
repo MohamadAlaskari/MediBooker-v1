@@ -15,7 +15,7 @@ export const BookAppointmentParams = zod.object({
 })
 
 export const BookAppointmentHeader = zod.object({
-  "Idempotency-Key": zod.uuid().describe('A new UUID per attempt: sent again, it answers with the first booking')
+  "Idempotency-Key": zod.uuid().describe('A new UUID per attempt: sent again, it answers with the first result')
 })
 
 export const bookAppointmentBodyPatientNoteMax = 500;
@@ -34,12 +34,138 @@ export const BookAppointmentBody = zod.object({
 
 export const BookAppointmentResponse = zod.object({
   "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
   "endsAt": zod.iso.datetime({"offset":true}),
   "id": zod.uuid(),
   "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
   "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
   "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
   "startsAt": zod.iso.datetime({"offset":true}),
-  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})
+
+/**
+ * @summary An own appointment in this practice
+ */
+export const GetMyAppointmentParams = zod.object({
+  "appointmentId": zod.uuid(),
+  "practiceId": zod.unknown()
+})
+
+export const GetMyAppointmentResponse = zod.object({
+  "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
+  "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})
+
+/**
+ * @summary Cancel an own appointment, until the deadline of the practice
+ */
+export const CancelAppointmentParams = zod.object({
+  "appointmentId": zod.uuid(),
+  "practiceId": zod.unknown()
+})
+
+export const CancelAppointmentResponse = zod.object({
+  "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
+  "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})
+
+/**
+ * @summary Move an own appointment to another free time; the service and the note stay
+ */
+export const RescheduleAppointmentParams = zod.object({
+  "appointmentId": zod.uuid(),
+  "practiceId": zod.unknown()
+})
+
+export const RescheduleAppointmentHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('A new UUID per attempt: sent again, it answers with the first result')
+})
+
+export const rescheduleAppointmentBodyStartsAtRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$');
+
+
+export const RescheduleAppointmentBody = zod.object({
+  "providerId": zod.uuid().optional().describe('A doctor with a public profile; left out, any doctor free at that time'),
+  "startsAt": zod.iso.datetime({"offset":true}).regex(rescheduleAppointmentBodyStartsAtRegExp)
+})
+
+export const RescheduleAppointmentResponse = zod.object({
+  "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
+  "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})
+
+/**
+ * @summary The own appointments in this practice, a page at a time
+ */
+export const ListMyAppointmentsInPracticeParams = zod.object({
+  "practiceId": zod.unknown()
+})
+
+export const listMyAppointmentsInPracticeQueryLimitDefault = 20;
+export const listMyAppointmentsInPracticeQueryLimitMax = 100;
+
+export const listMyAppointmentsInPracticeQueryScopeDefault = `upcoming`;
+
+export const ListMyAppointmentsInPracticeQueryParams = zod.object({
+  "limit": zod.number().min(1).max(listMyAppointmentsInPracticeQueryLimitMax).default(listMyAppointmentsInPracticeQueryLimitDefault),
+  "cursor": zod.string().optional().describe('The nextCursor of the page before'),
+  "scope": zod.enum(['upcoming', 'past']).default(listMyAppointmentsInPracticeQueryScopeDefault).describe('upcoming: what is still to come, soonest first; past: the rest, latest first')
+})
+
+export const ListMyAppointmentsInPracticeResponse = zod.object({
+  "items": zod.array(zod.object({
+  "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
+  "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})),
+  "nextCursor": zod.string().nullable().describe('Null on the last page')
 })
 

@@ -78,6 +78,10 @@ describe('parseEnv', () => {
       PRACTICE_CLIENTS_MAX: 40,
       PRACTICE_CLIENT_IDLE_MS: 60_000,
       PUBLIC_PRACTICE_CLIENTS_MAX: 10,
+      ME_FANOUT_MAX_PRACTICES: 20,
+      ME_FANOUT_CONCURRENCY: 4,
+      ME_FANOUT_TIMEOUT_MS: 2000,
+      FANOUT_PRACTICE_CLIENTS_MAX: 20,
       JOB_PRACTICE_CLIENTS_MAX: 4,
       PRACTICE_CLIENT_CREATIONS_PER_SECOND: 5,
       PRACTICE_SECRET_TTL_MS: 600_000,
@@ -503,6 +507,10 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
     ['DATABASE_TX_MAX_WAIT_MS', '100', 100, '0'],
     ['DATABASE_TX_TIMEOUT_MS', '100', 100, '0'],
     ['DATABASE_LOCK_TIMEOUT_MS', '100', 100, '0'],
+    ['ME_FANOUT_MAX_PRACTICES', '5', 5, '0'],
+    ['ME_FANOUT_CONCURRENCY', '2', 2, '0'],
+    ['ME_FANOUT_TIMEOUT_MS', '100', 100, '0'],
+    ['FANOUT_PRACTICE_CLIENTS_MAX', '1', 1, '0'],
   ])('%s', (key, raw, value, outOfRange) => {
     it(`reads ${raw} as ${String(value)}`, () => {
       expect(parseEnv({ ...LOCAL, [key]: raw })).toMatchObject({ [key]: value });

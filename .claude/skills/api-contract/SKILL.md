@@ -61,16 +61,17 @@ Extend this list; never reuse a code with a different meaning.
 | GET, PUT /me/profile | any | Own details and insurance (D16 option B); 404 until entered; the insurance number only by its end | BR-10 |
 | DELETE /me/unconfirmed | any | Delete an own account that was never confirmed; otherwise 409 | RT-90 |
 | GET /me/export, DELETE /me | patient | DSGVO export and deletion | BR-14 |
-| GET /me/appointments?scope=upcoming\|past | patient | Own appointments | |
+| GET /me/appointments | patient | What is to come across the own practices, soonest first; `unavailablePractices` names the rest with `UNAVAILABLE`, `TIMEOUT` or `LIMIT`; 30 a minute per address | ADR 0005 §9.1 |
 | GET /services | public | Bookable services | BR-08 |
 | POST /services, PATCH /services/{id} | admin | Manage services | |
 | GET /public/practices/{slug}/availability?serviceId&providerId&from&to | public (decided 2026-11-01) | Days with free times (`hasFreeTimes` per day; no counts of booked times); at most 42 days, by default the next 42; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22 |
 | GET /public/practices/{slug}/slots?serviceId&providerId&date | public (decided 2026-11-01) | Free start times of one day, each only `{ startsAt }`: no slot id, by which two answers could be compared (BR-24); `providerId` only for doctors with a public profile, otherwise grouped as any doctor; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22, BR-24 |
 | POST /practices/{practiceId}/appointments | patient, confirmed (for self) | Book a time: serviceId, startsAt, optional providerId and patientNote; `Idempotency-Key` required; 10 a minute per address, and 429 above the account's share of the connections. The answer's providerId is null unless the doctor's profile is public (BR-24). Staff with patientId follow with M items | BR-01, 02, 03, 08, 09 |
 | GET /appointments?from&to&providerId&status | staff, doctor, admin | Practice appointments | |
-| GET /appointments/{id} | owner or staff | Details | |
-| POST /appointments/{id}/cancel | owner (before the deadline), staff | Cancel | BR-04 |
-| POST /appointments/{id}/reschedule | owner (before the deadline), staff | Atomic move | BR-05 |
+| GET /practices/{practiceId}/me/appointments?scope=upcoming\|past&limit&cursor | patient | Own appointments in this practice, with the history; `limit` at most 100 | |
+| GET /practices/{practiceId}/appointments/{id} | owner (staff with M05) | Details, never the note; another patient's is 404 | BR-24 |
+| POST /practices/{practiceId}/appointments/{id}/cancel | owner before the deadline (staff with M05) | Cancel; a second cancel answers the same; 10 a minute per address | BR-04 |
+| POST /practices/{practiceId}/appointments/{id}/reschedule | owner before the deadline (staff with M05), confirmed | Atomic move to startsAt with an optional providerId: a new appointment, the old one cancelled; `Idempotency-Key` required; 10 a minute per address | BR-04, BR-05 |
 | POST /appointments/{id}/check-in, /complete, /no-show | staff, doctor, admin | Status changes | BR-11 |
 | GET, POST, PATCH, DELETE /availability-rules | staff, admin, doctor (own) | Weekly templates | BR-06 |
 | POST /slots/generate | staff, admin | Generate slots for a date range | BR-06 |

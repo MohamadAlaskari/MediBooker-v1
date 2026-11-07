@@ -251,15 +251,27 @@ describe('booking an appointment on real databases (08 B02)', () => {
       const { body } = (await world
         .book(who, practice, { serviceId: practice.serviceId, startsAt: startsAt.toString() })
         .expect(201)) as { body: AppointmentBody };
-      const insert = `INSERT INTO appointments (patient_id, slot_id, service_id, booked_by_id, booked_at, status)
-        SELECT $1, slot_id, service_id, booked_by_id, booked_at, $3::appointment_status FROM appointments WHERE id = $2`;
+      const insert = `INSERT INTO appointments (patient_id, slot_id, service_id, booked_by_id, booked_at, status, cancelled_at, cancelled_by_id)
+        SELECT $1, slot_id, service_id, booked_by_id, booked_at, $3::appointment_status,
+          CASE WHEN $4::boolean THEN now() END, CASE WHEN $4::boolean THEN booked_by_id END
+        FROM appointments WHERE id = $2`;
       await expect(
-        world.asOwner(practice, (owner) => owner.query(insert, [patientId, body.id, 'BOOKED'])),
+        world.asOwner(practice, (owner) =>
+          owner.query(insert, [patientId, body.id, 'BOOKED', false]),
+        ),
       ).rejects.toThrow(/appointments_slot_active_key/u);
       // A cancelled appointment holds no slot: the index allows it.
       await expect(
-        world.asOwner(practice, (owner) => owner.query(insert, [patientId, body.id, 'CANCELLED'])),
+        world.asOwner(practice, (owner) =>
+          owner.query(insert, [patientId, body.id, 'CANCELLED', true]),
+        ),
       ).resolves.toBeDefined();
+      // But it says when and by whom, and only a cancelled one does.
+      await expect(
+        world.asOwner(practice, (owner) =>
+          owner.query(insert, [patientId, body.id, 'CANCELLED', false]),
+        ),
+      ).rejects.toThrow(/appointments_cancelled_check/u);
     });
   });
 

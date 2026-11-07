@@ -1,5 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsUUID, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
+import { CursorQueryDto } from '../../common/http/cursor-page.js';
+import { FAN_OUT_REASONS, type FanOutReason } from '../../common/tenancy/practice-fan-out.js';
 
 const MAX_NOTE_LENGTH = 500;
 /** With an offset, so that it names one instant. A date without a time is no time to book. */
@@ -46,17 +57,58 @@ export class BookAppointmentDto {
   readonly patientNote?: string;
 }
 
+/** Another time for the same service: the service stays, and so does a note. */
+export class RescheduleAppointmentDto {
+  @ApiProperty({ format: 'date-time', pattern: INSTANT.source })
+  @IsString()
+  @Matches(INSTANT)
+  readonly startsAt!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A doctor with a public profile; left out, any doctor free at that time',
+  })
+  @ValidateIf(({ providerId }: RescheduleAppointmentDto) => providerId !== undefined)
+  @IsUUID('all')
+  readonly providerId?: string;
+}
+
+const SCOPES = ['upcoming', 'past'] as const;
+export type AppointmentScope = (typeof SCOPES)[number];
+
+export class AppointmentListQueryDto extends CursorQueryDto {
+  @ApiPropertyOptional({
+    enum: SCOPES,
+    default: 'upcoming',
+    description: 'upcoming: what is still to come, soonest first; past: the rest, latest first',
+  })
+  @IsOptional()
+  @IsIn(SCOPES)
+  readonly scope: AppointmentScope = 'upcoming';
+}
+
 const STATUSES = ['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'] as const;
 
+/** An appointment as its patient sees it. The note is not sent back. */
 export class AppointmentDto {
   @ApiProperty({ format: 'uuid' })
   readonly id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  readonly practiceId!: string;
 
   @ApiProperty({ format: 'uuid' })
   readonly patientId!: string;
 
   @ApiProperty({ format: 'uuid' })
   readonly serviceId!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'The name of the service per locale',
+  })
+  readonly serviceName!: Readonly<Record<string, string>>;
 
   @ApiProperty({
     format: 'uuid',
@@ -66,15 +118,56 @@ export class AppointmentDto {
   })
   readonly providerId!: string | null;
 
+  @ApiProperty({ nullable: true, type: 'string', description: 'Only with a public profile, too' })
+  readonly providerName!: string | null;
+
   @ApiProperty({ format: 'date-time' })
   readonly startsAt!: string;
 
   @ApiProperty({ format: 'date-time' })
   readonly endsAt!: string;
 
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
   @ApiProperty({ enum: STATUSES })
   readonly status!: (typeof STATUSES)[number];
 
   @ApiProperty({ format: 'date-time' })
   readonly bookedAt!: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'The last moment the patient can cancel or reschedule online (BR-04)',
+  })
+  readonly changeableUntil!: string;
+}
+
+export class AppointmentPageDto {
+  @ApiProperty({ type: [AppointmentDto] })
+  readonly items!: readonly AppointmentDto[];
+
+  @ApiProperty({ type: String, nullable: true, description: 'Null on the last page' })
+  readonly nextCursor!: string | null;
+}
+
+export class UnavailablePracticeDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly practiceId!: string;
+
+  @ApiProperty({
+    enum: FAN_OUT_REASONS,
+    description:
+      'UNAVAILABLE: it cannot be served now; TIMEOUT: it took too long; LIMIT: beyond the first practices',
+  })
+  readonly reason!: FanOutReason;
+}
+
+/** What loaded across the practices, and what did not: a client shows both (ADR 0005 §9.1). */
+export class MyAppointmentsDto {
+  @ApiProperty({ type: [AppointmentDto] })
+  readonly items!: readonly AppointmentDto[];
+
+  @ApiProperty({ type: [UnavailablePracticeDto] })
+  readonly unavailablePractices!: readonly UnavailablePracticeDto[];
 }

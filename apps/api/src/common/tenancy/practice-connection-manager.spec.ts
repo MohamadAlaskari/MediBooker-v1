@@ -130,7 +130,7 @@ describe('PracticeConnectionManager (02 §5, ADR 0005 §2.2)', () => {
         settled(manager.acquire(A, 'request')),
       ]);
       expect(outcomes).toEqual([failure, failure]);
-      expect(manager.stats().openClients).toEqual({ request: 0, public: 0, job: 0 });
+      expect(manager.stats().openClients).toEqual({ request: 0, public: 0, job: 0, fanOut: 0 });
       await manager.acquire(A, 'request');
       expect(opener.open).toHaveBeenCalledTimes(2);
     });
@@ -223,7 +223,27 @@ describe('PracticeConnectionManager (02 §5, ADR 0005 §2.2)', () => {
       await manager.acquire(C, 'public');
       expect(opener.clientOf(PRACTICE_B).$disconnect).toHaveBeenCalled();
       expect(opener.clientOf(PRACTICE_A).$disconnect).not.toHaveBeenCalled();
-      expect(manager.stats().openClients).toEqual({ request: 1, public: 1, job: 0 });
+      expect(manager.stats().openClients).toEqual({ request: 1, public: 1, job: 0, fanOut: 0 });
+    });
+
+    it('fan-outs hold at most FANOUT_PRACTICE_CLIENTS_MAX clients: they close their own idle ones', async () => {
+      const { manager, opener } = setUp({ FANOUT_PRACTICE_CLIENTS_MAX: '1' });
+      (await manager.acquire(A, 'request')).release();
+      (await manager.acquire(B, 'fanOut')).release();
+      await manager.acquire(C, 'fanOut');
+      expect(opener.clientOf(PRACTICE_B).$disconnect).toHaveBeenCalled();
+      expect(opener.clientOf(PRACTICE_A).$disconnect).not.toHaveBeenCalled();
+      expect(manager.stats().openClients).toEqual({ request: 1, public: 0, job: 0, fanOut: 1 });
+    });
+
+    it('a fan-out never closes a client a signed-in request used recently, also at the overall limit', async () => {
+      vi.useFakeTimers();
+      const { manager, opener } = setUp({ PRACTICE_CLIENTS_MAX: '1' });
+      (await manager.acquire(A, 'request')).release();
+      const waiting = settled(manager.acquire(B, 'fanOut'));
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(await waiting).toMatchObject({ reason: 'PRACTICE_CAPACITY_EXHAUSTED' });
+      expect(opener.clientOf(PRACTICE_A).$disconnect).not.toHaveBeenCalled();
     });
 
     it('jobs hold at most JOB_PRACTICE_CLIENTS_MAX clients at once', async () => {
@@ -243,7 +263,7 @@ describe('PracticeConnectionManager (02 §5, ADR 0005 §2.2)', () => {
       const { manager } = setUp();
       (await manager.acquire(A, 'request')).release();
       (await manager.acquire(A, 'public')).release();
-      expect(manager.stats().openClients).toEqual({ request: 1, public: 0, job: 0 });
+      expect(manager.stats().openClients).toEqual({ request: 1, public: 0, job: 0, fanOut: 0 });
     });
   });
 
@@ -261,6 +281,18 @@ describe('PracticeConnectionManager (02 §5, ADR 0005 §2.2)', () => {
       clock.advance({ milliseconds: 1000 });
       await vi.advanceTimersByTimeAsync(500);
       expect((await waiting).practiceId).toBe(PRACTICE_C);
+    });
+
+    it('fails a fan-out at once above the rate, and does not count a use of it as a signed-in one', async () => {
+      const { manager, clock } = setUp({ PRACTICE_CLIENT_CREATIONS_PER_SECOND: '1' });
+      (await manager.acquire(A, 'fanOut')).release();
+      expect(await settled(manager.acquire(B, 'fanOut'))).toMatchObject({
+        reason: 'PRACTICE_CREATION_RATE_EXCEEDED',
+      });
+      expect(manager.stats().openClients.fanOut).toBe(1);
+      clock.advance({ milliseconds: 1000 });
+      (await manager.acquire(B, 'fanOut')).release();
+      expect(manager.stats().openClients).toEqual({ request: 0, public: 0, job: 0, fanOut: 2 });
     });
   });
 
@@ -363,7 +395,7 @@ describe('PracticeConnectionManager (02 §5, ADR 0005 §2.2)', () => {
     await manager.acquire(C, 'job');
     metrics.authenticationFailures = 2;
     expect(manager.stats()).toEqual({
-      openClients: { request: 1, public: 1, job: 1 },
+      openClients: { request: 1, public: 1, job: 1, fanOut: 0 },
       creations: 3,
       evictions: 0,
       waits: 0,

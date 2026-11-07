@@ -94,7 +94,7 @@ BOOKED ──► CHECKED_IN ──► COMPLETED
 
 Active statuses (the slot is taken): `BOOKED`, `CHECKED_IN`, `COMPLETED`, `NO_SHOW`. Cancelling a future appointment frees the slot again.
 
-Slot: `OPEN ⇄ BLOCKED` (staff). `OPEN → BOOKED` when an active appointment exists, back to `OPEN` on cancellation.
+Slot: `OPEN ⇄ BLOCKED` (staff). `OPEN → BOOKED` when an active appointment exists, back to `OPEN` on cancellation. An `OPEN` slot that holds a cancelled appointment stays when the rules no longer want its time, because the history needs it: without a rule it can be booked for no service, and it gets a rule again when its time is wanted again.
 
 ## Business rules
 

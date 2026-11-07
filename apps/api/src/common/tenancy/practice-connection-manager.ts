@@ -60,10 +60,11 @@ export interface PracticeConnectionStats {
  * The practice clients of this process (02 §5, ADR 0005 §2.2): a Map from practice id and route
  * version to a client, whose insertion order is the LRU order, with reference counts. The limits
  * are never exceeded: at most PRACTICE_CLIENTS_MAX clients, of which public acquisitions hold at
- * most PUBLIC_PRACTICE_CLIENTS_MAX and jobs at most JOB_PRACTICE_CLIENTS_MAX, and at most
- * PRACTICE_CLIENT_CREATIONS_PER_SECOND creations per second. A public or job acquisition closes
- * only an idle client that no signed-in request used within PRACTICE_CLIENT_IDLE_MS, so crawlers
- * and jobs cannot push signed-in users out. Every time comes from the Clock; waiting uses timers.
+ * most PUBLIC_PRACTICE_CLIENTS_MAX, fan-outs at most FANOUT_PRACTICE_CLIENTS_MAX and jobs at most
+ * JOB_PRACTICE_CLIENTS_MAX, and at most PRACTICE_CLIENT_CREATIONS_PER_SECOND creations per second.
+ * A public, fan-out or job acquisition closes only an idle client that no signed-in request for one
+ * practice used within PRACTICE_CLIENT_IDLE_MS, so crawlers, requests across many practices and jobs
+ * cannot push a practice's users out. Every time comes from the Clock; waiting uses timers.
  */
 @Injectable()
 export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy {
@@ -75,8 +76,7 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
   private readonly waiters = new Set<() => void>();
   private sweeper: NodeJS.Timeout | undefined;
   private readonly clientsMax: number;
-  private readonly publicClientsMax: number;
-  private readonly jobClientsMax: number;
+  private readonly budgets: Readonly<Record<Exclude<PracticePurpose, 'request'>, number>>;
   private readonly creationsPerSecond: number;
   private readonly idleMs: number;
 
@@ -89,8 +89,11 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
   ) {
     logger.setContext(PracticeConnectionManager.name);
     this.clientsMax = env.PRACTICE_CLIENTS_MAX;
-    this.publicClientsMax = env.PUBLIC_PRACTICE_CLIENTS_MAX;
-    this.jobClientsMax = env.JOB_PRACTICE_CLIENTS_MAX;
+    this.budgets = {
+      public: env.PUBLIC_PRACTICE_CLIENTS_MAX,
+      job: env.JOB_PRACTICE_CLIENTS_MAX,
+      fanOut: env.FANOUT_PRACTICE_CLIENTS_MAX,
+    };
     this.creationsPerSecond = env.PRACTICE_CLIENT_CREATIONS_PER_SECOND;
     this.idleMs = env.PRACTICE_CLIENT_IDLE_MS;
   }
@@ -118,7 +121,8 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
   /**
    * A lease of the route's client for a purpose: the cached client, or a new one when the
    * budgets allow it. When none can be created, it waits up to 2 s for a release, then throws
-   * PracticeUnavailableError; a public acquisition above the creation rate fails at once.
+   * PracticeUnavailableError; a public or fan-out acquisition above the creation rate fails at once,
+   * so that it leaves the next creation to a request for one practice that waits for it.
    */
   async acquire(route: PracticeRoute, purpose: PracticePurpose): Promise<PracticeLease> {
     const key = entryKey(route);
@@ -127,7 +131,7 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
       for (;;) {
         const admitted = this.entries.get(key) ?? this.admit(route, purpose);
         if (typeof admitted !== 'string') return await this.lease(admitted, purpose);
-        if (admitted === 'rate' && purpose === 'public') {
+        if (admitted === 'rate' && (purpose === 'public' || purpose === 'fanOut')) {
           throw new PracticeUnavailableError(route.id, 'PRACTICE_CREATION_RATE_EXCEEDED');
         }
         if (wait === undefined) {
@@ -182,7 +186,12 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
 
   stats(): PracticeConnectionStats {
     const now = this.now();
-    const openClients: Record<PracticePurpose, number> = { request: 0, public: 0, job: 0 };
+    const openClients: Record<PracticePurpose, number> = {
+      request: 0,
+      public: 0,
+      job: 0,
+      fanOut: 0,
+    };
     for (const entry of this.entries.values()) openClients[this.purposeOf(entry, now)] += 1;
     const { creations, evictions, waits, authenticationFailures, identityMismatches, openAcls } =
       this.metrics;
@@ -208,7 +217,7 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
     }
     if (this.creationTimes.length >= this.creationsPerSecond) return 'rate';
     if (purpose !== 'request') {
-      const budget = purpose === 'public' ? this.publicClientsMax : this.jobClientsMax;
+      const budget = this.budgets[purpose];
       const held = [...this.entries.values()].filter(
         (entry) => this.purposeOf(entry, now) === purpose,
       ).length;
@@ -310,8 +319,8 @@ export class PracticeConnectionManager implements OnModuleInit, OnModuleDestroy 
   }
 
   /**
-   * Closes the least recently used client that nothing has in flight and that `accepts`; for a
-   * public or job acquisition, only one that no request used within PRACTICE_CLIENT_IDLE_MS.
+   * Closes the least recently used client that nothing has in flight and that `accepts`; for any
+   * acquisition but a request, only one that no request used within PRACTICE_CLIENT_IDLE_MS.
    */
   private evictLeastRecentlyUsed(
     purpose: PracticePurpose,

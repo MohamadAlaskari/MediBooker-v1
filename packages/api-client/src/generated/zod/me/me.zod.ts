@@ -32,6 +32,31 @@ export const UpdateMeResponse = zod.object({
 })
 
 /**
+ * @summary The upcoming appointments across the own practices
+ */
+export const ListMyAppointmentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "bookedAt": zod.iso.datetime({"offset":true}),
+  "changeableUntil": zod.iso.datetime({"offset":true}).describe('The last moment the patient can cancel or reschedule online (BR-04)'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patientId": zod.uuid(),
+  "practiceId": zod.uuid(),
+  "providerId": zod.uuid().nullable().describe('The doctor, only with a public profile (BR-24); null, the practice will say who'),
+  "providerName": zod.string().nullable().describe('Only with a public profile, too'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED']),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times')
+})),
+  "unavailablePractices": zod.array(zod.object({
+  "practiceId": zod.uuid(),
+  "reason": zod.enum(['UNAVAILABLE', 'TIMEOUT', 'LIMIT']).describe('UNAVAILABLE: it cannot be served now; TIMEOUT: it took too long; LIMIT: beyond the first practices')
+}))
+})
+
+/**
  * @summary The practices of this account, with the capacity in each
  */
 export const ListMyPracticesResponse = zod.object({

@@ -1,10 +1,11 @@
 import type { PracticeStatus } from '../../generated/platform/enums.js';
 
 /**
- * Why a practice client is acquired (02 §5): a signed-in request, a public (slug) request or a
- * job. The connection manager's budgets and the status table depend on it.
+ * Why a practice client is acquired (02 §5): a signed-in request, a public (slug) request, a job,
+ * or one branch of a signed-in request across several practices. The connection manager's budgets
+ * and the status table depend on it.
  */
-export type PracticePurpose = 'request' | 'public' | 'job';
+export type PracticePurpose = 'request' | 'public' | 'job' | 'fanOut';
 
 /** The registry row of a practice that may be served: its route to its own database. */
 export interface PracticeRoute {

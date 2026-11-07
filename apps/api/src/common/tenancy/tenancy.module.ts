@@ -11,6 +11,7 @@ import { PracticeClientOpener } from './practice-client-opener.js';
 import { PracticeConnectionManager } from './practice-connection-manager.js';
 import { PracticeConnectionMetrics } from './practice-connection-metrics.js';
 import { PracticeContextInterceptor } from './practice-context.interceptor.js';
+import { PracticeFanOut } from './practice-fan-out.js';
 import { PracticeKeys } from './practice-keys.js';
 import { PracticeResolver } from './practice-resolver.js';
 import { PracticeRunner } from './practice-runner.js';
@@ -34,6 +35,7 @@ import { PublishedPractices } from './published-practices.js';
     PracticeClientOpener,
     PracticeConnectionManager,
     PracticeConnectionMetrics,
+    PracticeFanOut,
     PracticeKeys,
     PracticeResolver,
     PracticeRunner,
@@ -48,6 +50,7 @@ import { PublishedPractices } from './published-practices.js';
     PracticeAudit,
     PracticeCache,
     PracticeConnectionManager,
+    PracticeFanOut,
     PracticeKeys,
     PracticeRunner,
     PublishedPractices,

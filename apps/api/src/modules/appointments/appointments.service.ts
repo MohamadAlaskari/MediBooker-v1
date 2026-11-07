@@ -15,13 +15,20 @@ import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
+import type { Prisma } from '../../generated/practice/client.js';
 import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.js';
 import { PUBLIC_PROVIDER } from '../scheduling/domain/public-profile.js';
 import { bookableWindow } from '../scheduling/domain/slots.rules.js';
-import type { AppointmentDto, BookAppointmentDto } from './appointments.dto.js';
+import { AppointmentReader } from './appointment-reader.js';
+import type {
+  AppointmentDto,
+  BookAppointmentDto,
+  RescheduleAppointmentDto,
+} from './appointments.dto.js';
 import {
   hasBookingPlace,
   IDEMPOTENCY_HOURS,
+  isChangeable,
   isInBookingWindow,
   isProfileComplete,
   isServiceBookable,
@@ -34,14 +41,50 @@ interface PatientRow {
   readonly number_known: boolean;
 }
 
-const APPOINTMENT_FIELDS = {
-  id: true,
-  patientId: true,
-  serviceId: true,
-  status: true,
-  bookedAt: true,
-  slot: { select: { providerId: true, startsAt: true, endsAt: true } },
+/** What a practice says about booking there. */
+const BOOKING_SETTINGS = {
+  minLeadTimeMinutes: true,
+  maxHorizonDays: true,
+  maxFutureAppointmentsPerPatient: true,
+  cancellationDeadlineHours: true,
+  insuranceTypes: true,
+  insuranceProviderTypes: true,
+  insuranceNumberTypes: true,
 } as const;
+
+type BookingSettings = Prisma.PracticeSettingsGetPayload<{ select: typeof BOOKING_SETTINGS }>;
+
+/** What a change needs of an appointment. */
+const CHANGE_FIELDS = {
+  id: true,
+  status: true,
+  slotId: true,
+  serviceId: true,
+  slot: { select: { startsAt: true } },
+  rescheduledTo: { select: { id: true } },
+} as const;
+
+type ChangeRow = Prisma.AppointmentGetPayload<{ select: typeof CHANGE_FIELDS }>;
+
+/** A time to book, as the rules read it. */
+interface Wanted {
+  readonly serviceId: string;
+  readonly startsAt: Temporal.Instant;
+  readonly providerId: string | undefined;
+}
+
+/** The new row of a booking or a reschedule. */
+interface Placement {
+  readonly id: string;
+  readonly patientId: string;
+  readonly slotId: string;
+  readonly serviceId: string;
+  readonly sealedNote: string | null;
+  readonly userId: string;
+  readonly key: string;
+  readonly now: Temporal.Instant;
+  readonly rescheduledFromId?: string;
+}
 
 function fieldError(field: string, code: 'REQUIRED' | 'INVALID_VALUE'): DomainException {
   return new DomainException('VALIDATION_FAILED', {
@@ -58,20 +101,33 @@ function instantOfInput(value: string): Temporal.Instant {
   }
 }
 
+function keyOfHeader(idempotencyKey: string | undefined): string {
+  if (idempotencyKey === undefined) throw fieldError('Idempotency-Key', 'REQUIRED');
+  if (!isUuid(idempotencyKey)) throw fieldError('Idempotency-Key', 'INVALID_VALUE');
+  return idempotencyKey.toLowerCase();
+}
+
+function noteContextOf(appointmentId: string): string {
+  return `appointment:${appointmentId}:patient-note`;
+}
+
 function isUniqueViolation(error: unknown): boolean {
   return isPrismaKnownRequestError(error) && error.code === 'P2002';
 }
 
 /**
- * Books a time for the caller's own profile (BR-01, 02, 03, 08, 09). One transaction in this
- * practice's database takes its locks in one order, key, patient, slot, so that no two bookings can
- * wait for each other. A failed booking rolls its key back, so that a retry with it is judged anew.
+ * Books, reschedules and cancels for the caller's own profile (BR-01 to 05, 08, 09). One transaction
+ * in this practice's database takes its locks in one order, key, patient, slot, so that no two of
+ * them can wait for each other, and everything a person does here waits for that person's row. A
+ * failed attempt rolls its key back, so that a retry with it is judged anew. A replay answers with
+ * the appointment as it is now: after a cancel its status says so, and no new booking is made.
  */
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectTransactionHost('practice') private readonly txHost: PracticeTransactionHost,
     private readonly transactions: AccountTransactions,
+    private readonly reader: AppointmentReader,
     private readonly cls: ClsService<RequestContext>,
     private readonly clock: Clock,
     private readonly keys: PracticeKeys,
@@ -86,21 +142,21 @@ export class AppointmentsService {
   ): Promise<AppointmentDto> {
     const { practice, selfPatientId } = requirePracticeContext(this.cls);
     if (selfPatientId === undefined) throw new DomainException('NOT_FOUND');
-    if (idempotencyKey === undefined) throw fieldError('Idempotency-Key', 'REQUIRED');
-    if (!isUuid(idempotencyKey)) throw fieldError('Idempotency-Key', 'INVALID_VALUE');
-    const key = idempotencyKey.toLowerCase();
-    const startsAt = instantOfInput(input.startsAt);
-    const serviceId = input.serviceId.toLowerCase();
-    const providerId = input.providerId?.toLowerCase();
+    const key = keyOfHeader(idempotencyKey);
+    const wanted: Wanted = {
+      serviceId: input.serviceId.toLowerCase(),
+      startsAt: instantOfInput(input.startsAt),
+      providerId: input.providerId?.toLowerCase(),
+    };
 
     // Keyed: the request holds a note, and a plain hash of a short note could be guessed.
     const requestHash = await this.keys.keyedHash(
       practice.id,
       'idempotency-request',
       JSON.stringify([
-        serviceId,
-        startsAt.toString(),
-        providerId ?? null,
+        wanted.serviceId,
+        wanted.startsAt.toString(),
+        wanted.providerId ?? null,
         input.patientNote ?? null,
       ]),
     );
@@ -109,102 +165,156 @@ export class AppointmentsService {
     const sealedNote =
       input.patientNote === undefined
         ? null
-        : await this.keys.encrypt(practice.id, input.patientNote, `appointment:${id}:patient-note`);
+        : await this.keys.encrypt(practice.id, input.patientNote, noteContextOf(id));
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
 
-    try {
-      return await this.transactions.run(userId, async () => {
-        const db = this.txHost.tx;
-        const now = this.clock.now();
-        const replayed = await this.claimKey(userId, key, requestHash, now);
-        if (replayed !== null) return this.read(replayed);
+    return this.transaction(userId, async () => {
+      const db = this.txHost.tx;
+      const now = this.clock.now();
+      const replayed = await this.claimKey(userId, key, requestHash, now);
+      if (replayed !== null) return this.reader.read(replayed);
 
-        const [patient] = await db.$queryRaw<PatientRow[]>`
-          SELECT insurance_type, insurance_provider,
-                 insurance_number_encrypted IS NOT NULL AS number_known
-          FROM patients WHERE id = ${selfPatientId}::uuid FOR UPDATE`;
-        if (patient === undefined) throw new DomainException('NOT_FOUND');
+      const patient = await this.lockPatient(selfPatientId);
+      const settings = await this.bookingSettings();
+      this.requireCompleteProfile(patient, settings, practice.market);
+      await this.requireBookable(wanted, patient, settings, now);
 
-        const settings = await db.practiceSettings.findUniqueOrThrow({
-          where: { id: 1 },
-          select: {
-            minLeadTimeMinutes: true,
-            maxHorizonDays: true,
-            maxFutureAppointmentsPerPatient: true,
-            insuranceTypes: true,
-            insuranceProviderTypes: true,
-            insuranceNumberTypes: true,
-          },
-        });
-        const complete = isProfileComplete(settings, practice.market, {
-          type: patient.insurance_type,
-          provider: patient.insurance_provider,
-          numberKnown: patient.number_known,
-        });
-        if (!complete) throw new DomainException('PATIENT_PROFILE_INCOMPLETE');
-        if (!isInBookingWindow(startsAt, bookableWindow(now, settings))) {
-          throw new DomainException('OUTSIDE_BOOKING_WINDOW');
-        }
-        const service = await db.service.findUnique({
-          where: { id: serviceId },
-          select: { active: true, isBookableOnline: true, allowedInsuranceTypes: true },
-        });
-        if (service === null || !isServiceBookable(service, patient.insurance_type)) {
-          throw new DomainException('SERVICE_NOT_BOOKABLE');
-        }
-        if (providerId !== undefined) await this.requirePublicProvider(providerId);
-
-        const upcoming = await db.appointment.count({
-          where: {
-            patientId: selfPatientId,
-            status: { in: [...UPCOMING_STATUSES] },
-            slot: { startsAt: { gt: dbInstantOf(now) } },
-          },
-        });
-        const maxFutureAppointments = settings.maxFutureAppointmentsPerPatient;
-        if (!hasBookingPlace(upcoming, maxFutureAppointments)) {
-          throw new DomainException('BOOKING_LIMIT_REACHED', {
-            params: { maxFutureAppointments },
-          });
-        }
-
-        // SKIP LOCKED: with several doctors free at that time, a booking takes another one's slot
-        // instead of waiting for a booking it would then lose to.
-        const [slot] = await db.$queryRaw<{ id: string }[]>`
-          SELECT s.id
-          FROM slots s
-          JOIN availability_rule_services rs ON rs.rule_id = s.rule_id
-          JOIN staff_members p ON p.id = s.provider_id
-          WHERE rs.service_id = ${serviceId}::uuid
-            AND s.starts_at = ${dbInstantOf(startsAt)}
-            AND s.status = 'OPEN'
-            AND p.is_provider
-            AND (${providerId ?? null}::uuid IS NULL OR s.provider_id = ${providerId ?? null}::uuid)
-          ORDER BY s.provider_id
-          LIMIT 1
-          FOR UPDATE OF s SKIP LOCKED`;
-        if (slot === undefined) throw new DomainException('SLOT_NOT_AVAILABLE');
-
-        await db.slot.update({ where: { id: slot.id }, data: { status: 'BOOKED' } });
-        await db.appointment.create({
-          data: {
-            id,
-            patientId: selfPatientId,
-            slotId: slot.id,
-            serviceId,
-            status: 'BOOKED',
-            patientNoteEncrypted: sealedNote,
-            bookedById: userId,
-            bookedAt: dbInstantOf(now),
-          },
-        });
-        await db.idempotencyKey.update({
-          where: { actorId_key: { actorId: userId, key } },
-          data: { appointmentId: id },
-        });
-        await this.audit.record({ userId, action: 'appointment.book', subjectId: id, ipHash });
-        return this.read(id);
+      const upcoming = await db.appointment.count({
+        where: {
+          patientId: selfPatientId,
+          status: { in: [...UPCOMING_STATUSES] },
+          slot: { startsAt: { gt: dbInstantOf(now) } },
+        },
       });
+      const maxFutureAppointments = settings.maxFutureAppointmentsPerPatient;
+      if (!hasBookingPlace(upcoming, maxFutureAppointments)) {
+        throw new DomainException('BOOKING_LIMIT_REACHED', { params: { maxFutureAppointments } });
+      }
+
+      const slotId = await this.takeSlot(wanted);
+      await this.place({
+        id,
+        patientId: selfPatientId,
+        slotId,
+        serviceId: wanted.serviceId,
+        sealedNote,
+        userId,
+        key,
+        now,
+      });
+      await this.audit.record({ userId, action: 'appointment.book', subjectId: id, ipHash });
+      return this.reader.read(id);
+    });
+  }
+
+  /**
+   * BR-05: a new appointment, and the old one cancelled, in one transaction: whatever fails leaves the
+   * old one as it was. It moves an appointment, so BR-02 has nothing to count.
+   */
+  async reschedule(
+    { userId }: Actor,
+    appointmentId: string,
+    input: RescheduleAppointmentDto,
+    idempotencyKey: string | undefined,
+    ip: string | undefined,
+  ): Promise<AppointmentDto> {
+    const { practice, selfPatientId } = requirePracticeContext(this.cls);
+    if (selfPatientId === undefined || !isUuid(appointmentId)) {
+      throw new DomainException('NOT_FOUND');
+    }
+    const oldId = appointmentId.toLowerCase();
+    const key = keyOfHeader(idempotencyKey);
+    const startsAt = instantOfInput(input.startsAt);
+    const providerId = input.providerId?.toLowerCase();
+    const requestHash = await this.keys.keyedHash(
+      practice.id,
+      'idempotency-request',
+      JSON.stringify(['reschedule', oldId, startsAt.toString(), providerId ?? null]),
+    );
+
+    // The note stays, bound to the new row. Before the transaction, as for a booking.
+    const source = await this.txHost.tx.appointment.findFirst({
+      where: { id: oldId, patientId: selfPatientId },
+      select: { patientNoteEncrypted: true },
+    });
+    if (source === null) throw new DomainException('NOT_FOUND');
+    const id = randomUUID();
+    const sealedNote =
+      source.patientNoteEncrypted === null
+        ? null
+        : await this.keys.encrypt(
+            practice.id,
+            await this.keys.decrypt(practice.id, source.patientNoteEncrypted, noteContextOf(oldId)),
+            noteContextOf(id),
+          );
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+
+    return this.transaction(userId, async () => {
+      const now = this.clock.now();
+      const replayed = await this.claimKey(userId, key, requestHash, now);
+      if (replayed !== null) return this.reader.read(replayed);
+
+      const patient = await this.lockPatient(selfPatientId);
+      const settings = await this.bookingSettings();
+      const old = await this.ownRow(oldId, selfPatientId);
+      this.requireChangeable(old, settings, now);
+      this.requireCompleteProfile(patient, settings, practice.market);
+      const wanted: Wanted = { serviceId: old.serviceId, startsAt, providerId };
+      await this.requireBookable(wanted, patient, settings, now);
+
+      // Before the old slot is free: the same time with the same doctor is no other time.
+      const slotId = await this.takeSlot(wanted);
+      // The note moves with it: another copy would be one more to keep, export and erase.
+      await this.cancelRow(old, userId, now, { keepNote: false });
+      await this.place({
+        id,
+        patientId: selfPatientId,
+        slotId,
+        serviceId: old.serviceId,
+        sealedNote,
+        userId,
+        key,
+        now,
+        rescheduledFromId: oldId,
+      });
+      await this.audit.record({ userId, action: 'appointment.cancel', subjectId: oldId, ipHash });
+      await this.audit.record({ userId, action: 'appointment.reschedule', subjectId: id, ipHash });
+      return this.reader.read(id);
+    });
+  }
+
+  /** BR-04. A second cancel changes nothing and answers the same, so that a retry is safe. */
+  async cancel(
+    { userId }: Actor,
+    appointmentId: string,
+    ip: string | undefined,
+  ): Promise<AppointmentDto> {
+    const { practice, selfPatientId } = requirePracticeContext(this.cls);
+    if (selfPatientId === undefined || !isUuid(appointmentId)) {
+      throw new DomainException('NOT_FOUND');
+    }
+    const id = appointmentId.toLowerCase();
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+
+    return this.transactions.run(userId, async () => {
+      const now = this.clock.now();
+      await this.lockPatient(selfPatientId);
+      const old = await this.ownRow(id, selfPatientId);
+      // Not for a row that was moved: the person may think the new appointment is gone too.
+      if (old.status === 'CANCELLED' && old.rescheduledTo === null) return this.reader.read(id);
+      this.requireChangeable(old, await this.bookingSettings(), now);
+      await this.cancelRow(old, userId, now, { keepNote: true });
+      await this.audit.record({ userId, action: 'appointment.cancel', subjectId: id, ipHash });
+      return this.reader.read(id);
+    });
+  }
+
+  private async transaction(
+    userId: string,
+    work: () => Promise<AppointmentDto>,
+  ): Promise<AppointmentDto> {
+    try {
+      return await this.transactions.run(userId, work);
     } catch (error) {
       // The partial unique index of BR-01, as the last line behind the slot's lock.
       if (isUniqueViolation(error)) throw new DomainException('SLOT_NOT_AVAILABLE');
@@ -212,9 +322,170 @@ export class AppointmentsService {
     }
   }
 
+  /** Everything a person does in a practice waits here for the others of that person. */
+  private async lockPatient(patientId: string): Promise<PatientRow> {
+    const [patient] = await this.txHost.tx.$queryRaw<PatientRow[]>`
+      SELECT insurance_type, insurance_provider,
+             insurance_number_encrypted IS NOT NULL AS number_known
+      FROM patients WHERE id = ${patientId}::uuid FOR UPDATE`;
+    if (patient === undefined) throw new DomainException('NOT_FOUND');
+    return patient;
+  }
+
+  private bookingSettings(): Promise<BookingSettings> {
+    return this.txHost.tx.practiceSettings.findUniqueOrThrow({
+      where: { id: 1 },
+      select: BOOKING_SETTINGS,
+    });
+  }
+
+  private requireCompleteProfile(
+    patient: PatientRow,
+    settings: BookingSettings,
+    market: string,
+  ): void {
+    const complete = isProfileComplete(settings, market, {
+      type: patient.insurance_type,
+      provider: patient.insurance_provider,
+      numberKnown: patient.number_known,
+    });
+    if (!complete) throw new DomainException('PATIENT_PROFILE_INCOMPLETE');
+  }
+
+  /** BR-03, BR-08, and a doctor who may be asked for by name. */
+  private async requireBookable(
+    { serviceId, startsAt, providerId }: Wanted,
+    patient: PatientRow,
+    settings: BookingSettings,
+    now: Temporal.Instant,
+  ): Promise<void> {
+    if (!isInBookingWindow(startsAt, bookableWindow(now, settings))) {
+      throw new DomainException('OUTSIDE_BOOKING_WINDOW');
+    }
+    const service = await this.txHost.tx.service.findUnique({
+      where: { id: serviceId },
+      select: { active: true, isBookableOnline: true, allowedInsuranceTypes: true },
+    });
+    if (service === null || !isServiceBookable(service, patient.insurance_type)) {
+      throw new DomainException('SERVICE_NOT_BOOKABLE');
+    }
+    if (providerId !== undefined) await this.requirePublicProvider(providerId);
+  }
+
+  /** As for the public free times: a doctor without a public profile is not offered by name. */
+  private async requirePublicProvider(id: string): Promise<void> {
+    const provider = await this.txHost.tx.staffMember.findFirst({
+      where: { id, ...PUBLIC_PROVIDER },
+      select: { id: true },
+    });
+    if (provider === null) throw new DomainException('NOT_FOUND');
+  }
+
+  /**
+   * SKIP LOCKED: with several doctors free at that time, a booking takes another one's slot instead
+   * of waiting for a booking it would then lose to. Marked as booked here, so that the row is held.
+   */
+  private async takeSlot({ serviceId, startsAt, providerId }: Wanted): Promise<string> {
+    const db = this.txHost.tx;
+    const [slot] = await db.$queryRaw<{ id: string }[]>`
+      SELECT s.id
+      FROM slots s
+      JOIN availability_rule_services rs ON rs.rule_id = s.rule_id
+      JOIN staff_members p ON p.id = s.provider_id
+      WHERE rs.service_id = ${serviceId}::uuid
+        AND s.starts_at = ${dbInstantOf(startsAt)}
+        AND s.status = 'OPEN'
+        AND p.is_provider
+        AND (${providerId ?? null}::uuid IS NULL OR s.provider_id = ${providerId ?? null}::uuid)
+      ORDER BY s.provider_id
+      LIMIT 1
+      FOR UPDATE OF s SKIP LOCKED`;
+    if (slot === undefined) throw new DomainException('SLOT_NOT_AVAILABLE');
+    await db.slot.update({ where: { id: slot.id }, data: { status: 'BOOKED' } });
+    return slot.id;
+  }
+
+  private async place({
+    id,
+    patientId,
+    slotId,
+    serviceId,
+    sealedNote,
+    userId,
+    key,
+    now,
+    rescheduledFromId,
+  }: Placement): Promise<void> {
+    const db = this.txHost.tx;
+    await db.appointment.create({
+      data: {
+        id,
+        patientId,
+        slotId,
+        serviceId,
+        status: 'BOOKED',
+        patientNoteEncrypted: sealedNote,
+        bookedById: userId,
+        bookedAt: dbInstantOf(now),
+        ...(rescheduledFromId === undefined ? {} : { rescheduledFromId }),
+      },
+    });
+    await db.idempotencyKey.update({
+      where: { actorId_key: { actorId: userId, key } },
+      data: { appointmentId: id },
+    });
+  }
+
+  /** Under the patient's lock, so that nothing of that person changes it meanwhile. */
+  private async ownRow(id: string, patientId: string): Promise<ChangeRow> {
+    const row = await this.txHost.tx.appointment.findFirst({
+      where: { id, patientId },
+      select: CHANGE_FIELDS,
+    });
+    if (row === null) throw new DomainException('NOT_FOUND');
+    return row;
+  }
+
+  /** BR-04: BOOKED, and not past the practice's deadline. */
+  private requireChangeable(
+    { status, slot }: ChangeRow,
+    { cancellationDeadlineHours }: BookingSettings,
+    now: Temporal.Instant,
+  ): void {
+    if (status !== 'BOOKED') throw new DomainException('INVALID_STATUS_TRANSITION');
+    if (!isChangeable(now, instantOf(slot.startsAt), cancellationDeadlineHours)) {
+      throw new DomainException('CANCELLATION_DEADLINE_PASSED', {
+        params: { cancellationDeadlineHours },
+      });
+    }
+  }
+
+  /** The appointment says who and when, and its slot is free for others again. */
+  private async cancelRow(
+    { id, slotId }: ChangeRow,
+    userId: string,
+    now: Temporal.Instant,
+    { keepNote }: { readonly keepNote: boolean },
+  ): Promise<void> {
+    const db = this.txHost.tx;
+    await db.appointment.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: dbInstantOf(now),
+        cancelledById: userId,
+        ...(keepNote ? {} : { patientNoteEncrypted: null }),
+      },
+    });
+    await db.slot.updateMany({
+      where: { id: slotId, status: 'BOOKED' },
+      data: { status: 'OPEN' },
+    });
+  }
+
   /**
    * The key's row, held until the transaction ends: a second request with the key waits here and
-   * then finds the first one's result. The id of an earlier booking; null when this one goes on.
+   * then finds the first one's result. The id of an earlier result; null when this one goes on.
    */
   private async claimKey(
     actorId: string,
@@ -238,36 +509,5 @@ export class AppointmentsService {
       throw new DomainException('IDEMPOTENCY_KEY_REUSED');
     }
     return stored.appointment_id;
-  }
-
-  /** As for the public free times: a doctor without a public profile is not offered by name. */
-  private async requirePublicProvider(id: string): Promise<void> {
-    if ((await this.publicProviderOf(id)) === null) throw new DomainException('NOT_FOUND');
-  }
-
-  /** The id, only while that profile is public (BR-24), also when "any doctor" led to this one. */
-  private async publicProviderOf(id: string): Promise<string | null> {
-    const provider = await this.txHost.tx.staffMember.findFirst({
-      where: { id, ...PUBLIC_PROVIDER },
-      select: { id: true },
-    });
-    return provider?.id ?? null;
-  }
-
-  private async read(id: string): Promise<AppointmentDto> {
-    const row = await this.txHost.tx.appointment.findUniqueOrThrow({
-      where: { id },
-      select: APPOINTMENT_FIELDS,
-    });
-    return {
-      id: row.id,
-      patientId: row.patientId,
-      serviceId: row.serviceId,
-      providerId: await this.publicProviderOf(row.slot.providerId),
-      startsAt: instantOf(row.slot.startsAt).toString(),
-      endsAt: instantOf(row.slot.endsAt).toString(),
-      status: row.status,
-      bookedAt: instantOf(row.bookedAt).toString(),
-    };
   }
 }

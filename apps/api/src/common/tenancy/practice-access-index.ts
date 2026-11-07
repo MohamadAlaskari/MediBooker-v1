@@ -66,6 +66,25 @@ export class PracticeAccessIndex {
     }));
   }
 
+  /**
+   * Where a person is a patient, most recently changed first (ADR 0005 §9.1). A practice that cannot
+   * be served now is named to the person, not left out in silence; one that does not exist yet, or
+   * any more, is not (§5.1).
+   */
+  async patientPracticeIdsOf(userId: string): Promise<readonly string[]> {
+    const rows = await this.platform.practiceAccess.findMany({
+      where: {
+        userId,
+        active: true,
+        capacity: 'PATIENT',
+        practice: { status: { notIn: ['PROVISIONING', 'FINALIZED'] } },
+      },
+      select: { practiceId: true },
+      orderBy: [{ updatedAt: 'desc' }, { practiceId: 'asc' }],
+    });
+    return rows.map(({ practiceId }) => practiceId);
+  }
+
   /** Whether the account's address is confirmed (BR-09): a session no longer means that. */
   async isVerified(userId: string): Promise<boolean> {
     const user = await this.platform.user.findUnique({

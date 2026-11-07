@@ -23,6 +23,8 @@ export const ERROR_CATALOG = {
   OUTSIDE_BOOKING_WINDOW: { status: 409, title: 'Outside the booking window' },
   SERVICE_NOT_BOOKABLE: { status: 409, title: 'Service not bookable' },
   PATIENT_PROFILE_INCOMPLETE: { status: 409, title: 'Patient profile incomplete' },
+  CANCELLATION_DEADLINE_PASSED: { status: 409, title: 'Cancellation deadline passed' },
+  INVALID_STATUS_TRANSITION: { status: 409, title: 'Invalid status transition' },
   IDEMPOTENCY_KEY_REUSED: { status: 409, title: 'Idempotency key used for another request' },
   PAYLOAD_TOO_LARGE: { status: 413, title: 'Payload too large' },
   UNSUPPORTED_MEDIA_TYPE: { status: 415, title: 'Unsupported media type' },

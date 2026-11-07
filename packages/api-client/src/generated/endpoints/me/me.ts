@@ -25,6 +25,7 @@ import type {
 
 import type {
   AccountDto,
+  MyAppointmentsDto,
   MyPracticeListDto,
   ProblemDetailsDto,
   ProfileDto,
@@ -242,7 +243,107 @@ export const useUpdateMe = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getUpdateMeMutationOptions(options), queryClient);
     }
-    export const getListMyPracticesUrl = () => {
+    export const getListMyAppointmentsUrl = () => {
+
+
+
+
+  return `/api/v1/me/appointments`
+}
+
+/**
+ * @summary The upcoming appointments across the own practices
+ */
+export const listMyAppointments = async ( options?: Parameters<typeof apiFetch>[1]): Promise<MyAppointmentsDto> => {
+
+  return apiFetch<MyAppointmentsDto>(getListMyAppointmentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyAppointmentsQueryKey = () => {
+    return [
+    `/api/v1/me/appointments`
+    ] as const;
+    }
+
+
+export const getListMyAppointmentsQueryOptions = <TData = Awaited<ReturnType<typeof listMyAppointments>>, TError = ErrorType<ProblemDetailsDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyAppointmentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAppointments>>> = ({ signal }) => listMyAppointments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyAppointmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAppointments>>>
+export type ListMyAppointmentsQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useListMyAppointments<TData = Awaited<ReturnType<typeof listMyAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAppointments>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAppointments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyAppointments<TData = Awaited<ReturnType<typeof listMyAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyAppointments>>,
+          TError,
+          Awaited<ReturnType<typeof listMyAppointments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyAppointments<TData = Awaited<ReturnType<typeof listMyAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The upcoming appointments across the own practices
+ */
+
+export function useListMyAppointments<TData = Awaited<ReturnType<typeof listMyAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyAppointmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getListMyPracticesUrl = () => {
 
 
 
