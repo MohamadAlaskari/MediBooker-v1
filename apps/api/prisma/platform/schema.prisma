@@ -209,23 +209,33 @@ enum AccountNotificationStatus {
 /// their membership or patient profile there, in that practice's own database (ADR 0005).
 model User {
   /// class: personal
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// class: personal (case-insensitive)
-  email            String    @unique @db.Citext
+  email               String    @unique @db.Citext
   /// class: secret (argon2id, never logged or returned)
-  passwordHash     String    @map("password_hash")
+  passwordHash        String    @map("password_hash")
   /// class: personal
-  emailVerifiedAt  DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  emailVerifiedAt     DateTime? @map("email_verified_at") @db.Timestamptz(3)
   /// class: personal (the language of e-mails to this person)
-  locale           String
+  locale              String
   /// class: personal (failed sign-ins in a row; the reason for lockedUntil)
-  failedLoginCount Int       @default(0) @map("failed_login_count") @db.SmallInt
+  failedLoginCount    Int       @default(0) @map("failed_login_count") @db.SmallInt
   /// class: personal
-  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(3)
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
+  /// class: secret (the TOTP secret, encrypted with the field keys and bound to this row, A04)
+  totpSecretEncrypted String?   @map("totp_secret_encrypted")
+  /// class: personal (null while the second factor is not confirmed)
+  totpEnabledAt       DateTime? @map("totp_enabled_at") @db.Timestamptz(3)
+  /// class: personal (wrong codes in a row; a new password does not clear them, a right code does)
+  mfaFailedCount      Int       @default(0) @map("mfa_failed_count") @db.SmallInt
+  /// class: personal (until then no code counts, and the answer is that of a wrong one)
+  mfaLockedUntil      DateTime? @map("mfa_locked_until") @db.Timestamptz(3)
+  /// class: personal (the time step of the last code accepted: a code counts once)
+  totpLastStep        BigInt?   @map("totp_last_step")
   /// class: personal
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: personal
-  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   sessions      Session[]
   tokens        AccountToken[]
@@ -233,8 +243,29 @@ model User {
   notifications AccountNotification[]
   profile       AccountProfile?
   access        PracticeAccess[]
+  recoveryCodes MfaRecoveryCode[]
 
   @@map("users")
+}
+
+/// The recovery codes of a second factor (ADR 0004 §7): each counts once, and a new set replaces
+/// the old one.
+model MfaRecoveryCode {
+  /// class: personal
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId    String    @map("user_id") @db.Uuid
+  /// class: secret (keyed hash of the code and its account; the code is stored nowhere)
+  codeHash  String    @unique @map("code_hash")
+  /// class: personal
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  /// class: personal
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
 }
 
 /// In what capacity a person may reach a practice. The practice database decides; this only says

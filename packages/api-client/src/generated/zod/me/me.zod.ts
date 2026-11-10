@@ -14,7 +14,8 @@ export const GetMeResponse = zod.object({
   "email": zod.email(),
   "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
-  "locale": zod.enum(['ar', 'en'])
+  "locale": zod.enum(['ar', 'en']),
+  "mfaEnabled": zod.boolean().describe('Whether a sign-in needs the code of an authenticator app')
 })
 
 /**
@@ -28,7 +29,8 @@ export const UpdateMeResponse = zod.object({
   "email": zod.email(),
   "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
-  "locale": zod.enum(['ar', 'en'])
+  "locale": zod.enum(['ar', 'en']),
+  "mfaEnabled": zod.boolean().describe('Whether a sign-in needs the code of an authenticator app')
 })
 
 /**
@@ -58,6 +60,41 @@ export const ListMyAppointmentsResponse = zod.object({
   "practiceId": zod.uuid(),
   "reason": zod.enum(['UNAVAILABLE', 'TIMEOUT', 'LIMIT']).describe('UNAVAILABLE: it cannot be served now; TIMEOUT: it took too long; LIMIT: beyond the first practices')
 }))
+})
+
+/**
+ * @summary Start setting up an authenticator app: its secret, also as the text of a QR code
+ */
+export const StartTotpResponse = zod.object({
+  "otpauthUri": zod.string().describe('What the QR code shows: an otpauth URI with the secret'),
+  "secret": zod.string().describe('The secret in base32, to type into an authenticator app')
+})
+
+/**
+ * @summary Put the authenticator app in force with a first code; answers the recovery codes once
+ */
+export const confirmTotpBodyCodeMax = 32;
+
+
+
+export const ConfirmTotpBody = zod.object({
+  "code": zod.string().max(confirmTotpBodyCodeMax).describe('A current code of the authenticator app, which proves that it has the secret')
+})
+
+export const ConfirmTotpResponse = zod.object({
+  "account": zod.object({
+  "email": zod.email(),
+  "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
+  "id": zod.uuid(),
+  "locale": zod.enum(['ar', 'en']),
+  "mfaEnabled": zod.boolean().describe('Whether a sign-in needs the code of an authenticator app')
+}),
+  "recoveryCodes": zod.array(zod.string()).describe('Shown this once and stored only as hashes: each signs in once instead of a code'),
+  "tokens": zod.object({
+  "accessToken": zod.string(),
+  "expiresInSeconds": zod.number().describe('How long the access token lasts'),
+  "refreshToken": zod.string()
+}).optional().describe('Only when asked for in the answer')
 })
 
 /**

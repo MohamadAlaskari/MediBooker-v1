@@ -16,6 +16,14 @@ export interface PracticeAuditEntry {
   readonly ipHash: string | null;
 }
 
+export interface PracticeOperatorAuditEntry {
+  /** Who ran the command: `local:<OS user>` on a machine, the task's identity in the cloud. */
+  readonly operator: string;
+  /** A constant, such as `staff.role.set`. */
+  readonly action: string;
+  readonly subjectId: string;
+}
+
 /**
  * The audit log of a practice: append-only for the app role, written in the transaction of what it
  * records, without personal data beyond ids. The address is a keyed hash with a key of this practice,
@@ -42,6 +50,19 @@ export class PracticeAudit {
         action,
         subjectId,
         ipHash,
+      },
+    });
+  }
+
+  /** What an operator did with a command, not a person through the API (A04). */
+  async recordOperator({ operator, action, subjectId }: PracticeOperatorAuditEntry): Promise<void> {
+    await this.txHost.tx.auditEvent.create({
+      data: {
+        at: dbInstantOf(this.clock.now()),
+        actor: `operator:${operator}`,
+        action,
+        subjectId,
+        ipHash: null,
       },
     });
   }

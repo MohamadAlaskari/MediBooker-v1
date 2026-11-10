@@ -20,21 +20,28 @@ import type {
 
 import type {
   AccountDto,
+  ConfirmTotpDto,
   MyAppointmentsDto,
   MyPracticeListDto,
   ProfileDto,
+  TotpEnabledDto,
+  TotpSetupDto,
   UpdateAccountDto,
   UpdateProfileDto
 } from '../../model';
 
 
-export const getGetMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
+export const getGetMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), mfaEnabled: faker.datatype.boolean(), ...overrideResponse})
 
-export const getUpdateMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), ...overrideResponse})
+export const getUpdateMeResponseMock = (overrideResponse: Partial<Extract<AccountDto, object>> = {}): AccountDto => ({email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), mfaEnabled: faker.datatype.boolean(), ...overrideResponse})
 
 export const getListMyAppointmentsResponseMock = (overrideResponse: Partial<Extract<MyAppointmentsDto, object>> = {}): MyAppointmentsDto => ({items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({bookedAt: faker.date.past().toISOString().slice(0, 19) + 'Z', changeable: faker.datatype.boolean(), changeableUntil: faker.date.past().toISOString().slice(0, 19) + 'Z', endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), patientId: faker.string.uuid(), practiceId: faker.string.uuid(), providerId: faker.helpers.arrayElement([faker.string.uuid(), null]), providerName: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), serviceId: faker.string.uuid(), serviceName: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const), timeZone: faker.string.alpha({length: {min: 10, max: 20}})})), unavailablePractices: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({practiceId: faker.string.uuid(), reason: faker.helpers.arrayElement(['UNAVAILABLE','TIMEOUT','LIMIT'] as const)})), ...overrideResponse})
+
+export const getStartTotpResponseMock = (overrideResponse: Partial<Extract<TotpSetupDto, object>> = {}): TotpSetupDto => ({otpauthUri: faker.string.alpha({length: {min: 10, max: 20}}), secret: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
+
+export const getConfirmTotpResponseMock = (overrideResponse: Partial<Extract<TotpEnabledDto, object>> = {}): TotpEnabledDto => ({account: {email: faker.internet.email(), emailVerified: faker.datatype.boolean(), id: faker.string.uuid(), locale: faker.helpers.arrayElement(['ar','en'] as const), mfaEnabled: faker.datatype.boolean()}, recoveryCodes: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tokens: faker.helpers.arrayElement([{...{accessToken: faker.string.alpha({length: {min: 10, max: 20}}), expiresInSeconds: faker.number.float({fractionDigits: 2}), refreshToken: faker.string.alpha({length: {min: 10, max: 20}})},}, undefined]), ...overrideResponse})
 
 export const getListMyPracticesResponseMock = (overrideResponse: Partial<Extract<MyPracticeListDto, object>> = {}): MyPracticeListDto => ({items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({capacity: faker.helpers.arrayElement(['STAFF','PATIENT'] as const), id: faker.string.uuid(), name: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
@@ -76,6 +83,30 @@ export const getListMyAppointmentsMockHandler = (overrideResponse?: MyAppointmen
     return HttpResponse.json(overrideResponse !== undefined
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getListMyAppointmentsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getStartTotpMockHandler = (overrideResponse?: TotpSetupDto | ((info: Parameters<HttpResponseResolver>[0]) => Promise<TotpSetupDto> | TotpSetupDto), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/me/mfa/totp', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getStartTotpResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getConfirmTotpMockHandler = (overrideResponse?: TotpEnabledDto | ((info: Parameters<HttpResponseResolver<PathParams, ConfirmTotpDto>>[0]) => Promise<TotpEnabledDto> | TotpEnabledDto), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, ConfirmTotpDto>('*/api/v1/me/mfa/totp/confirm', async (info: Parameters<HttpResponseResolver<PathParams, ConfirmTotpDto>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getConfirmTotpResponseMock(),
       { status: 200
       })
   }, options)
@@ -130,6 +161,8 @@ export const getMeMock = () => [
   getGetMeMockHandler(),
   getUpdateMeMockHandler(),
   getListMyAppointmentsMockHandler(),
+  getStartTotpMockHandler(),
+  getConfirmTotpMockHandler(),
   getListMyPracticesMockHandler(),
   getGetProfileMockHandler(),
   getUpdateProfileMockHandler(),

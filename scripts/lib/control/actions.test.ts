@@ -126,6 +126,18 @@ describe('the commands', () => {
     ]);
   });
 
+  it('make an account the admin through the running API, on both stacks, as the last entry', () => {
+    expect(composeCommands('dev', 'staff-admin')).toEqual([
+      'compose --env-file .env -f compose.dev.yaml --profile app exec api node dist/cli/staff-role.js',
+    ]);
+    expect(composeCommands('prod', 'staff-admin')).toEqual([
+      'compose --env-file .env.prod -f compose.prod.yaml exec api node dist/cli/staff-role.js',
+    ]);
+    for (const mode of ['dev', 'prod'] as const) {
+      expect(actionsOf(STACKS[mode]).at(-1)?.id).toBe('staff-admin');
+    }
+  });
+
   it.each(['mail-setup', 'mail-off'])(
     '%s writes first and then creates the API anew, which a restart would not',
     (id) => {

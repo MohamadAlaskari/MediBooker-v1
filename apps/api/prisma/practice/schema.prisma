@@ -529,3 +529,39 @@ model IdempotencyKey {
   @@id([actorId, key])
   @@map("idempotency_keys")
 }
+
+/// The role of a person in this practice (A04): reception, doctor or admin.
+enum StaffRole {
+  STAFF
+  DOCTOR
+  ADMIN
+
+  @@map("staff_role")
+}
+
+/// A disabled membership answers like none, on the next request (ADR 0005 §1.4).
+enum MembershipStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("membership_status")
+}
+
+/// Who works in this practice (A04, ADR 0005 §1.1). The platform's membership index follows this
+/// table through the integration outbox; this table decides.
+model Membership {
+  /// class: personal
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal (the account in the platform database)
+  userId    String           @unique @map("user_id") @db.Uuid
+  /// class: personal
+  role      StaffRole
+  /// class: personal
+  status    MembershipStatus @default(ACTIVE)
+  /// class: personal
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal
+  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("memberships")
+}

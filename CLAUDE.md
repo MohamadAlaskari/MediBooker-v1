@@ -106,7 +106,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 
 | Task | Command |
 |---|---|
-| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, file storage, tests, clean-up. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
+| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, file storage, tests, clean-up, the practice's first admin. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
 | Install (also installs the git hooks) | `pnpm install` |
 | Install exactly from the lockfile (CI) | `pnpm install --frozen-lockfile` |
 | Lint (fails on any warning) | `pnpm lint` |

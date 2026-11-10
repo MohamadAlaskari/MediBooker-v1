@@ -12,4 +12,6 @@ export interface AccountDto {
   emailVerified: boolean;
   id: string;
   locale: AccountDtoLocale;
+  /** Whether a sign-in needs the code of an authenticator app */
+  mfaEnabled: boolean;
 }

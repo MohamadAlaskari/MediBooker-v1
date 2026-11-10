@@ -42,7 +42,7 @@ export const getLoginUrl = () => {
 }
 
 /**
- * @summary Sign in
+ * @summary Sign in; an account with a second factor also sends its code (MFA_CODE_REQUIRED)
  */
 export const login = async (loginDto: LoginDto, options?: Parameters<typeof apiFetch>[1]): Promise<SessionDto> => {
 
@@ -108,7 +108,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type LoginMutationVariables = {data: LoginDto}
 
     /**
- * @summary Sign in
+ * @summary Sign in; an account with a second factor also sends its code (MFA_CODE_REQUIRED)
  */
 export const useLogin = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}

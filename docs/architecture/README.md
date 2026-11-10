@@ -92,7 +92,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | B04 Booking on the web: from a free time to an appointment, my appointments, cancel and reschedule | Committed (`628fd8e`) |
 | F09 File storage: the port `ObjectStorage`, Azure Blob Storage, Azurite in development ([ADR 0015](../adr/0015-object-storage.md)) | Committed (`95e5b8e`) |
 | I01 One installation per practice: its page at the root of its domain ([ADR 0016](../adr/0016-one-installation-per-practice.md)) | Committed (`f1af019`) |
-| I02 The practice's brand: its name and colours on every page, "Powered by MediBooker", e-mails in its name | Committed (one commit) |
+| I02 The practice's brand: its name and colours on every page, "Powered by MediBooker", e-mails in its name | Committed (`7f2c8ac`) |
+| A04 for the dashboard Staff roles, two-step sign-in with an authenticator app and recovery codes, the operator's role command, the dashboard's start | Committed (one commit); invitations with M03, the rest later |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

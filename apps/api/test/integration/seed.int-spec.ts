@@ -25,13 +25,17 @@ describe('the seed (08 F04)', () => {
     return counts;
   }
 
-  /** What only people fill, at run time: the seed adds no patient and nothing they cause. */
+  /**
+   * What only people fill, at run time: the seed adds no patient and nothing they cause, and no
+   * member of the team, whom only the operator's command adds to an account (A04).
+   */
   const FILLED_AT_RUN_TIME: ReadonlySet<string> = new Set([
     'patients',
     'integration_outbox',
     'audit_events',
     'appointments',
     'idempotency_keys',
+    'memberships',
   ]);
 
   /** P01: every other practice table has rows, and the registry names and publishes the practice. */

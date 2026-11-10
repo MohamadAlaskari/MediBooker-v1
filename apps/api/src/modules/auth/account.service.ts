@@ -39,6 +39,8 @@ export interface Account {
   readonly email: string;
   readonly emailVerified: boolean;
   readonly locale: string;
+  /** A sign-in needs the code of an authenticator app (A04). */
+  readonly mfaEnabled: boolean;
 }
 
 function assertNotBreached(password: string): void {
@@ -255,13 +257,14 @@ export class AccountService {
   async accountOf(userId: string): Promise<Account> {
     const user = await this.txHost.tx.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { id: true, email: true, emailVerifiedAt: true, locale: true },
+      select: { id: true, email: true, emailVerifiedAt: true, locale: true, totpEnabledAt: true },
     });
     return {
       id: user.id,
       email: user.email,
       emailVerified: user.emailVerifiedAt !== null,
       locale: user.locale,
+      mfaEnabled: user.totpEnabledAt !== null,
     };
   }
 

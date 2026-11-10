@@ -8,19 +8,25 @@ import * as zod from 'zod';
 
 
 /**
- * @summary Sign in
+ * @summary Sign in; an account with a second factor also sends its code (MFA_CODE_REQUIRED)
  */
+export const loginBodyCodeMax = 32;
+
 export const loginBodyDeliveryDefault = `cookie`;
 export const loginBodyEmailMax = 254;
 
 export const loginBodyPasswordMax = 1024;
 
+export const loginBodyRecoveryCodeMax = 32;
+
 
 
 export const LoginBody = zod.object({
+  "code": zod.string().max(loginBodyCodeMax).optional().describe('The six digits of the authenticator app, for an account with a second factor (MFA_CODE_REQUIRED)'),
   "delivery": zod.enum(['cookie', 'body']).default(loginBodyDeliveryDefault).describe('A browser gets cookies; the app asks for the tokens in the answer'),
   "email": zod.email().max(loginBodyEmailMax),
-  "password": zod.string().max(loginBodyPasswordMax)
+  "password": zod.string().max(loginBodyPasswordMax),
+  "recoveryCode": zod.string().max(loginBodyRecoveryCodeMax).optional().describe('One of the recovery codes instead of the code of the app; each counts once')
 })
 
 export const LoginResponse = zod.object({
@@ -28,7 +34,8 @@ export const LoginResponse = zod.object({
   "email": zod.email(),
   "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
-  "locale": zod.enum(['ar', 'en'])
+  "locale": zod.enum(['ar', 'en']),
+  "mfaEnabled": zod.boolean().describe('Whether a sign-in needs the code of an authenticator app')
 }),
   "tokens": zod.object({
   "accessToken": zod.string(),
@@ -96,7 +103,8 @@ export const RefreshResponse = zod.object({
   "email": zod.email(),
   "emailVerified": zod.boolean().describe('Needed before the first booking (BR-09)'),
   "id": zod.uuid(),
-  "locale": zod.enum(['ar', 'en'])
+  "locale": zod.enum(['ar', 'en']),
+  "mfaEnabled": zod.boolean().describe('Whether a sign-in needs the code of an authenticator app')
 }),
   "tokens": zod.object({
   "accessToken": zod.string(),

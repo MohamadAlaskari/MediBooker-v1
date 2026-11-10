@@ -174,6 +174,18 @@ describe('medibooker', () => {
       expect(out).not.toContain('send-test-mail.js');
     });
 
+    it('makes the account on the command line the admin of the practice', () => {
+      const { code, out } = run(['prod', 'staff-admin', 'admin@example.test', '--dry-run']);
+      expect(code).toBe(0);
+      expect(out).toContain('exec api node dist/cli/staff-role.js admin@example.test');
+    });
+
+    it('asks for the address of the account in the menu', () => {
+      const { out } = run(['--dry-run'], '1\nstaff-admin\nadmin@example.test\nq\n');
+      expect(out).toContain('E-Mail-Adresse des Kontos');
+      expect(out).toContain('staff-role.js admin@example.test');
+    });
+
     it('goes back to Mailpit', () => {
       const { code, out } = run(['dev', 'mail-off', '--dry-run']);
       expect(code).toBe(0);

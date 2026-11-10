@@ -164,6 +164,7 @@ describe('accounts on a real platform database', () => {
         email,
         emailVerified: false,
         locale: 'en',
+        mfaEnabled: false,
       });
 
       const token = await confirmationToken(email);

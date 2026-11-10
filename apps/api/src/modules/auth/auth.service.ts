@@ -3,6 +3,7 @@ import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { PlatformTransactionHost } from '../../common/database/platform-transactional.js';
 import { DomainException } from '../../common/errors/domain.exception.js';
+import type { Actor } from '../../common/security/actor.js';
 import { AuthSecrets, sameSecret, sha256 } from '../../common/security/auth-secrets.js';
 import {
   ANONYMOUS_ACTOR,
@@ -14,13 +15,24 @@ import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import { ACCESS_TOKEN_SECONDS, AccessTokens } from './access-tokens.js';
 import { refreshDecision } from './domain/auth.rules.js';
 import { hashPassword, verifyPassword } from './domain/password.js';
+import {
+  AMR_ONE_TIME_CODE,
+  AMR_PASSWORD,
+  SecondFactor,
+  type SecondFactorInput,
+  type TotpSetup,
+} from './second-factor.js';
 import type { SessionCookieValues } from './session-cookies.js';
 import { SignInAttempts } from './sign-in-attempts.js';
 
 const REFRESH_TOKEN_BYTES = 32;
 const REFRESH_TOKEN_DAYS = 30;
-/** Password sign-in; A04 adds the second factor. */
-const AMR_PASSWORD = 'pwd';
+
+/** The answer that puts a second factor in force: the recovery codes, shown once, and the session. */
+export interface EnabledSecondFactor {
+  readonly recoveryCodes: readonly string[];
+  readonly session: IssuedSession;
+}
 
 export interface IssuedSession extends SessionCookieValues {
   readonly userId: string;
@@ -44,36 +56,130 @@ export class AuthService {
     private readonly secrets: AuthSecrets,
     private readonly audit: PlatformAudit,
     private readonly attempts: SignInAttempts,
+    private readonly secondFactor: SecondFactor,
   ) {}
 
-  async login(email: string, password: string): Promise<IssuedSession> {
+  /**
+   * An account with a second factor needs its code too (ADR 0004 §7), so a stolen password alone
+   * opens no session. Every request counts as an attempt until one succeeds: a password without its
+   * code and a wrong code count like a wrong password, so codes cannot be guessed past the wait.
+   */
+  async login(email: string, password: string, factor?: SecondFactorInput): Promise<IssuedSession> {
     const attempt = await this.attempts.count(email);
     const hash = attempt?.passwordHash ?? (await DUMMY_PASSWORD_HASH);
     const matches = await verifyPassword(hash, password);
     if (attempt === undefined || attempt.waiting || !matches) {
-      await this.audit.record({
-        actor: attempt === undefined ? ANONYMOUS_ACTOR : auditActorOf(attempt.userId),
-        action: 'auth.login',
-        outcome: 'FAILED',
-        errorCode: 'INVALID_CREDENTIALS',
-      });
-      throw new DomainException('INVALID_CREDENTIALS');
+      return this.failedLogin(attempt?.userId, 'INVALID_CREDENTIALS');
     }
-    return this.txHost.withTransaction(async () => {
+    const { userId, passwordHash } = attempt;
+    const prepared = await this.secondFactor.prepare(userId, factor);
+    const outcome = await this.txHost.withTransaction(async () => {
       // Asks for the password that was checked: a reset in the meantime ended every session, so
       // this one must not start after it.
-      const { count } = await this.txHost.tx.user.updateMany({
-        where: { id: attempt.userId, passwordHash: attempt.passwordHash },
+      const verdict = await this.secondFactor.verify(userId, passwordHash, prepared);
+      if ('failed' in verdict) return verdict;
+      await this.txHost.tx.user.update({
+        where: { id: userId },
         data: { failedLoginCount: 0, lockedUntil: null },
       });
-      if (count !== 1) throw new DomainException('INVALID_CREDENTIALS');
-      await this.audit.record({
-        actor: auditActorOf(attempt.userId),
-        action: 'auth.login',
-        outcome: 'SUCCEEDED',
-      });
-      return this.issue(attempt.userId, randomUUID(), [AMR_PASSWORD]);
+      const actor = auditActorOf(userId);
+      if (verdict.usedRecoveryCode) {
+        await this.audit.record({ actor, action: 'auth.mfa.recovery', outcome: 'SUCCEEDED' });
+      }
+      await this.audit.record({ actor, action: 'auth.login', outcome: 'SUCCEEDED' });
+      return { session: await this.issue(userId, randomUUID(), verdict.amr) };
     });
+    if ('failed' in outcome) return this.failedLogin(userId, outcome.failed);
+    return outcome.session;
+  }
+
+  /** Starts setting up the authenticator app of the caller's own account. */
+  async startTotp(actor: Actor): Promise<TotpSetup> {
+    const setup = await this.secondFactor.start(actor.userId);
+    await this.audit.record({
+      actor: auditActorOf(actor.userId),
+      action: 'auth.mfa.start',
+      outcome: 'SUCCEEDED',
+    });
+    return setup;
+  }
+
+  /**
+   * Puts the second factor in force with a first code. The person just proved both factors, so
+   * this sign-in counts with both from now on: its session is replaced like at a refresh, in the
+   * same family, and every other sign-in of the account ends, because it has only the password.
+   */
+  async enableTotp(actor: Actor, code: string): Promise<EnabledSecondFactor> {
+    const pending = await this.secondFactor.pendingSecretOf(actor.userId);
+    const outcome =
+      pending === undefined
+        ? undefined
+        : await this.txHost.withTransaction(async () => {
+            if (!(await this.secondFactor.isStillPending(actor.userId, pending.sealed))) {
+              return undefined;
+            }
+            const recoveryCodes = await this.secondFactor.enable(
+              actor.userId,
+              code,
+              pending.secret,
+            );
+            if (recoveryCodes === undefined) return undefined;
+            const session = await this.stepUp(actor);
+            await this.audit.record({
+              actor: auditActorOf(actor.userId),
+              action: 'auth.mfa.enable',
+              outcome: 'SUCCEEDED',
+            });
+            return { recoveryCodes, session };
+          });
+    if (outcome !== undefined) return outcome;
+    await this.audit.record({
+      actor: auditActorOf(actor.userId),
+      action: 'auth.mfa.enable',
+      outcome: 'FAILED',
+      errorCode: 'MFA_CODE_INVALID',
+    });
+    throw new DomainException('MFA_CODE_INVALID');
+  }
+
+  /** Records a failed sign-in and answers it. */
+  private async failedLogin(
+    userId: string | undefined,
+    code: 'INVALID_CREDENTIALS' | 'MFA_CODE_REQUIRED' | 'MFA_CODE_INVALID',
+  ): Promise<never> {
+    await this.audit.record({
+      actor: userId === undefined ? ANONYMOUS_ACTOR : auditActorOf(userId),
+      action: 'auth.login',
+      outcome: 'FAILED',
+      errorCode: code,
+    });
+    throw new DomainException(code);
+  }
+
+  /** In the caller's transaction, under the lock of the user's row. */
+  private async stepUp(actor: Actor): Promise<IssuedSession> {
+    const now = dbInstantOf(this.clock.now());
+    const db = this.txHost.tx;
+    const session = await db.session.findUnique({
+      where: { id: actor.sessionId },
+      select: { familyId: true },
+    });
+    const { count } = await db.session.updateMany({
+      where: {
+        id: actor.sessionId,
+        userId: actor.userId,
+        rotatedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { rotatedAt: now },
+    });
+    if (session === null || count !== 1) throw new DomainException('UNAUTHENTICATED');
+    await db.session.updateMany({
+      where: { userId: actor.userId, familyId: { not: session.familyId }, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    return this.issue(actor.userId, session.familyId, [AMR_PASSWORD, AMR_ONE_TIME_CODE]);
   }
 
   /**

@@ -35,6 +35,13 @@ class PracticeProbeController {
   identityInTransaction(): Promise<PracticeIdentityResponse> {
     return this.txHost.withTransaction(() => this.identity());
   }
+
+  /** Test-only: a staff route that admits admins only, for the role check of A04. */
+  @PracticeScoped('id', { staff: ['ADMIN'] })
+  @Get('admin-only')
+  adminOnly(): Promise<PracticeIdentityResponse> {
+    return this.identity();
+  }
 }
 
 @Module({ controllers: [PracticeProbeController] })

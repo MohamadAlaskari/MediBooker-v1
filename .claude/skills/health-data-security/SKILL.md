@@ -56,7 +56,7 @@ Data residency is decided per market before infrastructure is built: one deploym
 ## 4. Authorization
 
 - A global guard denies by default. `@Public()` is an explicit, reviewed exception.
-- Two checks on every request: the role, which comes from the active membership in the resolved practice (`@PracticeScoped('id', { staffRoles })`, from B01 and A04) and never from the token, and ownership or scope in the service ("this appointment belongs to this patient").
+- Two checks on every request: the role, which comes from the active membership in the resolved practice (`@PracticeScoped('id', { staff: [roles] })`, A04, which also asks for the second factor first) and never from the token, and ownership or scope in the service ("this appointment belongs to this patient").
 - The user's identity comes only from the verified token (`@CurrentUser()`), never from the body, query or path. v1 trusted IDs sent by the client.
 - Resources of other users return 404, not 403, so their existence is not revealed.
 - IDs are UUIDs, never sequential numbers.

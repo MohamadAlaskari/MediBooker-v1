@@ -52,8 +52,10 @@ Extend this list; never reuse a code with a different meaning.
 | POST /auth/register | public | Patient sign-up; ASCII addresses only, the same answer for a known address | BR-10 |
 | POST /auth/verify-email | public | Confirm the e-mail address, with the token and the password of the account | BR-09 |
 | POST /auth/verify-email/resend | public | A new link; the same answer whether the account exists or not | BR-09 |
-| POST /auth/login | public | Login, also before the address is confirmed (RT-89); returns an MFA challenge for staff roles | |
-| POST /auth/mfa/verify | MFA pending | Second factor | |
+| POST /auth/login | public | Login, also before the address is confirmed (RT-89); an account with a second factor sends `code` or `recoveryCode` in the same request: without it `MFA_CODE_REQUIRED` and no session, a wrong or used one `MFA_CODE_INVALID` | ADR 0004 §7 |
+| POST /me/mfa/totp | staff, doctor, admin (an active STAFF index row) | Start the authenticator app: secret and otpauth URI; `MFA_ALREADY_ENABLED` when in force, FORBIDDEN without the team | ADR 0004 §7 |
+| POST /me/mfa/totp/confirm | any | Put it in force with a first code: ten recovery codes once, and the session replaced with `amr` `pwd` and `otp`, in cookies for a browser and as tokens only for a Bearer client | ADR 0004 §7 |
+| GET /practices/{practiceId}/me/membership | staff, doctor, admin | The own role, for the dashboard; `MFA_REQUIRED` without the second factor | A04 |
 | POST /auth/refresh | refresh token | Rotate tokens | |
 | POST /auth/logout | any | Revoke the session | |
 | POST /auth/password/forgot, POST /auth/password/reset | public | Password reset | |

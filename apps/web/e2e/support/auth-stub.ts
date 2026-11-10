@@ -14,7 +14,17 @@ interface Account {
   password: string;
   verified: boolean;
   locale: string;
+  /** The second factor (A04): set up, waiting for its first code, or none. */
+  mfa: 'off' | 'pending' | 'on';
+  /** The role in the installation's practice, which the operator's command gives. */
+  role?: 'STAFF' | 'DOCTOR' | 'ADMIN';
 }
+
+/** The only code of the stub's authenticator app, and its only recovery code, as typed. */
+export const STUB_CODE = '123456';
+export const STUB_RECOVERY_CODE = 'abcde-fghjk';
+/** What the QR code of the stub holds: a well-known example in base32, twice for 160 bits. */
+const STUB_APP_TEXT = 'JBSWY3DPEHPK3PXP'.repeat(2);
 
 /** What a person sends: what is left out is not known. */
 type ProfileBody = Pick<ProfileDto, 'firstName' | 'lastName' | 'dateOfBirth' | 'insuranceType'> & {
@@ -27,6 +37,8 @@ const BREACHED = '1234567890';
 const accounts = new Map<string, Account>();
 const accessTokens = new Map<string, string>();
 const refreshTokens = new Map<string, string>();
+/** The tokens of sessions that were opened with both factors. */
+const withSecondFactor = new Set<string>();
 /** A link's token and what it may do, once. */
 const links = new Map<string, { email: string; purpose: 'confirm' | 'reset' }>();
 const newestLink = new Map<string, string>();
@@ -47,11 +59,15 @@ function issueLink(email: string, purpose: 'confirm' | 'reset'): void {
   newestLink.set(`${email}:${purpose}`, token);
 }
 
-function setSession(response: ServerResponse, email: string): void {
+function setSession(response: ServerResponse, email: string, secondFactor = false): void {
   const access = randomUUID();
   const refresh = randomUUID();
   accessTokens.set(access, email);
   refreshTokens.set(refresh, email);
+  if (secondFactor) {
+    withSecondFactor.add(access);
+    withSecondFactor.add(refresh);
+  }
   const strict = 'Secure; SameSite=Strict';
   response.setHeader('Set-Cookie', [
     `mb_access=${access}; Path=/api; Max-Age=900; ${strict}; HttpOnly`,
@@ -69,8 +85,13 @@ function clearSession(response: ServerResponse): void {
   ]);
 }
 
-function accountDto({ id, email, verified, locale }: Account): object {
-  return { id, email, emailVerified: verified, locale };
+function accountDto({ id, email, verified, locale, mfa }: Account): object {
+  return { id, email, emailVerified: verified, locale, mfaEnabled: mfa === 'on' };
+}
+
+/** What a person typed as a recovery code, as the API reads it. */
+function recoveryCodeOf(input: string): string {
+  return input.replaceAll(/[\s-]/g, '').toLowerCase();
 }
 
 function endSessions(email: string): void {
@@ -101,7 +122,14 @@ async function handleRoute(
     }
     if (!accounts.has(email)) {
       const locale = body.locale ?? 'ar';
-      accounts.set(email, { id: randomUUID(), email, password, verified: false, locale });
+      accounts.set(email, {
+        id: randomUUID(),
+        email,
+        password,
+        verified: false,
+        locale,
+        mfa: 'off',
+      });
       issueLink(email, 'confirm');
     }
     respond(response, 202);
@@ -113,7 +141,22 @@ async function handleRoute(
       problem(response, 'INVALID_CREDENTIALS');
       return;
     }
-    setSession(response, email);
+    if (account.mfa === 'on') {
+      const { code, recoveryCode } = body;
+      if (code === undefined && recoveryCode === undefined) {
+        problem(response, 'MFA_CODE_REQUIRED');
+        return;
+      }
+      const right =
+        code === STUB_CODE ||
+        (recoveryCode !== undefined &&
+          recoveryCodeOf(recoveryCode) === recoveryCodeOf(STUB_RECOVERY_CODE));
+      if (!right) {
+        problem(response, 'MFA_CODE_INVALID');
+        return;
+      }
+    }
+    setSession(response, email, account.mfa === 'on');
     respond(response, 200, { account: accountDto(account) });
     return;
   }
@@ -175,7 +218,7 @@ async function handleRoute(
       return;
     }
     refreshTokens.delete(presented);
-    setSession(response, owner.email);
+    setSession(response, owner.email, withSecondFactor.has(presented));
     respond(response, 200, { account: accountDto(owner) });
     return;
   }
@@ -251,6 +294,42 @@ export function profileOf(email: string): ProfileDto | undefined {
   return profiles.get(email);
 }
 
+/** POST /me/mfa/totp and /me/mfa/totp/confirm, for the signed-in owner of the request. */
+async function handleSecondFactor(
+  route: 'start' | 'confirm',
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  const owner = accessTokens.get(cookiesOf(request).get('mb_access') ?? '') ?? '';
+  const account = accounts.get(owner);
+  if (request.method !== 'POST') problem(response, 'NOT_FOUND');
+  else if (account === undefined) problem(response, 'UNAUTHENTICATED');
+  else if (!hasCsrfHeader(request)) problem(response, 'FORBIDDEN');
+  else if (account.mfa === 'on') problem(response, 'MFA_ALREADY_ENABLED');
+  else if (route === 'start' && account.role === undefined) problem(response, 'FORBIDDEN');
+  else if (route === 'start') {
+    account.mfa = 'pending';
+    respond(response, 200, {
+      secret: STUB_APP_TEXT,
+      otpauthUri: `otpauth://totp/Stub:${encodeURIComponent(owner)}?secret=${STUB_APP_TEXT}&issuer=Stub`,
+    });
+  } else {
+    const { code } = await bodyOf(request);
+    if (account.mfa !== 'pending' || code !== STUB_CODE) {
+      problem(response, 'MFA_CODE_INVALID');
+      return;
+    }
+    account.mfa = 'on';
+    endSessions(owner);
+    setSession(response, owner, true);
+    const recoveryCodes = [STUB_RECOVERY_CODE];
+    for (let index = 1; index < 10; index += 1) recoveryCodes.push(`stub${String(index)}-codes`);
+    respond(response, 200, { account: accountDto(account), recoveryCodes });
+  }
+}
+
+const MEMBERSHIP_PATH = /^\/api\/v1\/practices\/[^/]+\/me\/membership$/;
+
 /** Takes the requests about accounts, and answers whether it did. */
 export function handleAccounts(
   pathname: string,
@@ -265,6 +344,35 @@ export function handleAccounts(
       confirm: newestLink.get(`${email}:confirm`),
       reset: newestLink.get(`${email}:reset`),
     });
+    return true;
+  }
+  if (pathname === '/__staff') {
+    const account = accounts.get(email);
+    const role = searchParams.get('role');
+    if (account !== undefined && (role === 'STAFF' || role === 'DOCTOR' || role === 'ADMIN')) {
+      account.role = role;
+    }
+    respond(response, 204);
+    return true;
+  }
+  if (pathname === '/__second-factor') {
+    const account = accounts.get(email);
+    if (account !== undefined) account.mfa = 'on';
+    respond(response, 204);
+    return true;
+  }
+  if (pathname === '/api/v1/me/mfa/totp' || pathname === '/api/v1/me/mfa/totp/confirm') {
+    void handleSecondFactor(pathname.endsWith('confirm') ? 'confirm' : 'start', request, response);
+    return true;
+  }
+  if (MEMBERSHIP_PATH.test(pathname)) {
+    const access = cookiesOf(request).get('mb_access') ?? '';
+    const account = accounts.get(accessTokens.get(access) ?? '');
+    if (method !== 'GET') problem(response, 'NOT_FOUND');
+    else if (account === undefined) problem(response, 'UNAUTHENTICATED');
+    else if (!withSecondFactor.has(access)) problem(response, 'MFA_REQUIRED');
+    else if (account.role === undefined) problem(response, 'NOT_FOUND');
+    else respond(response, 200, { role: account.role });
     return true;
   }
   if (pathname === '/__end-access') {

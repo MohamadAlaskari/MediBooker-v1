@@ -25,10 +25,13 @@ import type {
 
 import type {
   AccountDto,
+  ConfirmTotpDto,
   MyAppointmentsDto,
   MyPracticeListDto,
   ProblemDetailsDto,
   ProfileDto,
+  TotpEnabledDto,
+  TotpSetupDto,
   UpdateAccountDto,
   UpdateProfileDto
 } from '../../model';
@@ -343,7 +346,167 @@ export function useListMyAppointments<TData = Awaited<ReturnType<typeof listMyAp
 
 
 
-export const getListMyPracticesUrl = () => {
+export const getStartTotpUrl = () => {
+
+
+
+
+  return `/api/v1/me/mfa/totp`
+}
+
+/**
+ * @summary Start setting up an authenticator app: its secret, also as the text of a QR code
+ */
+export const startTotp = async ( options?: Parameters<typeof apiFetch>[1]): Promise<TotpSetupDto> => {
+
+  return apiFetch<TotpSetupDto>(getStartTotpUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartTotpMutationKey = () => ['startTotp'] as const;
+
+export const getStartTotpMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTotp>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startTotp>>, TError,void, TContext> => {
+
+const mutationKey = getStartTotpMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startTotp>>, void> = () => {
+
+
+          return  startTotp(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartTotpMutationResult = NonNullable<Awaited<ReturnType<typeof startTotp>>>
+
+    export type StartTotpMutationError = ErrorType<ProblemDetailsDto>
+
+
+    /**
+ * @summary Start setting up an authenticator app: its secret, also as the text of a QR code
+ */
+export const useStartTotp = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTotp>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startTotp>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getStartTotpMutationOptions(options), queryClient);
+    }
+    export const getConfirmTotpUrl = () => {
+
+
+
+
+  return `/api/v1/me/mfa/totp/confirm`
+}
+
+/**
+ * @summary Put the authenticator app in force with a first code; answers the recovery codes once
+ */
+export const confirmTotp = async (confirmTotpDto: ConfirmTotpDto, options?: Parameters<typeof apiFetch>[1]): Promise<TotpEnabledDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<TotpEnabledDto>(getConfirmTotpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(confirmTotpDto)
+  }
+);}
+
+
+
+
+
+export const getConfirmTotpMutationKey = () => ['confirmTotp'] as const;
+
+export const getConfirmTotpMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmTotp>>, TError,ConfirmTotpMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmTotp>>, TError,ConfirmTotpMutationVariables, TContext> => {
+
+const mutationKey = getConfirmTotpMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmTotp>>, ConfirmTotpMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmTotp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmTotpMutationResult = NonNullable<Awaited<ReturnType<typeof confirmTotp>>>
+    export type ConfirmTotpMutationBody = ConfirmTotpDto
+    export type ConfirmTotpMutationError = ErrorType<ProblemDetailsDto>
+    export type ConfirmTotpMutationVariables = {data: ConfirmTotpDto}
+
+    /**
+ * @summary Put the authenticator app in force with a first code; answers the recovery codes once
+ */
+export const useConfirmTotp = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmTotp>>, TError,ConfirmTotpMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmTotp>>,
+        TError,
+        ConfirmTotpMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmTotpMutationOptions(options), queryClient);
+    }
+    export const getListMyPracticesUrl = () => {
 
 
 

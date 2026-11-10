@@ -7,10 +7,20 @@
 import type { LoginDtoDelivery } from './loginDtoDelivery';
 
 export interface LoginDto {
+  /**
+     * The six digits of the authenticator app, for an account with a second factor (MFA_CODE_REQUIRED)
+     * @maxLength 32
+     */
+  code?: string;
   /** A browser gets cookies; the app asks for the tokens in the answer */
   delivery?: LoginDtoDelivery;
   /** @maxLength 254 */
   email: string;
   /** @maxLength 1024 */
   password: string;
+  /**
+     * One of the recovery codes instead of the code of the app; each counts once
+     * @maxLength 32
+     */
+  recoveryCode?: string;
 }

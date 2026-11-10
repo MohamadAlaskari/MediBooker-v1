@@ -14,18 +14,19 @@ import {
   ResetPasswordDto,
   SessionDto,
 } from './auth.dto.js';
-import { AuthService, type IssuedSession } from './auth.service.js';
+import { AuthService } from './auth.service.js';
+import type { SecondFactorInput } from './second-factor.js';
+import { sessionAnswer } from './session-answer.js';
 import {
   clearSessionCookies,
   cookiesOf,
   CSRF_HEADER,
   headerOf,
   REFRESH_COOKIE,
-  setSessionCookies,
 } from './session-cookies.js';
 
 /** Per route and address (ADR 0004 §8); an account also waits after failed sign-ins. */
-const GUESSING_LIMIT = { default: { ttl: 60_000, limit: 10 } };
+export const GUESSING_LIMIT = { default: { ttl: 60_000, limit: 10 } };
 const MAIL_LIMIT = { default: { ttl: 60_000, limit: 5 } };
 const REFRESH_LIMIT = { default: { ttl: 60_000, limit: 30 } };
 
@@ -33,6 +34,13 @@ const REFRESH_LIMIT = { default: { ttl: 60_000, limit: 30 } };
 interface PresentedRefreshToken {
   readonly refreshToken: string;
   readonly csrfToken: string | undefined;
+}
+
+/** The code of the authenticator app, or a recovery code instead of it. */
+function factorOf(code: string | undefined, recoveryCode: string | undefined) {
+  if (code !== undefined) return { code } satisfies SecondFactorInput;
+  if (recoveryCode !== undefined) return { recoveryCode } satisfies SecondFactorInput;
+  return undefined;
 }
 
 function presentedRefreshToken(
@@ -83,16 +91,18 @@ export class AuthController {
 
   @Public() // ADR 0004: the password in the body is the proof
   @Throttle(GUESSING_LIMIT)
-  @ApiOperation({ summary: 'Sign in' })
+  @ApiOperation({
+    summary: 'Sign in; an account with a second factor also sends its code (MFA_CODE_REQUIRED)',
+  })
   @ApiOkResponse({ type: SessionDto })
   @HttpCode(200)
   @Post('login')
   async login(
-    @Body() { email, password, delivery }: LoginDto,
+    @Body() { email, password, delivery, code, recoveryCode }: LoginDto,
     @Res({ passthrough: true }) response: ServerResponse,
   ): Promise<SessionDto> {
-    const session = await this.auth.login(email, password);
-    return this.answer(session, delivery ?? 'cookie', response);
+    const session = await this.auth.login(email, password, factorOf(code, recoveryCode));
+    return sessionAnswer(this.accounts, session, delivery ?? 'cookie', response);
   }
 
   @Public() // ADR 0004: the refresh token is the proof, because the access token may be over
@@ -109,7 +119,8 @@ export class AuthController {
     const presented = presentedRefreshToken(request, refreshToken);
     if (presented === undefined) throw new DomainException('UNAUTHENTICATED');
     const session = await this.auth.refresh(presented.refreshToken, presented.csrfToken);
-    return this.answer(session, refreshToken === undefined ? 'cookie' : 'body', response);
+    const delivery = refreshToken === undefined ? 'cookie' : 'body';
+    return sessionAnswer(this.accounts, session, delivery, response);
   }
 
   @Public() // ADR 0004: must work after the access token is over, so it reads the refresh token
@@ -145,25 +156,5 @@ export class AuthController {
   @Post('password/reset')
   async resetPassword(@Body() { token, password }: ResetPasswordDto): Promise<void> {
     await this.accounts.resetPassword(token, password);
-  }
-
-  private async answer(
-    session: IssuedSession,
-    delivery: 'cookie' | 'body',
-    response: ServerResponse,
-  ): Promise<SessionDto> {
-    const account = await this.accounts.accountOf(session.userId);
-    if (delivery === 'cookie') {
-      setSessionCookies(response, session);
-      return { account };
-    }
-    return {
-      account,
-      tokens: {
-        accessToken: session.accessToken,
-        refreshToken: session.refreshToken,
-        expiresInSeconds: session.accessSeconds,
-      },
-    };
   }
 }

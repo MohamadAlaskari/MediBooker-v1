@@ -16,6 +16,6 @@ import { InstallationPractice } from './installation-practice.js';
     InstallationPractice,
     { provide: EmailSender, inject: [ENV], useFactory: emailSenderFor },
   ],
-  exports: [AccountNotifications],
+  exports: [AccountNotifications, InstallationPractice],
 })
 export class NotificationsModule {}

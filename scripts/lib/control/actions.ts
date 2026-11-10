@@ -9,8 +9,10 @@ export type Step =
       readonly profiles?: readonly string[];
       /** Appends a service the user chooses to the arguments. */
       readonly service?: 'optional' | 'required';
-      /** Appends the address the user names to the arguments. */
+      /** Appends the address the user names to the arguments: of a test e-mail. */
       readonly recipient?: true;
+      /** Appends the address the user names to the arguments: of an account. */
+      readonly account?: true;
     }
   | { readonly kind: 'docker'; readonly args: readonly string[] }
   | {
@@ -44,6 +46,7 @@ const GROUP_MAIL = 'E-Mail';
 const GROUP_FILES = 'Dateien';
 const GROUP_TESTS = 'Tests';
 const GROUP_CLEAN = 'Aufräumen';
+const GROUP_PRACTICE = 'Praxis';
 
 const WAIT_SECONDS = '300';
 const ALL_PROFILES = ['*'] as const;
@@ -349,6 +352,31 @@ function cleanActions(stack: Stack): readonly Action[] {
   ];
 }
 
+/**
+ * The team of the installation's practice (A04): the operator gives an existing account with a
+ * confirmed address the admin role, which nobody else can before there is an admin. At the end of
+ * the menu, so that the numbers of the other entries stay as they were.
+ */
+function practiceActions(stack: Stack): readonly Action[] {
+  return [
+    {
+      id: 'staff-admin',
+      group: GROUP_PRACTICE,
+      label: 'Konto zum Admin der Praxis machen (bestätigte E-Mail-Adresse)',
+      failureHint:
+        'ACCOUNT_NOT_FOUND: kein Konto mit dieser Adresse, erst registrieren. EMAIL_NOT_VERIFIED: erst den Link der E-Mail öffnen. NO_PRACTICE: keine Praxis eingespielt ("Demo-Praxen einspielen").',
+      steps: [
+        {
+          kind: 'compose',
+          profiles: profilesOf(stack),
+          args: ['exec', 'api', 'node', 'dist/cli/staff-role.js'],
+          account: true,
+        },
+      ],
+    },
+  ];
+}
+
 /** The menu of one stack, in the order shown. */
 export function actionsOf(stack: Stack): readonly Action[] {
   return [
@@ -359,6 +387,7 @@ export function actionsOf(stack: Stack): readonly Action[] {
     ...storageActions(stack),
     ...testActions(stack),
     ...cleanActions(stack),
+    ...practiceActions(stack),
   ];
 }
 

@@ -165,6 +165,47 @@ export function SecretField<Values extends FieldValues>({
   );
 }
 
+interface CodeFieldProps<Values extends FieldValues> extends Omit<
+  BoundFieldProps<Values>,
+  'autoComplete'
+> {
+  /** The six digits of an app, or a recovery code. */
+  readonly kind: 'code' | 'recovery';
+}
+
+/** A code of the authenticator app or a recovery code: left to right also in Arabic (W4). */
+export function CodeField<Values extends FieldValues>({
+  control,
+  name,
+  label,
+  hint,
+  kind,
+}: CodeFieldProps<Values>): ReactNode {
+  const ready = useFormReady();
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => (
+        <TextField
+          label={label}
+          hint={hint}
+          isReadOnly={!ready}
+          inputMode={kind === 'code' ? 'numeric' : 'text'}
+          autoComplete={kind === 'code' ? 'one-time-code' : 'off'}
+          dir="ltr"
+          name={field.name}
+          value={field.value}
+          onChange={field.onChange}
+          onBlur={field.onBlur}
+          inputRef={field.ref}
+          error={fieldState.error?.message}
+        />
+      )}
+    />
+  );
+}
+
 interface AuthFormProps {
   /** What `handleSubmit` of the form returns. */
   readonly onSubmit: (event: BaseSyntheticEvent) => Promise<void>;

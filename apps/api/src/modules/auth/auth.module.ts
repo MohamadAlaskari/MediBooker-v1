@@ -8,6 +8,7 @@ import { AccountService } from './account.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { MeController } from './me.controller.js';
+import { SecondFactor } from './second-factor.js';
 import { SessionAuthenticator } from './session-authenticator.js';
 import { SignInAttempts } from './sign-in-attempts.js';
 import { UnconfirmedAccountsJob } from './unconfirmed-accounts.job.js';
@@ -22,6 +23,7 @@ import { UnconfirmedAccountsJob } from './unconfirmed-accounts.job.js';
     AccessTokens,
     AccountService,
     AuthService,
+    SecondFactor,
     { provide: Authenticator, useClass: SessionAuthenticator },
   ],
   exports: [Authenticator],

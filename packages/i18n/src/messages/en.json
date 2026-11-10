@@ -41,7 +41,11 @@
     "PATIENT_PROFILE_INCOMPLETE": "Please complete your details for this practice first.",
     "CANCELLATION_DEADLINE_PASSED": "This appointment is too soon to change online. Please call the practice.",
     "INVALID_STATUS_TRANSITION": "This appointment can no longer be changed.",
-    "IDEMPOTENCY_KEY_REUSED": "Something went wrong with this booking. Please reload the page and try again."
+    "IDEMPOTENCY_KEY_REUSED": "Something went wrong with this booking. Please reload the page and try again.",
+    "MFA_CODE_REQUIRED": "Please enter the code from your authenticator app.",
+    "MFA_CODE_INVALID": "This code is not correct or was already used. Please enter the current code.",
+    "MFA_REQUIRED": "Please sign in again with the code from your authenticator app.",
+    "MFA_ALREADY_ENABLED": "Two-step sign-in is already set up for this account."
   },
   "validation": {
     "REQUIRED": "Please fill in this field.",
@@ -164,7 +168,16 @@
       "submit": "Sign in",
       "forgot": "Forgot password?",
       "newHere": "New here?",
-      "createAccount": "Create account"
+      "createAccount": "Create account",
+      "codeTitle": "Two-step sign-in",
+      "codeBody": "Enter the 6-digit code from your authenticator app.",
+      "codeLabel": "Code",
+      "recoveryBody": "Enter one of your recovery codes. Each code works once.",
+      "recoveryLabel": "Recovery code",
+      "useRecovery": "Use a recovery code instead",
+      "useCode": "Use the code from the app",
+      "verify": "Verify",
+      "back": "Back"
     },
     "signUp": {
       "title": "Create your account",
@@ -264,6 +277,31 @@
       "signOut": "Sign out",
       "loading": "Loading your account",
       "appointments": "My appointments"
+    },
+    "twoFactor": {
+      "title": "Set up two-step sign-in",
+      "body": "The practice team signs in with a password and a code from an authenticator app, because the dashboard shows health data.",
+      "start": "Start setup",
+      "scan": "Scan this QR code with your authenticator app, for example Google Authenticator or Microsoft Authenticator.",
+      "qrLabel": "QR code for your authenticator app",
+      "manual": "Or type this key into the app:",
+      "confirmLabel": "Code from the app",
+      "confirm": "Turn on",
+      "recoveryTitle": "Save your recovery codes",
+      "recoveryBody": "If you lose your phone, each of these codes signs you in once. Keep them in a safe place: they are shown only now.",
+      "recoveryList": "Recovery codes",
+      "done": "I have saved them"
+    },
+    "dashboard": {
+      "title": "Practice dashboard",
+      "loading": "Loading the dashboard",
+      "signedInAs": "You are signed in as {role, select, ADMIN {administrator} DOCTOR {doctor} STAFF {reception} other {team member}}.",
+      "soon": "The appointments of today will appear here.",
+      "noAccessTitle": "No access to this practice",
+      "noAccessBody": "This account is not part of the practice team. Please ask the administrator of the practice.",
+      "againTitle": "Please sign in again",
+      "againBody": "This sign-in has no code from your authenticator app yet.",
+      "noPractice": "This installation has no practice yet."
     }
   },
   "privacyPage": {

@@ -31,6 +31,14 @@ describe('signInRedirect', () => {
     expect(signInRedirect('/en/al-noor', false)).toBeUndefined();
   });
 
+  it('asks the same for the practice dashboard', () => {
+    expect(signInRedirect('/ar/dashboard', false)).toEqual({
+      pathname: '/ar/sign-in',
+      hash: 'next=%2Far%2Fdashboard',
+    });
+    expect(signInRedirect('/en/dashboardx', false)).toBeUndefined();
+  });
+
   it('leaves someone with a sign-in alone: the API decides about the rest', () => {
     expect(signInRedirect('/en/account', true)).toBeUndefined();
   });

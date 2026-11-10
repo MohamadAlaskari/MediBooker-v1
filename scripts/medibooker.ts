@@ -127,11 +127,9 @@ function clean(folders: readonly string[], session: Session): number {
   return 0;
 }
 
-/** Who a test e-mail goes to; undefined when the user took it back or typed no address. */
-async function recipientOf(session: Session): Promise<string | undefined> {
-  const answer =
-    session.service ??
-    (await withLines(session, (lines) => lines.ask('Test-E-Mail an (Enter = abbrechen): ')));
+/** An address the user names; undefined when the user took it back or typed no address. */
+async function addressOf(session: Session, question: string): Promise<string | undefined> {
+  const answer = session.service ?? (await withLines(session, (lines) => lines.ask(question)));
   const address = answer?.trim() ?? '';
   if (address === '') return undefined;
   if (isMailAddress(address)) return address;
@@ -243,10 +241,14 @@ function removeStorage(stack: Stack, session: Session): number {
 async function runStep(step: Step, stack: Stack, session: Session): Promise<number> {
   switch (step.kind) {
     case 'compose': {
-      if (step.recipient === true) {
-        const recipient = await recipientOf(session);
-        if (recipient === undefined) return CANCELLED;
-        return runDocker(composeArguments(stack, step, recipient), session);
+      if (step.recipient === true || step.account === true) {
+        const question =
+          step.account === true
+            ? 'E-Mail-Adresse des Kontos (Enter = abbrechen): '
+            : 'Test-E-Mail an (Enter = abbrechen): ';
+        const address = await addressOf(session, question);
+        if (address === undefined) return CANCELLED;
+        return runDocker(composeArguments(stack, step, address), session);
       }
       const service =
         step.service === undefined ? undefined : await chooseService(step, stack, session);

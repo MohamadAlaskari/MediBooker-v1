@@ -13,6 +13,8 @@ import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './domain/password-poli
 
 const MAX_EMAIL_LENGTH = 254;
 const MAX_TOKEN_LENGTH = 256;
+/** A code of the app or a recovery code, with what a person may type around it. */
+const MAX_CODE_LENGTH = 32;
 /**
  * ASCII for a new account. The column compares through `lower()`, which turns the Kelvin sign and
  * the dotted capital I into plain letters: a look-alike could take the address of its owner.
@@ -68,6 +70,25 @@ export class LoginDto {
   @IsOptional()
   @IsIn(['cookie', 'body'])
   readonly delivery?: 'cookie' | 'body';
+
+  @ApiPropertyOptional({
+    maxLength: MAX_CODE_LENGTH,
+    description:
+      'The six digits of the authenticator app, for an account with a second factor (MFA_CODE_REQUIRED)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CODE_LENGTH)
+  readonly code?: string;
+
+  @ApiPropertyOptional({
+    maxLength: MAX_CODE_LENGTH,
+    description: 'One of the recovery codes instead of the code of the app; each counts once',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CODE_LENGTH)
+  readonly recoveryCode?: string;
 }
 
 /** The app sends its refresh token here; a browser's comes as a cookie. */
@@ -132,6 +153,9 @@ export class AccountDto {
 
   @ApiProperty({ enum: LOCALES })
   readonly locale!: string;
+
+  @ApiProperty({ description: 'Whether a sign-in needs the code of an authenticator app' })
+  readonly mfaEnabled!: boolean;
 }
 
 export class TokensDto {
@@ -151,4 +175,32 @@ export class SessionDto {
 
   @ApiPropertyOptional({ type: TokensDto, description: 'Only when asked for in the answer' })
   readonly tokens?: TokensDto;
+}
+
+/** The start of the second factor: the app takes the secret from the QR code or typed in. */
+export class TotpSetupDto {
+  @ApiProperty({ description: 'The secret in base32, to type into an authenticator app' })
+  readonly secret!: string;
+
+  @ApiProperty({ description: 'What the QR code shows: an otpauth URI with the secret' })
+  readonly otpauthUri!: string;
+}
+
+export class ConfirmTotpDto {
+  @ApiProperty({
+    maxLength: MAX_CODE_LENGTH,
+    description: 'A current code of the authenticator app, which proves that it has the secret',
+  })
+  @IsString()
+  @MaxLength(MAX_CODE_LENGTH)
+  readonly code!: string;
+}
+
+/** The session that now counts with both factors: in cookies for a browser, tokens for the app. */
+export class TotpEnabledDto extends SessionDto {
+  @ApiProperty({
+    type: [String],
+    description: 'Shown this once and stored only as hashes: each signs in once instead of a code',
+  })
+  readonly recoveryCodes!: string[];
 }

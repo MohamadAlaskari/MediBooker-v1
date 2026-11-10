@@ -21,13 +21,18 @@
               "en"
             ],
             "type": "string"
+          },
+          "mfaEnabled": {
+            "description": "Whether a sign-in needs the code of an authenticator app",
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "email",
           "emailVerified",
-          "locale"
+          "locale",
+          "mfaEnabled"
         ],
         "type": "object"
       },
@@ -209,6 +214,19 @@
         ],
         "type": "object"
       },
+      "ConfirmTotpDto": {
+        "properties": {
+          "code": {
+            "description": "A current code of the authenticator app, which proves that it has the secret",
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
       "EmailDto": {
         "properties": {
           "email": {
@@ -228,11 +246,15 @@
           "UNAUTHENTICATED",
           "INVALID_CREDENTIALS",
           "INVALID_TOKEN",
+          "MFA_CODE_REQUIRED",
+          "MFA_CODE_INVALID",
           "FORBIDDEN",
           "EMAIL_NOT_VERIFIED",
+          "MFA_REQUIRED",
           "NOT_FOUND",
           "CONFLICT",
           "ALREADY_JOINED",
+          "MFA_ALREADY_ENABLED",
           "SLOT_NOT_AVAILABLE",
           "APPOINTMENT_OVERLAP",
           "BOOKING_LIMIT_REACHED",
@@ -351,6 +373,11 @@
       },
       "LoginDto": {
         "properties": {
+          "code": {
+            "description": "The six digits of the authenticator app, for an account with a second factor (MFA_CODE_REQUIRED)",
+            "maxLength": 32,
+            "type": "string"
+          },
           "delivery": {
             "default": "cookie",
             "description": "A browser gets cookies; the app asks for the tokens in the answer",
@@ -368,11 +395,33 @@
           "password": {
             "maxLength": 1024,
             "type": "string"
+          },
+          "recoveryCode": {
+            "description": "One of the recovery codes instead of the code of the app; each counts once",
+            "maxLength": 32,
+            "type": "string"
           }
         },
         "required": [
           "email",
           "password"
+        ],
+        "type": "object"
+      },
+      "MembershipDto": {
+        "properties": {
+          "role": {
+            "description": "STAFF is the reception; what a role may do is in the domain skill",
+            "enum": [
+              "STAFF",
+              "DOCTOR",
+              "ADMIN"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
         ],
         "type": "object"
       },
@@ -1284,6 +1333,50 @@
         ],
         "type": "object"
       },
+      "TotpEnabledDto": {
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountDto"
+          },
+          "recoveryCodes": {
+            "description": "Shown this once and stored only as hashes: each signs in once instead of a code",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tokens": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TokensDto"
+              }
+            ],
+            "description": "Only when asked for in the answer"
+          }
+        },
+        "required": [
+          "account",
+          "recoveryCodes"
+        ],
+        "type": "object"
+      },
+      "TotpSetupDto": {
+        "properties": {
+          "otpauthUri": {
+            "description": "What the QR code shows: an otpauth URI with the secret",
+            "type": "string"
+          },
+          "secret": {
+            "description": "The secret in base32, to type into an authenticator app",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "otpauthUri"
+        ],
+        "type": "object"
+      },
       "UnavailablePracticeDto": {
         "properties": {
           "practiceId": {
@@ -1517,7 +1610,7 @@
             "description": "An error, as application/problem+json"
           }
         },
-        "summary": "Sign in",
+        "summary": "Sign in; an account with a second factor also sends its code (MFA_CODE_REQUIRED)",
         "tags": [
           "auth"
         ]
@@ -2298,6 +2391,176 @@
           }
         ],
         "summary": "The upcoming appointments across the own practices",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/mfa/totp": {
+      "post": {
+        "operationId": "startTotp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpSetupDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start setting up an authenticator app: its secret, also as the text of a QR code",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/mfa/totp/confirm": {
+      "post": {
+        "operationId": "confirmTotp",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTotpDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnabledDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Put the authenticator app in force with a first code; answers the recovery codes once",
         "tags": [
           "me"
         ]
@@ -3272,6 +3535,116 @@
         "summary": "The own appointments in this practice, a page at a time",
         "tags": [
           "appointments"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/me/membership": {
+      "get": {
+        "operationId": "getMyMembership",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The own role in this practice, for the dashboard; MFA_REQUIRED without a second factor",
+        "tags": [
+          "staff"
         ]
       }
     },

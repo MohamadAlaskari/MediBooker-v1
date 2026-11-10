@@ -1,4 +1,5 @@
 import { applyDecorators, type ExecutionContext, SetMetadata } from '@nestjs/common';
+import type { StaffRole } from '../../generated/practice/enums.js';
 
 /**
  * How a route names its practice (02 §5): `id`, the path parameter `practiceId`, or `slug`, the
@@ -10,17 +11,23 @@ export type PracticeScope = 'id' | 'slug';
  * Who may reach a practice named by `id` (02 §5). `patient`: a person with an index row and a patient
  * profile in the practice's database; with `confirmed` their account's address must be confirmed
  * too (BR-09), and that is said first, so that a person learns what to do. `join`: a confirmed
- * account, on a published practice, to create its own patient profile. Staff roles follow with A04.
+ * account, on a published practice, to create its own patient profile. `staff`: an active
+ * membership of the practice in one of these roles, and a sign-in with both factors (A04).
  */
 export interface PracticeScopedOptions {
   readonly patient?: true;
   readonly confirmed?: true;
   readonly join?: true;
+  readonly staff?: readonly [StaffRole, ...StaffRole[]];
 }
 
-export type PracticeAccess = 'patient' | 'confirmed-patient' | 'join';
+export type PracticeAccess = 'patient' | 'confirmed-patient' | 'join' | 'staff';
+
+/** Every role of the practice: what a route names that all of its staff may reach. */
+export const ALL_STAFF_ROLES: readonly [StaffRole, ...StaffRole[]] = ['STAFF', 'DOCTOR', 'ADMIN'];
 
 function accessOf(options: PracticeScopedOptions): PracticeAccess | undefined {
+  if (options.staff !== undefined) return 'staff';
   if (options.join === true) return 'join';
   if (options.patient !== true) return undefined;
   return options.confirmed === true ? 'confirmed-patient' : 'patient';
@@ -28,6 +35,7 @@ function accessOf(options: PracticeScopedOptions): PracticeAccess | undefined {
 
 const PRACTICE_SCOPE = 'medibooker:practiceScope';
 const PRACTICE_ACCESS = 'medibooker:practiceAccess';
+const PRACTICE_STAFF_ROLES = 'medibooker:practiceStaffRoles';
 
 /**
  * Marks a route handler as practice-scoped: the PracticeContextInterceptor resolves the practice
@@ -40,9 +48,14 @@ export function PracticeScoped(
   options: PracticeScopedOptions = {},
 ): MethodDecorator {
   const access = accessOf(options);
+  // Only the id path reads the caller: an access rule on a public route would check nothing.
+  if (scope === 'slug' && access !== undefined) {
+    throw new Error('a slug route is public and takes no access rule');
+  }
   return applyDecorators(
     SetMetadata(PRACTICE_SCOPE, scope),
     ...(access === undefined ? [] : [SetMetadata(PRACTICE_ACCESS, access)]),
+    ...(options.staff === undefined ? [] : [SetMetadata(PRACTICE_STAFF_ROLES, options.staff)]),
   );
 }
 
@@ -59,7 +72,18 @@ export function practiceAccessOf(
   handler: ReturnType<ExecutionContext['getHandler']>,
 ): PracticeAccess | undefined {
   const access: unknown = Reflect.getMetadata(PRACTICE_ACCESS, handler);
-  return access === 'patient' || access === 'confirmed-patient' || access === 'join'
+  return access === 'patient' ||
+    access === 'confirmed-patient' ||
+    access === 'join' ||
+    access === 'staff'
     ? access
     : undefined;
+}
+
+/** The roles a staff route admits; empty for any other route. */
+export function practiceStaffRolesOf(
+  handler: ReturnType<ExecutionContext['getHandler']>,
+): readonly StaffRole[] {
+  const roles: unknown = Reflect.getMetadata(PRACTICE_STAFF_ROLES, handler);
+  return Array.isArray(roles) ? (roles as StaffRole[]) : [];
 }

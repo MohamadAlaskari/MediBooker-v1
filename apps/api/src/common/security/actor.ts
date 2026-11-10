@@ -1,3 +1,6 @@
+/** The `amr` value of a second factor (RFC 8176): staff routes require it (ADR 0004 §7). */
+export const AMR_ONE_TIME_CODE = 'otp';
+
 /** Who a request acts for: from the verified token and the session row, never from the request. */
 export interface Actor {
   readonly userId: string;
