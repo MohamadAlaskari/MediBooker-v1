@@ -27,7 +27,8 @@ export async function practiceMetadata(locale: Locale, slug: string): Promise<Me
   const languages = LOCALES.filter((code) => practice.supportedLocales.includes(code));
   return {
     metadataBase: new URL(publicSiteUrl()),
-    title: t('metaTitle', { name }),
+    // It names the practice already: the layout's template would name it twice.
+    title: { absolute: t('metaTitle', { name }) },
     description: practice.about ?? t('metaDescription', { name }),
     alternates: {
       canonical: practicePath(locale, practice.slug),

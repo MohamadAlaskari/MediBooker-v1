@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (`22c0cd5`), the pages of A05 for patients (`8d12915`), the account profile of D16 (`b0e2f11`), a real mail server for the stacks (`dc6bd58`), the patient profiles of B01 (`ddf90dd`), booking through the API with B02 (`b9b2795`), the patient half of B03 (`447475e`), booking on the web with B04 (`628fd8e`), the file storage of F09 (`95e5b8e`), the user's request of 2026-11-07, one installation per practice with I01 (this commit) and I02, the user's decision of 2026-11-10 ([ADR 0016](../adr/0016-one-installation-per-practice.md)), then the other booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (`22c0cd5`), the pages of A05 for patients (`8d12915`), the account profile of D16 (`b0e2f11`), a real mail server for the stacks (`dc6bd58`), the patient profiles of B01 (`ddf90dd`), booking through the API with B02 (`b9b2795`), the patient half of B03 (`447475e`), booking on the web with B04 (`628fd8e`), the file storage of F09 (`95e5b8e`), the user's request of 2026-11-07, one installation per practice with I01 (`f1af019`) and I02 (this commit), the user's decision of 2026-11-10 ([ADR 0016](../adr/0016-one-installation-per-practice.md)), then the other booking items and all later ones as listed. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -61,8 +61,8 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 35 | B04 | Portal booking | `feat(web): add portal booking flow and my appointments` | D16 | done (`628fd8e`) |
 | 35a | B06 | Portal home and what B04 left | `feat(web): add the portal home` | - | planned |
 | 35b | F09 | File storage: port, Azure and Azurite | `feat(storage): add object storage port with Azure and Azurite` | - | done (`95e5b8e`) |
-| 35c | I01 | The installation's practice at the root of its domain | `feat(web): serve the installation's practice at the domain root` | - | done (this commit) |
-| 35d | I02 | The practice's brand with "powered by MediBooker" | `feat(web): show the practice's brand on its pages and e-mails` | - | planned |
+| 35c | I01 | The installation's practice at the root of its domain | `feat(web): serve the installation's practice at the domain root` | - | done (`f1af019`) |
+| 35d | I02 | The practice's brand with "powered by MediBooker" | `feat(web): show the practice's brand on its pages and e-mails` | - | done (this commit) |
 | 36 | B05 | Mobile booking | `feat(mobile): add booking flow, my appointments and offline cache` | D16 | planned |
 | 37 | M01 | Listing, practice page and theme settings | `feat(practice): add practice page and theme settings for admins` | D3 | planned |
 | 38 | M02 | Services, opening hours, special days | `feat(practice): manage services, opening hours and special days` | - | planned |
@@ -463,13 +463,15 @@ Scope: `PRACTICE_SLUG` in the web server's environment, required in staging and 
 
 Acceptance: `/en` and `/ar` show the practice with its search data; `/en/al-noor` and `/en/old-name` answer 308 to `/en`; the sitemap names `/ar` and `/en` and no other practice; staging and production refuse to start without `PRACTICE_SLUG`.
 
-As built (this commit): all of the scope. The walk over all published practices left the web server: the sitemap of an installation has one practice. `GET /public/practices` stays in the API, unused by the web, until a cleanup removes it.
+As built (`f1af019`): all of the scope. The walk over all published practices left the web server: the sitemap of an installation has one practice. `GET /public/practices` stays in the API, unused by the web, until a cleanup removes it.
 
 ### I02 — The practice's brand
 
 **Commit:** `feat(web): show the practice's brand on its pages and e-mails` · **Depends on:** - · **Owner:** web-engineer and backend-engineer
 
 Scope: the practice's name (its logo with M01 and R02) instead of the MediBooker logo in the header of every page, also the sign-in, account and portal pages; a small "powered by MediBooker" in the footer; page titles with the practice's name; account e-mails in the practice's name, from `MAIL_FROM` of the installation; ADR 0002's fixed MediBooker logo becomes the footer note.
+
+As built (this commit): the sign-in, account and portal pages carry the practice's name and a footer "Powered by MediBooker"; the practice's own page keeps its footer "Booking with MediBooker". Its colours stand in the head of every document, set once by the root layout: a layout that a client navigation renders anew would bring a style with another request's nonce, which the CSP refuses. Titles end with the practice's name through the root layout's title template, and the practice's page names it once. The API reads `PRACTICE_SLUG` too, required in staging and production, and an account e-mail says "your account at <practice>" with the name from the registry in the account's language. No catalogue text names MediBooker any more; the product's name comes as `{product}`. The logo of a practice follows with M01 and R02; until then its name stands in the frame.
 
 ## Cross-cutting systems
 

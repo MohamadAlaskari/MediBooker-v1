@@ -327,6 +327,7 @@ Rules:
 | `REALTIME_RECHECK_SECONDS` | `30`: how often the gateway checks each socket's session, membership and practice status again | RT01 |
 | `APP_MIN_VERSION_IOS` · `APP_MIN_VERSION_ANDROID` | `0.0.0` | X02 |
 | `PUBLIC_WEB_URL` | the origin of every link in e-mails, never request headers; required and https in staging and production; `http://localhost:3000` otherwise | A02 |
+| `PRACTICE_SLUG` | the practice of this installation ([ADR 0016](../adr/0016-one-installation-per-practice.md)), whose name account e-mails carry; required in staging and production, as in the web server | I02 |
 | `AUTH_SIGNING_KEY_REFS` · `AUTH_SECRET_REF` | references into the secret store: of 32-byte seeds, the first signs and all verify · of the secret behind the CSRF and account tokens; defaults `dev:auth-signing-key` · `dev:auth-secret`, which staging and production refuse | A01 |
 | `SMTP_URL` · `MAIL_FROM` | unset: e-mails wait and retry; an `smtp` or `smtps` URL with a plain host; `smtps://` or `requireTLS=true` and no other option, so the certificate is checked, except in local and ci for a catcher on the machine (`mailpit`, `localhost`, `127.0.0.1`, no login, no option) · `MediBooker <no-reply@medibooker.invalid>` | A02 |
 | `MAIL_ALLOWED_RECIPIENTS` | unset; comma-separated addresses, the only ones the sender reaches; required with a real mail server in local and ci, refused in production | RT-91 |

@@ -26,11 +26,9 @@ async function titleOf(key: TitleKey, locale: string): Promise<unknown> {
 }
 
 describe('pageTitle', () => {
-  it('writes the text of the page and the product, in the language of the page', async () => {
-    await expect(titleOf('portal.list.title', 'en')).resolves.toBe('My appointments · MediBooker');
-    await expect(titleOf('portal.list.title', 'ar')).resolves.toBe(
-      `${messages.ar.portal.list.title} · MediBooker`,
-    );
+  it('writes the text of the page in its language; the root layout adds the practice', async () => {
+    await expect(titleOf('portal.list.title', 'en')).resolves.toBe('My appointments');
+    await expect(titleOf('portal.list.title', 'ar')).resolves.toBe(messages.ar.portal.list.title);
   });
 
   it('says nothing for a language that does not exist, which is a 404 anyway', async () => {

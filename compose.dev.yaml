@@ -99,6 +99,8 @@ services:
       OPENAPI_UI_ENABLED: 'true'
       TRUST_PROXY_HOPS: 0
       PUBLIC_WEB_URL: http://localhost:3000
+      # The installation's practice, whose name the account e-mails carry (ADR 0016).
+      PRACTICE_SLUG: al-noor
       # Mailpit, unless .env names a real mail server (menu: "Mailserver eintragen").
       SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
       MAIL_FROM: ${MAIL_FROM:-MediBooker <no-reply@medibooker.invalid>}

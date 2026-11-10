@@ -4,9 +4,23 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { LanguageSwitch } from './language-switch';
 
-/** Screen PW1: the brand on a wide screen, and on any screen what the person came to do. */
-export function AuthShell({ children }: { readonly children: ReactNode }): ReactNode {
+/** The product's name, where an installation names no practice of its own. */
+const PRODUCT = 'MediBooker';
+
+/**
+ * Screen PW1: the practice's name on a wide screen (ADR 0016), and on any screen what the person came
+ * to do, with a small note on whose software it is.
+ */
+export function AuthShell({
+  children,
+  brand,
+}: {
+  readonly children: ReactNode;
+  /** The installation's practice; undefined where it names none. */
+  readonly brand?: string | undefined;
+}): ReactNode {
   const t = useTranslations('auth');
+  const common = useTranslations('common');
   const locale = useLocale();
   const points = [t('brand.freeTimes'), t('brand.reminders'), t('brand.documents')];
   return (
@@ -14,7 +28,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }): React
       <aside className="hidden flex-col justify-between bg-bg-brand p-12 text-text-on-brand desktop:col-span-2 desktop:flex">
         <p className="flex items-center gap-3 text-label-large">
           <CalendarPlus aria-hidden className="size-6" />
-          MediBooker
+          {brand ?? PRODUCT}
         </p>
         <div>
           <p className="text-heading-h1">{t('brand.title')}</p>
@@ -39,7 +53,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }): React
         <header className="flex items-center justify-between">
           <p className="flex items-center gap-2 text-label-large text-text-primary desktop:invisible">
             <CalendarPlus aria-hidden className="size-6 text-icon-brand" />
-            MediBooker
+            {brand ?? PRODUCT}
           </p>
           <LanguageSwitch />
         </header>
@@ -50,6 +64,11 @@ export function AuthShell({ children }: { readonly children: ReactNode }): React
         >
           {children}
         </main>
+        {brand === undefined ? null : (
+          <footer className="pt-4 text-center text-body-small text-text-secondary">
+            {common('poweredBy', { product: PRODUCT })}
+          </footer>
+        )}
       </div>
     </div>
   );

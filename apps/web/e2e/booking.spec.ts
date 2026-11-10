@@ -2208,11 +2208,14 @@ test.describe('every page has a title of its own (08 B04)', () => {
     ] as const;
     for (const [path, title] of titled) {
       await page.goto(`/${locale}/${path}`);
-      await expect(page).toHaveTitle(filled(app.pageTitle, { page: title }));
+      // The installation's practice ends every title (08 I02).
+      await expect(page).toHaveTitle(
+        filled(app.pageTitle, { page: title, brand: nameOf('al-noor', locale) }),
+      );
     }
   });
 
-  test('of a person, and none names a service or a practice', async ({ page }, testInfo) => {
+  test('of a person, and none names a service', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const { app, auth, portal } = messages[locale];
     const email = newAddress(testInfo);
@@ -2231,7 +2234,10 @@ test.describe('every page has a title of its own (08 B04)', () => {
     ] as const;
     for (const [path, title] of titled) {
       await page.goto(`/${locale}/${path}`);
-      await expect(page).toHaveTitle(filled(app.pageTitle, { page: title }));
+      // The practice is the installation's, which its address names anyway (ADR 0016).
+      await expect(page).toHaveTitle(
+        filled(app.pageTitle, { page: title, brand: nameOf('al-noor', locale) }),
+      );
     }
   });
 });

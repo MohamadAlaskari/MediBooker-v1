@@ -85,6 +85,8 @@ services:
       PORT: 3001
       TRUST_PROXY_HOPS: 1
       PUBLIC_WEB_URL: http://localhost:8080
+      # The installation's practice, whose name the account e-mails carry (ADR 0016); as for the web.
+      PRACTICE_SLUG: ${PRACTICE_SLUG:-al-noor}
       # Mailpit, unless .env.prod names a real mail server (menu: "Mailserver eintragen").
       SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
       MAIL_FROM: ${MAIL_FROM:-MediBooker <no-reply@medibooker.invalid>}

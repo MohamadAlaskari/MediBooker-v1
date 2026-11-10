@@ -41,6 +41,21 @@ export function practicePath(locale: string, slug: string): string {
   return slug === installationPractice() ? `/${locale}` : `/${locale}/${slug}`;
 }
 
+/**
+ * The installation's practice for the frame of every page: its name and its colours (ADR 0016).
+ * undefined without one, or while the API cannot say: a frame never fails a page.
+ */
+export async function installationBrand(locale: string): Promise<PublicPracticeDto | undefined> {
+  const slug = installationPractice();
+  if (slug === undefined) return undefined;
+  try {
+    const result = await loadPublicPractice(slug, locale);
+    return result.kind === 'found' ? result.practice : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A practice slug as the API accepts it: anything else never reaches the API's path. */
 const PRACTICE_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 

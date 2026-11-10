@@ -28,13 +28,15 @@ function escaped(text: string): string {
 /**
  * An account e-mail, rendered when it is sent, in the language of the account: RTL HTML and plain
  * text, inline colours and no tracking. The link names the token in its fragment, so it reaches no
- * server log (03 §7). The caller passes a link from PUBLIC_WEB_URL, never from a request.
+ * server log (03 §7). The caller passes a link from PUBLIC_WEB_URL, never from a request, and the
+ * name of the practice whose account it is (ADR 0016).
  */
 export function renderAccountEmail(
   template: AccountNotificationTemplate,
   accountLocale: string,
   webUrl: string,
   token: string,
+  practiceName: string,
 ): RenderedEmail {
   const locale = isLocale(accountLocale) ? accountLocale : DEFAULT_LOCALE;
   const { texts, page } = TEMPLATES[template];
@@ -45,7 +47,7 @@ export function renderAccountEmail(
   const body = t(`${texts}.body`);
   const action = t(`${texts}.action`);
   const validity = t('validity');
-  const footer = t('footer');
+  const footer = t('footer', { practice: practiceName });
   const { bg, text } = createColorTheme('light');
   const direction = getDirection(locale);
   const paragraph = `margin:0 0 16px;font:16px/24px sans-serif;color:${text.secondary}`;

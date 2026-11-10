@@ -6,17 +6,29 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { SkipLink } from '@/components/skip-link';
+import { installationBrand } from '@/lib/api.server';
+import { brandStyle } from '@/lib/brand-style';
 import { FONT_VARIABLES } from '@/lib/fonts';
 import '@/styles/globals.css';
 
 /** Rendered per request: every page has its own CSP nonce (03 §4). */
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'MediBooker' };
+/** The product's name, where an installation names no practice of its own. */
+const PRODUCT = 'MediBooker';
 
 interface LocaleLayoutProps {
   readonly children: ReactNode;
   readonly params: Promise<{ readonly locale: string }>;
+}
+
+/** Every title ends with the practice's name (ADR 0016): a page names only what it is. */
+export async function generateMetadata({ params }: LocaleLayoutProps): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isLocale(locale)) return { title: PRODUCT };
+  const brand = (await installationBrand(locale))?.name ?? PRODUCT;
+  const t = await getTranslations({ locale, namespace: 'app' });
+  return { title: { template: t('pageTitle', { page: '%s', brand }), default: brand } };
 }
 
 /**
@@ -33,11 +45,19 @@ export default async function LocaleLayout({
   const t = await getTranslations({ locale, namespace: 'a11y' });
   const { common, errorPage } = messages[locale];
   const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const practice = await installationBrand(locale);
   return (
     <html lang={locale} dir={getDirection(locale)} data-theme="system" className={FONT_VARIABLES}>
       <head>
         {/* React Aria reads the nonce for the styles it adds; the browser keeps it out of the DOM. */}
         <meta property="csp-nonce" nonce={nonce} suppressHydrationWarning />
+        {/* The installation's colours on every page (ADR 0016). Here, once per document: a layout
+            that a client navigation renders anew would bring a style with another request's nonce. */}
+        {practice === undefined ? null : (
+          <style nonce={nonce} suppressHydrationWarning>
+            {brandStyle(practice.theme)}
+          </style>
+        )}
       </head>
       <body>
         <SkipLink>{t('skipToContent')}</SkipLink>

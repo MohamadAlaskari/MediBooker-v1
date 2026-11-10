@@ -111,6 +111,7 @@ const STAGING = parseEnv({
     'postgresql://platform_app:pw@db.internal.test:5432/medibooker_platform?sslmode=verify-full&sslrootcert=/ca.pem',
   MARKETS: 'SA',
   PUBLIC_WEB_URL: 'https://web.example.test',
+  PRACTICE_SLUG: 'al-noor',
   AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
   AUTH_SECRET_REF: 'hosted:auth-secret',
   FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',

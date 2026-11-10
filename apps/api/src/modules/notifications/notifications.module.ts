@@ -5,6 +5,7 @@ import { ENV } from '../../config/env.module.js';
 import { AccountNotifications } from './account-notifications.js';
 import { AccountOutbox } from './account-outbox.js';
 import { EmailSender, emailSenderFor } from './email-sender.js';
+import { InstallationPractice } from './installation-practice.js';
 
 /** Account and security e-mails (A02). Practice messages follow with N01. */
 @Module({
@@ -12,6 +13,7 @@ import { EmailSender, emailSenderFor } from './email-sender.js';
   providers: [
     AccountNotifications,
     AccountOutbox,
+    InstallationPractice,
     { provide: EmailSender, inject: [ENV], useFactory: emailSenderFor },
   ],
   exports: [AccountNotifications],

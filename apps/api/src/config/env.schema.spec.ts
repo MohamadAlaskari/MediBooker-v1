@@ -19,6 +19,7 @@ const PRODUCTION: EnvSource = {
   PLATFORM_DATABASE_URL: DEPLOYED_DATABASE_URL,
   MARKETS: 'SA',
   PUBLIC_WEB_URL: 'https://web.example.test',
+  PRACTICE_SLUG: 'al-noor',
   AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
   AUTH_SECRET_REF: 'hosted:auth-secret',
   FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',
@@ -633,6 +634,11 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
       expect(parseInvalid({ ...base, PUBLIC_WEB_URL: undefined }).stderr).toContain(
         'PUBLIC_WEB_URL (custom: required_in_staging_and_production)',
       );
+      // One installation, one practice, whose name its e-mails carry (ADR 0016).
+      expect(parseInvalid({ ...base, PRACTICE_SLUG: undefined }).stderr).toContain(
+        'PRACTICE_SLUG (custom: required_in_staging_and_production)',
+      );
+      expect(parseInvalid({ ...base, PRACTICE_SLUG: '../x' }).stderr).toContain('PRACTICE_SLUG');
       expect(parseInvalid({ ...base, PUBLIC_WEB_URL: 'http://web.example.test' }).stderr).toContain(
         'PUBLIC_WEB_URL (custom: https_required_in_staging_and_production)',
       );

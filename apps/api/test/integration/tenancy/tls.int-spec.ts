@@ -280,6 +280,7 @@ describe('TLS to the practice databases (ADR 0005 §4.9, §11.11)', () => {
         RATE_LIMIT_PER_MINUTE: '1000',
         MARKETS: 'SA',
         PUBLIC_WEB_URL: 'https://web.example.test',
+        PRACTICE_SLUG: 'al-noor',
         AUTH_SIGNING_KEY_REFS: 'hosted:auth-signing-key',
         AUTH_SECRET_REF: 'hosted:auth-secret',
         FIELD_ENCRYPTION_KEY_REFS: 'hosted:field-encryption-key',

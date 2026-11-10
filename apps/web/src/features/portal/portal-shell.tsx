@@ -7,9 +7,23 @@ import type { ReactNode } from 'react';
 import { LanguageSwitch } from '../auth/language-switch';
 import { SignOutButton, useSessionChangeElsewhere } from '../auth/sign-out-button';
 
-/** The frame of the signed-in pages (PW2 to PW9): where a person is, and the way out. */
-export function PortalShell({ children }: { readonly children: ReactNode }): ReactNode {
+/** The product's name, where an installation names no practice of its own. */
+const PRODUCT = 'MediBooker';
+
+/**
+ * The frame of the signed-in pages (PW2 to PW9): whose practice it is (ADR 0016), where a person is,
+ * and the way out.
+ */
+export function PortalShell({
+  children,
+  brand,
+}: {
+  readonly children: ReactNode;
+  /** The installation's practice; undefined where it names none. */
+  readonly brand?: string | undefined;
+}): ReactNode {
   const t = useTranslations('portal.nav');
+  const common = useTranslations('common');
   const locale = useLocale();
   const pathname = usePathname();
   useSessionChangeElsewhere();
@@ -23,7 +37,7 @@ export function PortalShell({ children }: { readonly children: ReactNode }): Rea
         <div className="mx-auto flex max-w-page flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 tablet:gap-x-6">
           <p className="me-auto flex items-center gap-2 text-label-large text-text-primary tablet:me-0">
             <CalendarPlus aria-hidden className="size-6 text-icon-brand" />
-            MediBooker
+            {brand ?? PRODUCT}
           </p>
           {/* On a phone a row of its own, below: otherwise its items break inside their words. */}
           <nav
@@ -55,6 +69,11 @@ export function PortalShell({ children }: { readonly children: ReactNode }): Rea
       <main id="main" tabIndex={-1} className="mx-auto max-w-page px-4 py-8">
         {children}
       </main>
+      {brand === undefined ? null : (
+        <footer className="px-4 pb-6 text-center text-body-small text-text-secondary">
+          {common('poweredBy', { product: PRODUCT })}
+        </footer>
+      )}
     </div>
   );
 }

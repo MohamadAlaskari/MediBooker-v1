@@ -261,6 +261,12 @@ const envObject = z.object({
   // A02: the address every link in an e-mail is built from, never a request's Host. Required in
   // staging and production (refinement below).
   PUBLIC_WEB_URL: webOrigin.optional(),
+  // ADR 0016: the practice of this installation, whose name its account e-mails carry. Required in
+  // staging and production (refinement below), as in the web server.
+  PRACTICE_SLUG: z
+    .string()
+    .regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/)
+    .optional(),
   // A02: smtp://host:port. Unset: e-mails wait and retry instead of being lost. Everything but a local
   // catcher needs TLS in every environment (refinement below). The host is required and plain:
   // without `//` the URL has none here, while nodemailer adds the slashes and logs in unencrypted.
@@ -380,6 +386,10 @@ const envSchema = envObject
       // A deployment serves only the markets it names (ADR 0005 §7.2).
       if (isDeployed && parsed('MARKETS') && env.MARKETS.length === 0) {
         reject('MARKETS', 'required_in_staging_and_production');
+      }
+      // An installation serves one practice (ADR 0016), and its e-mails speak in that one's name.
+      if (isDeployed && parsed('PRACTICE_SLUG') && env.PRACTICE_SLUG === undefined) {
+        reject('PRACTICE_SLUG', 'required_in_staging_and_production');
       }
       if (isDeployed && parsed('PUBLIC_WEB_URL')) {
         if (env.PUBLIC_WEB_URL === undefined) {

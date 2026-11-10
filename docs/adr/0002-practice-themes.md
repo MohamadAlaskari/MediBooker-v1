@@ -1,6 +1,8 @@
 # 0002. Practice themes: brand colour layer with presets and a checked custom colour
 Status: Accepted — 2026-11-01 (the client confirmed: any colour with automatic contrast adjustment, and the theme also in the dashboard)
 
+Amended 2026-11-10 by [ADR 0016](0016-one-installation-per-practice.md): every practice has its own installation and domain, and the user chose that patients see the practice's name, logo and colours, with MediBooker only in a small "Powered by MediBooker" and in the legal pages. Where this ADR fixes the MediBooker logo in the frame of the pages, the practice's name stands now (I02).
+
 ## Context
 
 The client wants every clinic to personalise its colours in the settings: either choose one of several prepared themes or set its own colour (2026-11-01). At the same time the non-negotiables apply: colours only from design tokens, WCAG 2.2 AA contrast, light and dark mode, Arabic RTL and English LTR. Status colours (red = cancelled or error, amber = warning, green = done) carry meaning for patients and must stay recognisable. Clinics also get a public practice page (no sign-in), which should look like the clinic.

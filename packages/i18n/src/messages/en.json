@@ -1,11 +1,12 @@
 {
   "common": {
     "retry": "Try again",
-    "requestId": "Request ID: {id}"
+    "requestId": "Request ID: {id}",
+    "poweredBy": "Powered by {product}"
   },
   "app": {
     "tagline": "Online appointments for medical practices.",
-    "pageTitle": "{page} · MediBooker"
+    "pageTitle": "{page} · {brand}"
   },
   "a11y": {
     "skipToContent": "Skip to content",
@@ -162,7 +163,7 @@
       "body": "Welcome back. Sign in to see and book your appointments.",
       "submit": "Sign in",
       "forgot": "Forgot password?",
-      "newHere": "New to MediBooker?",
+      "newHere": "New here?",
       "createAccount": "Create account"
     },
     "signUp": {
@@ -267,11 +268,11 @@
   },
   "privacyPage": {
     "title": "Privacy notice",
-    "body": "The privacy notice of MediBooker is being written and will be here before the launch.",
+    "body": "The privacy notice is being written and will be here before the launch.",
     "back": "Back"
   },
   "emails": {
-    "footer": "You receive this e-mail because of your MediBooker account. If that was not you, you can ignore it.",
+    "footer": "You receive this e-mail because of your account at {practice}. If that was not you, you can ignore it.",
     "validity": "The link is valid for 30 minutes.",
     "verify": {
       "subject": "Please confirm your e-mail address",

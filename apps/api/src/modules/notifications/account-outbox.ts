@@ -12,6 +12,7 @@ import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import { ENV } from '../../config/env.module.js';
 import type { Env } from '../../config/env.schema.js';
 import { renderAccountEmail } from './account-email.js';
+import { InstallationPractice } from './installation-practice.js';
 import { LEASE_MINUTES, nextAttemptAfter } from './domain/outbox.rules.js';
 import { EmailSender } from './email-sender.js';
 
@@ -37,6 +38,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
     private readonly clock: Clock,
     private readonly secrets: AuthSecrets,
     private readonly sender: EmailSender,
+    private readonly practice: InstallationPractice,
     private readonly logger: PinoLogger,
     @Inject(ENV) private readonly env: Env,
   ) {
@@ -122,6 +124,8 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
         row.user.locale,
         this.env.PUBLIC_WEB_URL,
         await this.secrets.accountTokenOf(token.id),
+        // In the practice's name (ADR 0016); the product's where an installation names none.
+        (await this.practice.nameIn(row.user.locale)) ?? 'MediBooker',
       );
       await this.sender.send({ to: row.user.email, ...email });
       await this.platform.accountNotification.updateMany({
