@@ -26,9 +26,11 @@ RUN --mount=type=cache,id=medibooker-pnpm-store,target=/pnpm-store,uid=1000,gid=
 
 FROM deps AS dev
 COPY --chown=node:node . .
+# Prefer, not only: the install above fetches no metadata, and pnpm's trust policy needs it for a new
+# package (ERR_PNPM_NO_OFFLINE_META with @azure/storage-blob, F09). The store holds everything else.
 RUN --mount=type=cache,id=medibooker-pnpm-store,target=/pnpm-store,uid=1000,gid=1000 \
     --mount=type=cache,id=medibooker-pnpm-cache,target=/home/node/.cache/pnpm,uid=1000,gid=1000 \
-    CI=1 pnpm install --offline --frozen-lockfile --store-dir /pnpm-store
+    CI=1 pnpm install --prefer-offline --frozen-lockfile --store-dir /pnpm-store
 # What the apps import as built packages, and the Prisma clients.
 RUN pnpm --filter @medibooker/api db:generate \
  && pnpm --filter './packages/**' --if-present run build \

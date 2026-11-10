@@ -52,6 +52,7 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 | Hosting | Region per target market (data residency); provider open | Open |
 | Notifications | Push in the patient app; appointment messages per practice by e-mail only, SMS only, or both (SMS to verified phones only); account and security messages always by e-mail; WhatsApp later — see `docs/adr/0001-notification-channels-and-content.md` and `docs/product/notifications.md` | Channels confirmed (2026-11-01); e-mail through a Hostinger mailbox over SMTP, the user's choice of 2026-11-06, processor contract open (RT-91); other providers Open (SMS provider not chosen) |
 | Tenancy | Multi-practice SaaS: one platform, many practices; **one PostgreSQL database per practice** (platform database for accounts, practice registry and membership index) — `docs/adr/0005-multi-tenancy.md` | Confirmed (2026-11-02) |
+| File storage | `ObjectStorage` port in the API; Azure Blob Storage in production, Azurite in development, other providers through another adapter — `docs/adr/0015-object-storage.md` | Confirmed (2026-11-07) |
 
 Rules: use a **Proposed** choice as the default. Never change a **Confirmed** one on your own. For an **Open** item, present options with a recommendation and wait for a decision. Record decisions as ADRs in `docs/adr/` (template in the `architect` agent).
 
@@ -105,7 +106,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 
 | Task | Command |
 |---|---|
-| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, tests, clean-up. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
+| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, file storage, tests, clean-up. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
 | Install (also installs the git hooks) | `pnpm install` |
 | Install exactly from the lockfile (CI) | `pnpm install --frozen-lockfile` |
 | Lint (fails on any warning) | `pnpm lint` |

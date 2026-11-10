@@ -286,4 +286,20 @@ describe('the custom managers of renovate.json', () => {
     const ignorePaths = asList(renovate.ignorePaths, 'ignorePaths') as string[];
     expect(ignorePaths.filter((pattern) => path.posix.matchesGlob(file, pattern))).toEqual([]);
   });
+
+  it('match the Azurite image of the integration tests once, as compose.dev.yaml pins it', () => {
+    const file = 'apps/api/test/integration/support/azurite-image.ts';
+    const manager = managers.find((candidate) => candidate.managerFilePatterns.includes(file));
+    expect(manager?.datasourceTemplate).toBe('docker');
+    expect(manager?.depNameTemplate).toBe('mcr.microsoft.com/azure-storage/azurite');
+    const images = matchesOf(file, file);
+    expect(images).toHaveLength(1);
+    const { currentValue, currentDigest } = images[0]?.groups ?? {};
+    expect(currentValue).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(currentDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    // Renovate moves both in one pull request; until it does, they must not differ.
+    expect(readText('compose.dev.yaml')).toContain(
+      `image: mcr.microsoft.com/azure-storage/azurite:${currentValue ?? ''}@${currentDigest ?? ''}\n`,
+    );
+  });
 });

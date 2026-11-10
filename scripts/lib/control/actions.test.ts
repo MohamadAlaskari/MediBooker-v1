@@ -139,8 +139,34 @@ describe('the commands', () => {
   );
 
   it('restart only the services that keep running', () => {
-    expect(composeCommands('dev', 'restart')[0]).toMatch(/restart api web mailpit$/);
+    expect(composeCommands('dev', 'restart')[0]).toMatch(/restart api web mailpit azurite$/);
     expect(composeCommands('prod', 'restart')[0]).toMatch(/restart api web proxy mailpit$/);
+  });
+
+  it('check the file storage through the running API, on both stacks', () => {
+    expect(composeCommands('dev', 'storage-test')).toEqual([
+      'compose --env-file .env -f compose.dev.yaml --profile app exec api node dist/cli/check-storage.js',
+    ]);
+    expect(composeCommands('prod', 'storage-test')).toEqual([
+      'compose --env-file .env.prod -f compose.prod.yaml exec api node dist/cli/check-storage.js',
+    ]);
+  });
+
+  it('enter an account only where no emulator holds the files', () => {
+    const dev = actionsOf(STACKS.dev).map(({ id }) => id);
+    expect(dev).not.toContain('storage-setup');
+    expect(dev).not.toContain('storage-off');
+    for (const id of ['storage-setup', 'storage-off']) {
+      const { steps } = action('prod', id);
+      expect(steps[0]?.kind).toBe(id);
+      expect(composeCommands('prod', id).at(-1)).toContain(' up -d --wait');
+      expect(composeCommands('prod', id).join(' ')).not.toContain(' restart');
+    }
+  });
+
+  it('say that resetting development also deletes the files in Azurite', () => {
+    expect(action('dev', 'reset-db').confirm).toContain('Azurite');
+    expect(action('prod', 'reset-db').confirm).not.toContain('Azurite');
   });
 });
 

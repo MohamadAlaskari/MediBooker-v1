@@ -56,6 +56,16 @@
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "postgres"
+    },
+    {
+      "customType": "regex",
+      "description": "The Azurite image of the integration tests (Testcontainers), pinned by tag and digest",
+      "managerFilePatterns": ["apps/api/test/integration/support/azurite-image.ts"],
+      "matchStrings": [
+        "// renovate: datasource=docker depName=mcr\\.microsoft\\.com/azure-storage/azurite\\s+export const AZURITE_IMAGE = 'mcr\\.microsoft\\.com/azure-storage/azurite:(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[0-9a-f]{64})';"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "mcr.microsoft.com/azure-storage/azurite"
     }
   ],
   "packageRules": [
@@ -136,6 +146,12 @@
       "matchDatasources": ["docker"],
       "matchDepNames": ["postgres"],
       "groupName": "postgres"
+    },
+    {
+      "description": "The Azurite images of compose.dev.yaml and of the integration tests move in one pull request",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["mcr.microsoft.com/azure-storage/azurite"],
+      "groupName": "azurite"
     },
     {
       "description": "A PostgreSQL major upgrade needs a pg_upgrade plan for every cluster",

@@ -24,6 +24,11 @@ export interface Stack {
   readonly appProfile: string | undefined;
   /** The Mailpit of this stack: its e-mails end up here unless its environment file names a server. */
   readonly mailUrl: string;
+  /**
+   * The emulator that holds this stack's files: where a browser reaches it and where the probe asks.
+   * undefined: the stack has no emulator, and its files go to the account its environment file names.
+   */
+  readonly storageEmulator: { readonly url: string; readonly probeUrl: string } | undefined;
   /** The services that keep running and can be restarted. */
   readonly runningServices: readonly string[];
   /** The services a log or a shell can be asked for. */
@@ -41,9 +46,13 @@ export const STACKS: Readonly<Record<Mode, Stack>> = {
     apiProbeUrl: 'http://localhost:3001',
     webProbeUrl: 'http://localhost:3000',
     mailUrl: 'http://localhost:8025',
+    storageEmulator: {
+      url: 'http://localhost:10000/devstoreaccount1',
+      probeUrl: 'http://127.0.0.1:10000/devstoreaccount1',
+    },
     appProfile: 'app',
-    runningServices: ['api', 'web', 'mailpit'],
-    services: ['api', 'web', 'mailpit', 'db', 'migrate', 'seed'],
+    runningServices: ['api', 'web', 'mailpit', 'azurite'],
+    services: ['api', 'web', 'mailpit', 'azurite', 'db', 'migrate', 'seed'],
   },
   prod: {
     mode: 'prod',
@@ -55,6 +64,7 @@ export const STACKS: Readonly<Record<Mode, Stack>> = {
     apiProbeUrl: 'http://localhost:8081',
     webProbeUrl: 'http://localhost:8082',
     mailUrl: 'http://localhost:8083',
+    storageEmulator: undefined,
     appProfile: undefined,
     runningServices: ['api', 'web', 'proxy', 'mailpit'],
     services: ['proxy', 'api', 'web', 'mailpit', 'db', 'migrate'],
@@ -72,14 +82,30 @@ export interface Link {
   readonly target: string;
 }
 
+/** Where the files of this stack go: its emulator, the account's name, or nowhere yet. */
+function storageLink({ storageEmulator }: Stack, storageAccount: string | undefined): Link {
+  if (storageEmulator !== undefined) {
+    return { label: 'Dateien (Azurite)', target: storageEmulator.url };
+  }
+  return {
+    label: 'Dateien',
+    target:
+      storageAccount === undefined
+        ? 'kein Speicher eingetragen (Menü: "Azure-Speicher eintragen")'
+        : `Azure-Konto ${storageAccount}`,
+  };
+}
+
 /**
  * Swagger is off in the production stack unless `.env.prod` turns it on. `mailServer` is the host of
- * a real mail server: then nobody should look for the e-mails in the Mailpit.
+ * a real mail server: then nobody should look for the e-mails in the Mailpit. `storageAccount` is
+ * the name of an entered account, never its connection string.
  */
 export function linksOf(
   stack: Stack,
   swaggerEnabled: boolean,
   mailServer?: string,
+  storageAccount?: string,
 ): readonly Link[] {
   const swagger: Link = swaggerEnabled
     ? { label: 'Swagger', target: `${stack.apiProbeUrl}/api/docs` }
@@ -98,6 +124,7 @@ export function linksOf(
     },
     swagger,
     mail,
+    storageLink(stack, storageAccount),
     { label: 'Health API, lebt', target: `${stack.apiProbeUrl}/health/live` },
     { label: 'Health API, bereit', target: `${stack.apiProbeUrl}/health/ready` },
     { label: 'Health Web', target: `${stack.webProbeUrl}/healthz` },

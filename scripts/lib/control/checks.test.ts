@@ -54,6 +54,8 @@ function limitCountingDown(): () => Route {
   };
 }
 
+const AZURITE_PROBE = STACKS.dev.storageEmulator?.probeUrl ?? '';
+
 /** Everything a healthy stack answers, by the URLs of its checks. */
 function healthyRoutes(mode: 'dev' | 'prod'): Routes {
   const { apiProbeUrl, webProbeUrl, webUrl, apiUrl, mailUrl } = STACKS[mode];
@@ -90,9 +92,13 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
         'x-request-id': 'chosen-by-the-proxy',
       },
     },
-    // In development the probes and the Swagger UI answer; behind the proxy they do not.
+    // In development the probes and the Swagger UI answer; behind the proxy they do not. Azurite
+    // refuses a request without a signature, which is its healthy answer.
     ...(mode === 'dev'
-      ? { [`${apiProbeUrl}/api/docs`]: { status: 200 } }
+      ? {
+          [`${apiProbeUrl}/api/docs`]: { status: 200 },
+          [AZURITE_PROBE]: { status: 403 },
+        }
       : {
           [`${webUrl}/health/ready`]: { status: 404 },
           [`${webUrl}/healthz`]: { status: 404 },
@@ -229,6 +235,24 @@ describe('what the smoke test catches', () => {
     );
     return results.filter(({ ok }) => !ok).map(({ problem }) => problem);
   }
+
+  it('a file storage that is down or broken, in development only', async () => {
+    expect(await failuresWith('dev', { [AZURITE_PROBE]: { status: 503 } })).toEqual(['Status 503']);
+    const missing = Object.fromEntries(
+      Object.entries(healthyRoutes('dev')).filter(([url]) => url !== AZURITE_PROBE),
+    );
+    const results = await runChecks(
+      smokeChecks(STACKS.dev, WITH_MAILPIT, RUN_ID),
+      answering(missing),
+      0,
+    );
+    expect(results.filter(({ ok }) => !ok).map(({ name }) => name)).toEqual([
+      'Datei-Speicher (Azurite)',
+    ]);
+    expect(smokeChecks(STACKS.prod, WITH_MAILPIT, RUN_ID).map(({ url }) => url)).not.toContain(
+      AZURITE_PROBE,
+    );
+  });
 
   it('a sign-up whose e-mail never arrives', async () => {
     expect(

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getTransactionHostToken, TransactionHost } from '@nestjs-cls/transactional';
 import { Test } from '@nestjs/testing';
 import { PinoLogger } from 'nestjs-pino';
@@ -13,6 +14,8 @@ import { Clock } from './common/time/clock.js';
 import { SystemClock } from './common/time/system-clock.js';
 import { ENV } from './config/env.module.js';
 import { parseEnv } from './config/env.schema.js';
+import { ObjectStorage } from './modules/storage/object-storage.js';
+import { UnconfiguredObjectStorage } from './modules/storage/unconfigured-object-storage.js';
 
 describe('AppModule', () => {
   it('RT-47 compiles AppModule.forRoot(parseEnv(TEST_ENV)) and resolves AuthenticationGuard', async () => {
@@ -54,6 +57,21 @@ describe('AppModule', () => {
         PracticeConnectionManager,
       );
       expect(moduleRef.get(Clock, { strict: false })).toBeInstanceOf(SystemClock);
+    } finally {
+      await moduleRef.close();
+    }
+  });
+
+  it('F09 starts without a storage provider, with a storage that fails only when it is called', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule.forRoot(parseEnv(TEST_ENV))],
+    }).compile();
+    try {
+      const storage = moduleRef.get(ObjectStorage, { strict: false });
+      expect(storage).toBeInstanceOf(UnconfiguredObjectStorage);
+      await expect(storage.deleteAllOf(randomUUID())).rejects.toMatchObject({
+        failure: 'NOT_CONFIGURED',
+      });
     } finally {
       await moduleRef.close();
     }

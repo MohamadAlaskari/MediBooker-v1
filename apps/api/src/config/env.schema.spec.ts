@@ -368,7 +368,7 @@ describe('parseEnv', () => {
       expect(stderr).not.toContain('secret-value');
     });
 
-    it.each(['DEBUG', 'NODE_DEBUG', 'NODE_DEBUG_NATIVE'])(
+    it.each(['DEBUG', 'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'AZURE_LOG_LEVEL'])(
       'rejects %s, whose output reaches stderr outside pino, also next to a malformed key',
       (key) => {
         const { code, stderr } = parseInvalid({ ...deployed, [key]: '*', PORT: 'secret-value' });
@@ -381,7 +381,13 @@ describe('parseEnv', () => {
 
     it('accepts a blank debug switch, which counts as unset', () => {
       expect(
-        parseEnv({ ...deployed, DEBUG: '', NODE_DEBUG: ' ', NODE_DEBUG_NATIVE: '' }),
+        parseEnv({
+          ...deployed,
+          DEBUG: '',
+          NODE_DEBUG: ' ',
+          NODE_DEBUG_NATIVE: '',
+          AZURE_LOG_LEVEL: '',
+        }),
       ).toMatchObject({
         APP_ENV: deployed.APP_ENV,
       });
@@ -402,7 +408,12 @@ describe('parseEnv', () => {
 
   it('accepts the debug switches in local and ci and keeps them out of Env', () => {
     for (const base of [LOCAL, CI]) {
-      const switches = { DEBUG: 'express:*', NODE_DEBUG: 'http', NODE_DEBUG_NATIVE: 'http2' };
+      const switches = {
+        DEBUG: 'express:*',
+        NODE_DEBUG: 'http',
+        NODE_DEBUG_NATIVE: 'http2',
+        AZURE_LOG_LEVEL: 'verbose',
+      };
       const env = parseEnv({ ...base, ...switches });
       for (const key of Object.keys(switches)) expect(env).not.toHaveProperty(key);
     }
@@ -847,5 +858,241 @@ describe('parseEnv: the database keys (F04, 02 §7)', () => {
         expect(stderr).not.toContain('required_in_staging_and_production');
       });
     });
+  });
+});
+
+describe('parseEnv: file storage (F09, ADR 0015)', () => {
+  /** A real account's form, with a key far too short to be one. */
+  const REAL_ACCOUNT =
+    'DefaultEndpointsProtocol=https;AccountName=medibookerfiles;AccountKey=a2V5;EndpointSuffix=core.windows.net';
+  /** compose.dev.yaml's form, with a synthetic key. */
+  const COMPOSE_EMULATOR =
+    'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=a2V5;BlobEndpoint=http://azurite:10000/devstoreaccount1;';
+  const AZURE = { STORAGE_PROVIDER: 'azure' };
+
+  it('leaves storage unset by default, also where a value is blank, in every environment', () => {
+    for (const base of [LOCAL, CI, STAGING, PRODUCTION]) {
+      expect(parseEnv(base).STORAGE_PROVIDER).toBeUndefined();
+      const blank = parseEnv({
+        ...base,
+        STORAGE_PROVIDER: '',
+        STORAGE_AZURE_CONNECTION_STRING: ' ',
+        STORAGE_AZURE_PUBLIC_BLOB_URL: '',
+      });
+      expect(blank.STORAGE_PROVIDER).toBeUndefined();
+      expect(blank.STORAGE_AZURE_CONNECTION_STRING).toBeUndefined();
+      expect(blank.STORAGE_AZURE_PUBLIC_BLOB_URL).toBeUndefined();
+    }
+  });
+
+  it('knows only azure as a provider, and shows no value of another', () => {
+    const { stderr } = parseInvalid({ ...LOCAL, STORAGE_PROVIDER: 'secret-value' });
+    expect(stderr).toContain('STORAGE_PROVIDER (invalid_value)');
+    expect(stderr).not.toContain('secret-value');
+  });
+
+  it('requires the connection string with azure', () => {
+    expect(parseInvalid({ ...LOCAL, ...AZURE }).stderr).toContain(
+      'STORAGE_AZURE_CONNECTION_STRING (custom: required_with_provider_azure)',
+    );
+  });
+
+  it('refuses the settings of azure without azure', () => {
+    const { stderr } = parseInvalid({
+      ...LOCAL,
+      STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+      STORAGE_AZURE_PUBLIC_BLOB_URL: 'https://files.example.test',
+    });
+    expect(stderr).toContain('STORAGE_AZURE_CONNECTION_STRING (custom: only_with_provider_azure)');
+    expect(stderr).toContain('STORAGE_AZURE_PUBLIC_BLOB_URL (custom: only_with_provider_azure)');
+  });
+
+  it('says only that the provider is wrong when it is malformed', () => {
+    const { stderr } = parseInvalid({
+      ...LOCAL,
+      STORAGE_PROVIDER: 's3',
+      STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+    });
+    expect(stderr).toContain('STORAGE_PROVIDER (invalid_value)');
+    expect(stderr).not.toContain('STORAGE_AZURE_CONNECTION_STRING');
+  });
+
+  it('reads a real account into its parts, in every environment', () => {
+    for (const base of [LOCAL, CI, STAGING, PRODUCTION]) {
+      const env = parseEnv({ ...base, ...AZURE, STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT });
+      expect(env.STORAGE_AZURE_CONNECTION_STRING).toEqual({
+        accountName: 'medibookerfiles',
+        accountKey: 'a2V5',
+        blobEndpoint: 'https://medibookerfiles.blob.core.windows.net',
+      });
+    }
+  });
+
+  it('reports what the parser refuses by its reason, without the value', () => {
+    for (const [value, reason] of [
+      ['no-such-format', 'not_a_connection_string'],
+      ['AccountName=a1b;SharedAccessSignature=secret-value', 'shared_access_signature_cannot_sign'],
+      ['UseDevelopmentStorage=true', 'development_shortcut_points_at_loopback'],
+      ['AccountName=SECRET-VALUE;AccountKey=a2V5', 'account_name_invalid'],
+      ['AccountName=a1b;AccountKey=secret-value', 'account_key_invalid'],
+      ['AccountName=a1b;AccountKey=a2V5;BlobEndpoint=secret-value', 'blob_endpoint_invalid'],
+    ] as const) {
+      const { code, stderr } = parseInvalid({
+        ...LOCAL,
+        ...AZURE,
+        STORAGE_AZURE_CONNECTION_STRING: value,
+      });
+      expect(code).toBe(1);
+      expect(stderr).toContain(`STORAGE_AZURE_CONNECTION_STRING (custom: ${reason})`);
+      expect(stderr.toLowerCase()).not.toContain('secret-value');
+      expect(stderr).not.toContain('required_with_provider_azure');
+    }
+  });
+
+  it('gives a malformed connection string its own reason next to a malformed provider', () => {
+    const { stderr } = parseInvalid({
+      ...LOCAL,
+      STORAGE_PROVIDER: 's3',
+      STORAGE_AZURE_CONNECTION_STRING: 'no-such-format',
+      STORAGE_AZURE_PUBLIC_BLOB_URL: 'secret-value',
+    });
+    expect(stderr).toContain('STORAGE_PROVIDER (invalid_value)');
+    expect(stderr).toContain('STORAGE_AZURE_CONNECTION_STRING (custom: not_a_connection_string)');
+    expect(stderr).toContain('STORAGE_AZURE_PUBLIC_BLOB_URL (custom: not_a_blob_url)');
+    expect(stderr).not.toContain('secret-value');
+  });
+
+  describe.each([
+    ['local', LOCAL],
+    ['ci', CI],
+  ])('in %s', (_name, base) => {
+    it.each(['azurite:10000', 'localhost:10000', '127.0.0.1:10000'])(
+      'takes the emulator over http on %s',
+      (host) => {
+        const string = `AccountName=devstoreaccount1;AccountKey=a2V5;BlobEndpoint=http://${host}/devstoreaccount1`;
+        const env = parseEnv({ ...base, ...AZURE, STORAGE_AZURE_CONNECTION_STRING: string });
+        expect(env.STORAGE_AZURE_CONNECTION_STRING?.blobEndpoint).toBe(
+          `http://${host}/devstoreaccount1`,
+        );
+      },
+    );
+
+    it('takes compose.dev.yaml with its public URL', () => {
+      expect(
+        parseEnv({
+          ...base,
+          ...AZURE,
+          STORAGE_AZURE_CONNECTION_STRING: COMPOSE_EMULATOR,
+          STORAGE_AZURE_PUBLIC_BLOB_URL: 'http://localhost:10000/devstoreaccount1/',
+        }).STORAGE_AZURE_PUBLIC_BLOB_URL,
+      ).toBe('http://localhost:10000/devstoreaccount1');
+    });
+
+    it('wants https for everything but an emulator, also from a derived endpoint', () => {
+      for (const string of [
+        'AccountName=medibookerfiles;AccountKey=a2V5;BlobEndpoint=http://files.example.test',
+        'DefaultEndpointsProtocol=http;AccountName=medibookerfiles;AccountKey=a2V5',
+      ]) {
+        expect(
+          parseInvalid({ ...base, ...AZURE, STORAGE_AZURE_CONNECTION_STRING: string }).stderr,
+        ).toContain('STORAGE_AZURE_CONNECTION_STRING (custom: https_required_outside_an_emulator)');
+      }
+      expect(
+        parseInvalid({
+          ...base,
+          ...AZURE,
+          STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+          STORAGE_AZURE_PUBLIC_BLOB_URL: 'http://files.example.test',
+        }).stderr,
+      ).toContain('STORAGE_AZURE_PUBLIC_BLOB_URL (custom: https_required_outside_an_emulator)');
+    });
+  });
+
+  describe.each([
+    ['staging', STAGING],
+    ['production', PRODUCTION],
+  ])('in %s', (_name, deployed) => {
+    it("refuses the emulator's account, also on a real host over https", () => {
+      for (const string of [
+        COMPOSE_EMULATOR,
+        'AccountName=devstoreaccount1;AccountKey=a2V5;BlobEndpoint=https://files.example.test',
+      ]) {
+        expect(
+          parseInvalid({ ...deployed, ...AZURE, STORAGE_AZURE_CONNECTION_STRING: string }).stderr,
+        ).toContain(
+          'STORAGE_AZURE_CONNECTION_STRING (custom: emulator_not_allowed_in_staging_and_production)',
+        );
+      }
+    });
+
+    it.each(['azurite', 'localhost', '127.0.0.1'])(
+      'refuses the local host %s, also over https',
+      (host) => {
+        for (const protocol of ['http', 'https']) {
+          const string = `AccountName=medibookerfiles;AccountKey=a2V5;BlobEndpoint=${protocol}://${host}:10000`;
+          expect(
+            parseInvalid({ ...deployed, ...AZURE, STORAGE_AZURE_CONNECTION_STRING: string }).stderr,
+          ).toContain(
+            'STORAGE_AZURE_CONNECTION_STRING (custom: emulator_not_allowed_in_staging_and_production)',
+          );
+          expect(
+            parseInvalid({
+              ...deployed,
+              ...AZURE,
+              STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+              STORAGE_AZURE_PUBLIC_BLOB_URL: `${protocol}://${host}:10000/devstoreaccount1`,
+            }).stderr,
+          ).toContain(
+            'STORAGE_AZURE_PUBLIC_BLOB_URL (custom: emulator_not_allowed_in_staging_and_production)',
+          );
+        }
+      },
+    );
+
+    it('wants https everywhere else', () => {
+      const { stderr } = parseInvalid({
+        ...deployed,
+        ...AZURE,
+        STORAGE_AZURE_CONNECTION_STRING:
+          'DefaultEndpointsProtocol=http;AccountName=medibookerfiles;AccountKey=a2V5',
+        STORAGE_AZURE_PUBLIC_BLOB_URL: 'http://files.example.test',
+      });
+      expect(stderr).toContain(
+        'STORAGE_AZURE_CONNECTION_STRING (custom: https_required_outside_an_emulator)',
+      );
+      expect(stderr).toContain(
+        'STORAGE_AZURE_PUBLIC_BLOB_URL (custom: https_required_outside_an_emulator)',
+      );
+    });
+
+    it('takes a public URL over https', () => {
+      expect(
+        parseEnv({
+          ...deployed,
+          ...AZURE,
+          STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+          STORAGE_AZURE_PUBLIC_BLOB_URL: 'https://files.example.test',
+        }).STORAGE_AZURE_PUBLIC_BLOB_URL,
+      ).toBe('https://files.example.test');
+    });
+  });
+
+  it('takes a public URL without a query, a fragment or a login, and shows none of it', () => {
+    for (const url of [
+      'https://files.example.test/?secret-value',
+      'https://files.example.test/#secret-value',
+      'https://secret-value:x@files.example.test',
+      'ftp://files.example.test/secret-value',
+      'secret-value',
+    ]) {
+      const { stderr } = parseInvalid({
+        ...LOCAL,
+        ...AZURE,
+        STORAGE_AZURE_CONNECTION_STRING: REAL_ACCOUNT,
+        STORAGE_AZURE_PUBLIC_BLOB_URL: url,
+      });
+      expect(stderr).toContain('STORAGE_AZURE_PUBLIC_BLOB_URL (custom: not_a_blob_url)');
+      expect(stderr).not.toContain('secret-value');
+    }
   });
 });

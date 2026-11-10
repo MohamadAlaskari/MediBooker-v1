@@ -92,6 +92,18 @@ describe('the links', () => {
     expect(text).not.toContain('http://localhost:8025');
   });
 
+  it('says where the files go: Azurite, an account by its name, or nowhere yet', () => {
+    expect(renderLinks(STACKS.dev, linksOf(STACKS.dev, true))).toContain(
+      'http://localhost:10000/devstoreaccount1',
+    );
+    expect(renderLinks(STACKS.prod, linksOf(STACKS.prod, false))).toContain(
+      'kein Speicher eingetragen',
+    );
+    expect(
+      renderLinks(STACKS.prod, linksOf(STACKS.prod, false, undefined, 'medibookerfiles')),
+    ).toContain('Azure-Konto medibookerfiles');
+  });
+
   it('production shows the Swagger link once it is on', () => {
     expect(renderLinks(STACKS.prod, linksOf(STACKS.prod, true))).toContain(
       'http://localhost:8081/api/docs',

@@ -93,7 +93,9 @@ describe('medibooker', () => {
 
   it('asks for the service in the menu, Enter takes all', () => {
     const logs = run(['--dry-run'], '1\nlogs\n\nq\n');
-    expect(logs.out).toContain('Dienst [api, web, mailpit, db, migrate, seed; Enter = alle]');
+    expect(logs.out).toContain(
+      'Dienst [api, web, mailpit, azurite, db, migrate, seed; Enter = alle]',
+    );
     expect(logs.out).toMatch(/logs -f --tail 100\n/);
     const chosen = run(['--dry-run'], '1\nlogs\nweb\nq\n');
     expect(chosen.out).toContain('logs -f --tail 100 web');

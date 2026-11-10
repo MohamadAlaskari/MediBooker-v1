@@ -6,11 +6,20 @@
 # two commit-qualified fingerprints, pinned to ACCEPTED_FINGERPRINTS in scripts/lib/gitleaks.ts.
 # The rule for any other entry: docs/architecture/07-docker-ci-cd.md §4, ADR 0009
 # (docs/adr/0009-ci-branch-model-and-supply-chain.md) and docs/dev/getting-started.md.
+# The allowlist below holds no secret: it is one published value, which opens nothing but a local
+# emulator. Anything else goes through the rules above, never through a new pattern here.
 
 title = "MediBooker gitleaks config"
 
 [extend]
 useDefault = true
+
+# The account key of the Azurite emulator, which Microsoft publishes in the Azurite documentation.
+# compose.dev.yaml, .env.example and the integration tests need it. Exactly this value, anchored, and
+# no pattern for AccountKey: every other account key is still reported.
+[[allowlists]]
+description = "The published account key of the Azurite emulator"
+regexes = ['''^Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==$''']
 
 [[rules]]
 id = "medibooker-password-assignment"

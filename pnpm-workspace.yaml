@@ -27,6 +27,8 @@ trustPolicyExclude:
 
 catalog:
   '@axe-core/playwright': 4.14.0
+  # The port ObjectStorage in the API talks to Azure Blob Storage and to Azurite with it (F09, ADR 0015).
+  '@azure/storage-blob': 12.34.0
   '@eslint/js': 10.0.1
   '@faker-js/faker': 10.6.0
   '@hookform/resolvers': 7.0.3

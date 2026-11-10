@@ -91,6 +91,10 @@ services:
       MAIL_ALLOWED_RECIPIENTS: ${MAIL_ALLOWED_RECIPIENTS:-}
       OPENAPI_UI_ENABLED: ${OPENAPI_UI_ENABLED:-false}
       PLATFORM_DATABASE_URL: postgresql://platform_app:${PLATFORM_APP_PASSWORD}@db:5432/medibooker_platform
+      # No file storage, unless .env.prod names an account (menu: "Azure-Speicher eintragen"). This
+      # stack has no emulator: blank counts as unset, and the API runs without one.
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-}
+      STORAGE_AZURE_CONNECTION_STRING: ${STORAGE_AZURE_CONNECTION_STRING:-}
     # Past the proxy, for the health links and Swagger: only from this machine. Removed in OPS01.
     ports:
       - 127.0.0.1:8081:3001

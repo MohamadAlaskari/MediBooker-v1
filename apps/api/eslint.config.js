@@ -30,4 +30,25 @@ export default defineConfig(
       ],
     },
   },
+  {
+    // A provider's SDK stays behind the port, so another provider is one more adapter and no change
+    // to a feature (ADR 0015). test/lint/storage-rules.canary.ts proves that this rule reports.
+    name: 'medibooker/api/storage-provider',
+    files: ['**/*.ts'],
+    ignores: ['src/modules/storage/azure/**', 'test/integration/storage/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@azure/*'],
+              message:
+                'Only src/modules/storage/azure and its tests import a provider SDK; use the port ObjectStorage (ADR 0015).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

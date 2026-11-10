@@ -16,13 +16,16 @@ import {
 } from './lib/control/checks.ts';
 import { cachePaths, nodeModulesPaths, removeFolders } from './lib/control/clean.ts';
 import {
+  azureStringProblem,
   DEFAULT_MAIL_HOST,
   ensureEnvFile,
   isHostName,
   isMailAddress,
   isSwaggerEnabled,
   mailServerOf,
+  storageAccountOf,
   writeMailServer,
+  writeStorageAccount,
 } from './lib/control/env-files.ts';
 import { lineReader, type LineReader } from './lib/control/lines.ts';
 import { isMode, linksOf, STACKS, type Mode, type Stack } from './lib/control/stacks.ts';
@@ -136,18 +139,26 @@ async function recipientOf(session: Session): Promise<string | undefined> {
   return undefined;
 }
 
+/** False where a secret would show while it is typed, which it then says. */
+function canHideInput(secret: string): boolean {
+  // Git Bash's own terminal hands a program a pipe, and itself shows what is typed.
+  if (process.stdin.isTTY || process.env.MSYSTEM === undefined) return true;
+  console.error(
+    style.red(`Hier wäre ${secret} sichtbar: bitte medibooker.cmd in PowerShell oder cmd starten.`),
+  );
+  return false;
+}
+
+/** Promises a hidden answer only where it can keep that promise. */
+function hiddenPrompt(name: string): string {
+  return process.stdin.isTTY
+    ? `${name} (wird nicht angezeigt, Enter = abbrechen): `
+    : `${name} (Enter = abbrechen): `;
+}
+
 /** Writes a mailbox into the stack's environment file. Its password is never shown. */
 function setUpMailServer(stack: Stack, session: Session): Promise<number> {
-  const isTerminal = process.stdin.isTTY;
-  // Git Bash's own terminal hands a program a pipe, and itself shows what is typed.
-  if (!isTerminal && process.env.MSYSTEM !== undefined) {
-    console.error(
-      style.red(
-        'Hier wäre das Passwort sichtbar: bitte medibooker.cmd in PowerShell oder cmd starten.',
-      ),
-    );
-    return Promise.resolve(CANCELLED);
-  }
+  if (!canHideInput('das Passwort')) return Promise.resolve(CANCELLED);
   return withLines(session, async (lines) => {
     console.log(`Adresse und Passwort kommen nur in ${stack.envFile}, die Git nicht kennt.`);
     const address = (await lines.ask('Adresse des Postfachs (Enter = abbrechen): '))?.trim() ?? '';
@@ -165,11 +176,7 @@ function setUpMailServer(stack: Stack, session: Session): Promise<number> {
       console.error(style.red('Eine Adresse oder der Server sehen nicht richtig aus.'));
       return CANCELLED;
     }
-    const password = await lines.askHidden(
-      isTerminal
-        ? 'Passwort (wird nicht angezeigt, Enter = abbrechen): '
-        : 'Passwort (Enter = abbrechen): ',
-    );
+    const password = await lines.askHidden(hiddenPrompt('Passwort'));
     if (password === undefined || password === '') return CANCELLED;
     if (session.dryRun) {
       console.log(
@@ -196,6 +203,43 @@ function removeMailServer(stack: Stack, session: Session): number {
   return 0;
 }
 
+/** Writes an Azure account into the stack's environment file. Its string is never shown. */
+function setUpStorage(stack: Stack, session: Session): Promise<number> {
+  if (!canHideInput('der Connection String')) return Promise.resolve(CANCELLED);
+  return withLines(session, async (lines) => {
+    console.log(`Der Connection String kommt nur in ${stack.envFile}, die Git nicht kennt.`);
+    const value = (await lines.askHidden(hiddenPrompt('Connection String')))?.trim() ?? '';
+    if (value === '') return CANCELLED;
+    const problem = azureStringProblem(value);
+    if (problem !== undefined) {
+      console.error(style.red(problem));
+      return CANCELLED;
+    }
+    if (session.dryRun) {
+      console.log(
+        style.dim(`${stack.envFile}: STORAGE_PROVIDER, STORAGE_AZURE_CONNECTION_STRING setzen`),
+      );
+    } else {
+      writeStorageAccount(stack, ROOT, value);
+      console.log(`${stack.envFile}: Azure-Speicher eingetragen.`);
+      console.log('Nur synthetische Dateien, bis Vertrag und Region stehen (RT-95).');
+    }
+    return 0;
+  });
+}
+
+function removeStorage(stack: Stack, session: Session): number {
+  if (session.dryRun) {
+    console.log(
+      style.dim(`${stack.envFile}: STORAGE_PROVIDER, STORAGE_AZURE_CONNECTION_STRING entfernen`),
+    );
+  } else {
+    writeStorageAccount(stack, ROOT, undefined);
+    console.log(`${stack.envFile}: Azure-Speicher ausgetragen, die Dateien bleiben im Konto.`);
+  }
+  return 0;
+}
+
 async function runStep(step: Step, stack: Stack, session: Session): Promise<number> {
   switch (step.kind) {
     case 'compose': {
@@ -214,7 +258,12 @@ async function runStep(step: Step, stack: Stack, session: Session): Promise<numb
       console.log(
         renderLinks(
           stack,
-          linksOf(stack, isSwaggerEnabled(stack, ROOT), mailServerOf(stack, ROOT)),
+          linksOf(
+            stack,
+            isSwaggerEnabled(stack, ROOT),
+            mailServerOf(stack, ROOT),
+            storageAccountOf(stack, ROOT),
+          ),
           style,
         ),
       );
@@ -243,6 +292,10 @@ async function runStep(step: Step, stack: Stack, session: Session): Promise<numb
       return setUpMailServer(stack, session);
     case 'mail-off':
       return removeMailServer(stack, session);
+    case 'storage-setup':
+      return setUpStorage(stack, session);
+    case 'storage-off':
+      return removeStorage(stack, session);
     case 'clean-caches':
       return clean(cachePaths(ROOT), session);
     case 'clean-node-modules':

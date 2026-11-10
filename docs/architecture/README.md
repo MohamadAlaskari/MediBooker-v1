@@ -89,7 +89,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | B01 Patient profiles, insurance per practice, the membership index and its relay | Committed (`ddf90dd`) |
 | B02 Booking an appointment with row locks and idempotency keys | Committed (`b9b2795`) |
 | B03 for patients Cancel, reschedule and my appointments, also across practices | Committed (`447475e`); the staff half with M05 |
-| B04 Booking on the web: from a free time to an appointment, my appointments, cancel and reschedule | Committed (one commit) |
+| B04 Booking on the web: from a free time to an appointment, my appointments, cancel and reschedule | Committed (`628fd8e`) |
+| F09 File storage: the port `ObjectStorage`, Azure Blob Storage, Azurite in development ([ADR 0015](../adr/0015-object-storage.md)) | Committed (one commit) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

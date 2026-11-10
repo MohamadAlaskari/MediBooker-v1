@@ -24,6 +24,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
+import { ObjectStorageModule } from './modules/storage/object-storage.module.js';
 
 export interface AppModuleOptions {
   /** Where logs go; only createTestApp sets it, to capture or discard them. Default: stdout. */
@@ -59,6 +60,7 @@ export class AppModule {
         AppointmentsModule,
         PublicPracticeModule,
         SchedulingModule,
+        ObjectStorageModule,
       ],
       providers: [
         // Global guards run in this order: rate limit first, then authentication.

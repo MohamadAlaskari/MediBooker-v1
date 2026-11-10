@@ -20,7 +20,7 @@ export function instantOf(date: Date): Temporal.Instant {
   return Temporal.Instant.fromEpochMilliseconds(date.getTime());
 }
 
-/** An instant as the value of a `@db.Timestamptz` column. */
+/** An instant as the value of a `@db.Timestamptz` column, or as the `Date` the storage SDK takes. */
 export function dbInstantOf(instant: Temporal.Instant): Date {
   return new Date(instant.epochMilliseconds);
 }

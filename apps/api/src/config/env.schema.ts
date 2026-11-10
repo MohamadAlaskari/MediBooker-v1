@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  blobUrlOf,
+  parseAzureConnectionString,
+} from '../modules/storage/azure/azure-connection-string.js';
 
 /** The raw environment: `process.env` in main.ts, an explicit object in tests. */
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -151,6 +155,39 @@ const mailAddresses = z.string().transform((value, ctx): readonly string[] => {
   return addresses;
 });
 
+/** STORAGE_AZURE_CONNECTION_STRING, parsed: the adapter gets this result, never the string. */
+const azureConnection = z.string().transform((value, ctx) => {
+  const connection = parseAzureConnectionString(value);
+  if (typeof connection === 'string') {
+    ctx.addIssue({ code: 'custom', params: { reason: connection } });
+    return z.NEVER;
+  }
+  return connection;
+});
+
+const publicBlobUrl = z.string().transform((value, ctx) => {
+  const url = blobUrlOf(value);
+  if (url === undefined) {
+    ctx.addIssue({ code: 'custom', params: { reason: 'not_a_blob_url' } });
+    return z.NEVER;
+  }
+  return url;
+});
+
+/** Azurite's account, published in its documentation: it stands for no real one. */
+const STORAGE_EMULATOR_ACCOUNT = 'devstoreaccount1';
+
+/** Where a storage emulator runs: in a Docker stack or on this machine. Nothing leaves it. */
+const STORAGE_EMULATOR_HOSTS: ReadonlySet<string> = new Set(['azurite', 'localhost', '127.0.0.1']);
+
+/** TLS for everything but an emulator in local and ci, which is the only place one may be. */
+function blobUrlProblem(url: string, isDeployed: boolean): string | undefined {
+  const { protocol, hostname } = new URL(url);
+  const isEmulatorHost = STORAGE_EMULATOR_HOSTS.has(hostname);
+  if (isDeployed && isEmulatorHost) return 'emulator_not_allowed_in_staging_and_production';
+  return protocol === 'https:' || isEmulatorHost ? undefined : 'https_required_outside_an_emulator';
+}
+
 /** A reference only the development store resolves: refused where that store is. */
 function isDevReference(reference: string): boolean {
   return reference.startsWith('dev:');
@@ -236,15 +273,24 @@ const envObject = z.object({
   OUTBOX_POLL_SECONDS: integer(0, 3600).default(5),
   // B01: how often the relay visits every practice for the membership index; 0 turns it off (tests).
   RELAY_POLL_SECONDS: integer(0, 3600).default(900),
-  // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler) and
-  // by Node when a module loads, never by the API: their output goes to stderr, outside pino, with
-  // request URLs and query strings. Allowed in local and ci only (refinement below); not in Env.
+  // F09: where files live (ADR 0015). Unset: every storage call fails with NOT_CONFIGURED. Not
+  // required anywhere yet: R02 requires it in production when files become part of the product.
+  STORAGE_PROVIDER: z.enum(['azure']).optional(),
+  // Required with azure, refused without it (refinement below).
+  STORAGE_AZURE_CONNECTION_STRING: azureConnection.optional(),
+  // Only with azure: where a browser reaches the blob endpoint when the API reaches it elsewhere.
+  STORAGE_AZURE_PUBLIC_BLOB_URL: publicBlobUrl.optional(),
+  // Debug switches, read by the `debug` package (Express's router, body-parser, finalhandler), by
+  // Node when a module loads and by the Azure SDK, never by the API: their output goes to stderr,
+  // outside pino, with request URLs and query strings. Allowed in local and ci only (refinement
+  // below); not in Env.
   DEBUG: z.string().optional(),
   NODE_DEBUG: z.string().optional(),
   NODE_DEBUG_NATIVE: z.string().optional(),
+  AZURE_LOG_LEVEL: z.string().optional(),
 });
 
-const DEBUG_SWITCHES = ['DEBUG', 'NODE_DEBUG', 'NODE_DEBUG_NATIVE'] as const;
+const DEBUG_SWITCHES = ['DEBUG', 'NODE_DEBUG', 'NODE_DEBUG_NATIVE', 'AZURE_LOG_LEVEL'] as const;
 
 type DebugSwitch = (typeof DEBUG_SWITCHES)[number];
 
@@ -256,6 +302,7 @@ function withoutDebugSwitches<T extends Partial<Record<DebugSwitch, string>>>(
   delete copy.DEBUG;
   delete copy.NODE_DEBUG;
   delete copy.NODE_DEBUG_NATIVE;
+  delete copy.AZURE_LOG_LEVEL;
   return copy;
 }
 
@@ -357,6 +404,42 @@ const envSchema = envObject
         ) {
           reject('MAIL_ALLOWED_RECIPIENTS', 'required_with_a_real_mail_server_in_local_and_ci');
         }
+      }
+      if (parsed('STORAGE_PROVIDER')) {
+        const isAzure = env.STORAGE_PROVIDER === 'azure';
+        if (
+          isAzure &&
+          parsed('STORAGE_AZURE_CONNECTION_STRING') &&
+          env.STORAGE_AZURE_CONNECTION_STRING === undefined
+        ) {
+          reject('STORAGE_AZURE_CONNECTION_STRING', 'required_with_provider_azure');
+        }
+        for (const key of [
+          'STORAGE_AZURE_CONNECTION_STRING',
+          'STORAGE_AZURE_PUBLIC_BLOB_URL',
+        ] as const) {
+          if (!isAzure && parsed(key) && env[key] !== undefined) {
+            reject(key, 'only_with_provider_azure');
+          }
+        }
+      }
+      if (
+        parsed('STORAGE_AZURE_CONNECTION_STRING') &&
+        env.STORAGE_AZURE_CONNECTION_STRING !== undefined
+      ) {
+        const { accountName, blobEndpoint } = env.STORAGE_AZURE_CONNECTION_STRING;
+        const problem =
+          isDeployed && accountName === STORAGE_EMULATOR_ACCOUNT
+            ? 'emulator_not_allowed_in_staging_and_production'
+            : blobUrlProblem(blobEndpoint, isDeployed);
+        if (problem !== undefined) reject('STORAGE_AZURE_CONNECTION_STRING', problem);
+      }
+      if (
+        parsed('STORAGE_AZURE_PUBLIC_BLOB_URL') &&
+        env.STORAGE_AZURE_PUBLIC_BLOB_URL !== undefined
+      ) {
+        const problem = blobUrlProblem(env.STORAGE_AZURE_PUBLIC_BLOB_URL, isDeployed);
+        if (problem !== undefined) reject('STORAGE_AZURE_PUBLIC_BLOB_URL', problem);
       }
       if (
         isDeployed &&

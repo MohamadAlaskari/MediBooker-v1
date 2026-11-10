@@ -65,6 +65,19 @@ function demoPracticeCheck(stack: Stack): Check {
   };
 }
 
+/** A real account is not asked here: "Datei-Speicher prüfen" does that, with its key. */
+function storageEmulatorChecks({ storageEmulator }: Stack): readonly Check[] {
+  if (storageEmulator === undefined) return [];
+  return [
+    {
+      name: 'Datei-Speicher (Azurite)',
+      url: storageEmulator.probeUrl,
+      // A request without a signature gets a 4xx, which proves that it answers.
+      verify: ({ status }) => (status < 500 ? undefined : `Status ${String(status)}`),
+    },
+  ];
+}
+
 /** Are the services up? */
 function probeChecks(stack: Stack): readonly Check[] {
   return [
@@ -93,6 +106,7 @@ function probeChecks(stack: Stack): readonly Check[] {
       url: `${stack.mailUrl}/livez`,
       verify: isHealthy,
     },
+    ...storageEmulatorChecks(stack),
   ];
 }
 

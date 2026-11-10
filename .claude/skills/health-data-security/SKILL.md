@@ -125,14 +125,14 @@ Data residency is decided per market before infrastructure is built: one deploym
 - Every read of a note list is part of the audited record access.
 
 **File uploads (BR-17)** — treat every file as hostile:
-- Upload directly to private object storage with a pre-signed PUT URL (≤ 5 min, exact size and content type); the API never proxies large bodies.
+- Upload directly to private object storage through the API's `ObjectStorage` port (ADR 0015) with a signed PUT URL (≤ 5 min, write once); the API never proxies large bodies. A SAS of Azure cannot bind size or content type: check both after the upload, before the file is visible. Its `c` also allows a copy instead of an upload: refuse an object whose `copied` is set. Keys from ids only.
 - Random storage keys (UUID), never the user's filename; keep the sanitized original name only as metadata.
 - Allowlist by magic bytes, not by extension or the client's `Content-Type`: PDF, JPEG, PNG, HEIC. No SVG, HTML, Office macros or archives.
 - Virus scan (e.g. ClamAV) before the file becomes visible; `INFECTED` files are quarantined and the uploader is told.
 - Re-encode images server-side (removes EXIF/GPS and polyglot payloads); generate thumbnails from the re-encoded image.
 - Server-side encryption with keys from the KMS; bucket in the market's region; versioning on, public access blocked.
-- Downloads only through short-lived signed URLs with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`; PDFs are shown in a sandboxed viewer, never as same-origin HTML.
-- Size limits enforced at the storage level and in the API; per-user upload rate limits.
+- Downloads only through short-lived signed URLs with `Content-Disposition: attachment` and the checked content type; a SAS cannot add `X-Content-Type-Options: nosniff`, so the type must be right. The download name travels in the URL: never the patient's file name. PDFs are shown in a sandboxed viewer, never as same-origin HTML.
+- Size limits enforced in the API after the upload (a SAS cannot bind size); oversize and unfinished uploads deleted by the API and a lifecycle rule; per-user upload rate limits.
 - Every upload, download, visibility change and deletion writes an `AuditEvent`.
 
 **Family access (BR-19)**

@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { constants, copyFileSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+// It imports nothing, so the menu still needs only Node and Docker.
+import {
+  parseAzureConnectionString,
+  type AzureConnectionProblem,
+} from '../../../apps/api/src/modules/storage/azure/azure-connection-string.ts';
 import type { Stack } from './stacks.ts';
 
 const PROD_SECRET_KEYS = [
@@ -68,6 +73,18 @@ function readEnvFile(stack: Stack, root: string): string | undefined {
   }
 }
 
+/** What compose reads for a key, without its quotes: the shell beats the file. Empty: nothing. */
+function composeValue(
+  stack: Stack,
+  root: string,
+  key: string,
+  fromShell: string | undefined,
+): string {
+  const text = readEnvFile(stack, root);
+  const value = fromShell ?? (text === undefined ? undefined : envValue(text, key));
+  return value?.replace(/^["']|["']$/g, '') ?? '';
+}
+
 /** Whether this stack serves the Swagger UI. */
 export function isSwaggerEnabled(stack: Stack, root: string): boolean {
   if (stack.mode === 'dev') return true;
@@ -89,9 +106,7 @@ export function mailServerOf(
   root: string,
   shell: { readonly SMTP_URL?: string | undefined } = process.env,
 ): string | undefined {
-  const text = readEnvFile(stack, root);
-  const value = shell.SMTP_URL ?? (text === undefined ? undefined : envValue(text, 'SMTP_URL'));
-  const url = value?.replace(/^["']|["']$/g, '') ?? '';
+  const url = composeValue(stack, root, 'SMTP_URL', shell.SMTP_URL);
   if (url === '') return undefined;
   if (!URL.canParse(url)) return '(SMTP_URL nicht lesbar)';
   const { hostname } = new URL(url);
@@ -137,17 +152,13 @@ export function withEnvValues(
   return [...kept, ...set, ''].join('\n');
 }
 
-/** Sets the mail server of the stack's environment file or, without a mailbox, removes it. */
-export function writeMailServer(stack: Stack, root: string, mailbox: Mailbox | undefined): void {
+/** Sets or removes these keys in the stack's environment file. */
+function updateEnvFile(
+  stack: Stack,
+  root: string,
+  values: Readonly<Record<string, string | undefined>>,
+): void {
   const file = path.join(root, stack.envFile);
-  const values =
-    mailbox === undefined
-      ? { SMTP_URL: undefined, MAIL_FROM: undefined, MAIL_ALLOWED_RECIPIENTS: undefined }
-      : {
-          SMTP_URL: smtpUrlOf(mailbox),
-          MAIL_FROM: `"MediBooker <${mailbox.address}>"`,
-          MAIL_ALLOWED_RECIPIENTS: [...new Set([mailbox.address, ...mailbox.allowed])].join(','),
-        };
   const text = withEnvValues(readFileSync(file, 'utf8'), values);
   // A new file: for its owner only from the first byte, where the file system knows owners, and a
   // crash leaves the old one whole, which in production holds the passwords of the database.
@@ -155,4 +166,91 @@ export function writeMailServer(stack: Stack, root: string, mailbox: Mailbox | u
   rmSync(temporary, { force: true });
   writeFileSync(temporary, text, { mode: 0o600, flag: 'wx' });
   renameSync(temporary, file);
+}
+
+/** Sets the mail server of the stack's environment file or, without a mailbox, removes it. */
+export function writeMailServer(stack: Stack, root: string, mailbox: Mailbox | undefined): void {
+  updateEnvFile(
+    stack,
+    root,
+    mailbox === undefined
+      ? { SMTP_URL: undefined, MAIL_FROM: undefined, MAIL_ALLOWED_RECIPIENTS: undefined }
+      : {
+          SMTP_URL: smtpUrlOf(mailbox),
+          MAIL_FROM: `"MediBooker <${mailbox.address}>"`,
+          MAIL_ALLOWED_RECIPIENTS: [...new Set([mailbox.address, ...mailbox.allowed])].join(','),
+        },
+  );
+}
+
+/** What the menu says when the API's parser refuses a string. Never a part of the string. */
+const AZURE_STRING_PROBLEMS: Readonly<Record<AzureConnectionProblem, string>> = {
+  not_a_connection_string: 'Das ist kein Connection String.',
+  shared_access_signature_cannot_sign:
+    'Ein String mit SharedAccessSignature kann nicht signieren: bitte den mit AccountKey.',
+  development_shortcut_points_at_loopback:
+    'UseDevelopmentStorage meint den Emulator, kein Azure-Konto.',
+  account_name_invalid: 'AccountName fehlt oder ist kein Name eines Speicherkontos.',
+  account_key_invalid: 'AccountKey fehlt oder ist kein gültiges Base64.',
+  blob_endpoint_invalid: 'Der Blob-Endpunkt fehlt oder ist nicht lesbar.',
+};
+
+/** The account of the Azurite emulator, whose key is public. */
+const EMULATOR_ACCOUNT = 'devstoreaccount1';
+
+/**
+ * What a connection string holds, and what neither an environment file nor compose changes: no $, #,
+ * quote, backslash or space. compose would print a $ doubled, so it could not even show the value.
+ */
+const LITERAL_STRING = /^[A-Za-z0-9+/=;:._-]+$/;
+
+/**
+ * Why the menu does not take this string for a stack without an emulator; undefined when it does.
+ * The API's own parser, so both read the same thing: the API would refuse the same string only by
+ * not starting. The rest it does not refuse here, because this stack runs with APP_ENV local.
+ */
+export function azureStringProblem(value: string): string | undefined {
+  const connection = parseAzureConnectionString(value);
+  if (typeof connection === 'string') return AZURE_STRING_PROBLEMS[connection];
+  if (connection.accountName === EMULATOR_ACCOUNT) return 'Das ist das Konto des Emulators.';
+  if (!connection.blobEndpoint.startsWith('https://')) return 'Azure braucht https.';
+  return LITERAL_STRING.test(value) ? undefined : 'Der String enthält Zeichen, die er nicht hat.';
+}
+
+/**
+ * The name of the Azure account this stack's files go to; undefined: none is entered. Only the name,
+ * for showing: the whole string holds the key.
+ */
+export function storageAccountOf(
+  stack: Stack,
+  root: string,
+  shell: { readonly STORAGE_AZURE_CONNECTION_STRING?: string | undefined } = process.env,
+): string | undefined {
+  const value = composeValue(
+    stack,
+    root,
+    'STORAGE_AZURE_CONNECTION_STRING',
+    shell.STORAGE_AZURE_CONNECTION_STRING,
+  );
+  if (value === '') return undefined;
+  const connection = parseAzureConnectionString(value);
+  return typeof connection === 'string' ? '(String nicht lesbar)' : connection.accountName;
+}
+
+/** Sets the Azure account of the stack's environment file or, without a string, removes it. */
+export function writeStorageAccount(
+  stack: Stack,
+  root: string,
+  connectionString: string | undefined,
+): void {
+  updateEnvFile(
+    stack,
+    root,
+    connectionString === undefined
+      ? { STORAGE_PROVIDER: undefined, STORAGE_AZURE_CONNECTION_STRING: undefined }
+      : {
+          STORAGE_PROVIDER: 'azure',
+          STORAGE_AZURE_CONNECTION_STRING: `'${connectionString}'`,
+        },
+  );
 }

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  azureStringProblem,
   ensureEnvFile,
   envValue,
   isHostName,
@@ -11,8 +12,10 @@ import {
   mailServerOf,
   productionEnvFile,
   smtpUrlOf,
+  storageAccountOf,
   withEnvValues,
   writeMailServer,
+  writeStorageAccount,
 } from './env-files.ts';
 import { STACKS } from './stacks.ts';
 
@@ -227,5 +230,73 @@ describe('the mail server', () => {
     ['user@host', false],
   ])('takes %j as a host: %s', (value, expected) => {
     expect(isHostName(value)).toBe(expected);
+  });
+});
+
+describe('the Azure account', () => {
+  // Short synthetic keys: long ones would look like secrets to the scan, which is right.
+  const good =
+    'DefaultEndpointsProtocol=https;AccountName=medibookerfiles;AccountKey=a2V5;EndpointSuffix=core.windows.net';
+
+  it('is none without an entry, and shows only its name', () => {
+    expect(storageAccountOf(STACKS.prod, root)).toBeUndefined();
+    writeFileSync(path.join(root, '.env.prod'), `STORAGE_AZURE_CONNECTION_STRING='${good}'\n`);
+    expect(storageAccountOf(STACKS.prod, root)).toBe('medibookerfiles');
+    writeFileSync(path.join(root, '.env.prod'), 'STORAGE_AZURE_CONNECTION_STRING=nonsense\n');
+    expect(storageAccountOf(STACKS.prod, root)).toBe('(String nicht lesbar)');
+  });
+
+  it('believes the shell over the file, as compose does', () => {
+    writeFileSync(path.join(root, '.env.prod'), `STORAGE_AZURE_CONNECTION_STRING='${good}'\n`);
+    expect(
+      storageAccountOf(STACKS.prod, root, { STORAGE_AZURE_CONNECTION_STRING: '' }),
+    ).toBeUndefined();
+    expect(storageAccountOf(STACKS.prod, root, {})).toBe('medibookerfiles');
+  });
+
+  it('sets both keys, keeps everything else, removes them again and leaves no temporary file', () => {
+    const file = path.join(root, '.env.prod');
+    writeFileSync(file, 'A=1\nSTORAGE_PROVIDER=old\nB=2\n');
+    writeStorageAccount(STACKS.prod, root, good);
+    const written = readFileSync(file, 'utf8');
+    expect(envValue(written, 'STORAGE_PROVIDER')).toBe('azure');
+    expect(envValue(written, 'STORAGE_AZURE_CONNECTION_STRING')).toBe(`'${good}'`);
+    expect(written).toContain('A=1\nB=2\n');
+    expect(readdirSync(root)).toEqual(['.env.prod']);
+    writeStorageAccount(STACKS.prod, root, undefined);
+    expect(readFileSync(file, 'utf8')).toBe('A=1\nB=2\n');
+  });
+
+  it.each([
+    good,
+    'AccountName=medibookerfiles;AccountKey=a2V5;BlobEndpoint=https://files.example.test',
+  ])('takes %j', (value) => {
+    expect(azureStringProblem(value)).toBeUndefined();
+  });
+
+  it.each([
+    ['nonsense', 'Das ist kein Connection String.'],
+    [
+      'BlobEndpoint=https://x.example.test;SharedAccessSignature=sv=1',
+      'Ein String mit SharedAccessSignature',
+    ],
+    ['UseDevelopmentStorage=true', 'UseDevelopmentStorage meint den Emulator'],
+    ['AccountName=Bad_Name;AccountKey=a2V5;DefaultEndpointsProtocol=https', 'AccountName fehlt'],
+    [
+      'AccountName=medibookerfiles;AccountKey=not base64!;DefaultEndpointsProtocol=https',
+      'AccountKey fehlt',
+    ],
+    [
+      'AccountName=devstoreaccount1;AccountKey=a2V5;BlobEndpoint=https://x.example.test',
+      'Konto des Emulators',
+    ],
+    [
+      'AccountName=medibookerfiles;AccountKey=a2V5;DefaultEndpointsProtocol=http',
+      'Azure braucht https.',
+    ],
+    [`${good};Note=a$b`, 'Zeichen, die er nicht hat'],
+    [`${good};Note=a#b`, 'Zeichen, die er nicht hat'],
+  ])('refuses %j: %s', (value, problem) => {
+    expect(azureStringProblem(value)).toContain(problem);
   });
 });

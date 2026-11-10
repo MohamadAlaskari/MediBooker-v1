@@ -301,3 +301,42 @@ describe(`.gitleaks.toml rule ${RULE_ID}`, () => {
     expect(ruleIdsFor(file)).toEqual([]);
   });
 });
+
+describe('the allowlist of .gitleaks.toml', () => {
+  // Assembled at run time, so this file holds neither value as one literal.
+  const EMULATOR_KEY = [
+    'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq',
+    'K1SZFPTOtr',
+    'KBHBeksoGMGw==',
+  ].join('/');
+  const OTHER_KEY = Buffer.from(`${SYNTHETIC_SECRET}-${SYNTHETIC_SECRET}`).toString('base64');
+  const connectionString = (key: string): string =>
+    `STORAGE_AZURE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=${key};BlobEndpoint=http://azurite:10000/devstoreaccount1;\n`;
+
+  let directory = '';
+  let found: Finding[] = [];
+
+  beforeAll(() => {
+    if (!GITLEAKS_INSTALLED && !IN_CI) return;
+    directory = mkdtempSync(path.join(tmpdir(), 'medibooker-gitleaks-allow-'));
+    writeFileSync(path.join(directory, 'emulator.yml'), connectionString(EMULATOR_KEY));
+    writeFileSync(path.join(directory, 'other.yml'), connectionString(OTHER_KEY));
+    found = scanDirectory(directory);
+  });
+
+  afterAll(() => {
+    if (directory !== '') rmSync(directory, { recursive: true, force: true });
+  });
+
+  beforeEach((context) => {
+    context.skip(!GITLEAKS_INSTALLED && !IN_CI, SKIP_NOTE);
+  });
+
+  it("lets the Azurite emulator's published key through", () => {
+    expect(found.filter(({ file }) => file === 'emulator.yml')).toEqual([]);
+  });
+
+  it('still reports any other account key in the same place', () => {
+    expect(found.filter(({ file }) => file === 'other.yml')).not.toEqual([]);
+  });
+});

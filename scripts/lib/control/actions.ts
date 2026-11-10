@@ -20,6 +20,8 @@ export type Step =
         | 'smoke'
         | 'mail-setup'
         | 'mail-off'
+        | 'storage-setup'
+        | 'storage-off'
         | 'clean-caches'
         | 'clean-node-modules';
     };
@@ -39,6 +41,7 @@ const GROUP_RUN = 'Aufbauen und ausführen';
 const GROUP_WATCH = 'Überwachen';
 const GROUP_DATABASE = 'Datenbank';
 const GROUP_MAIL = 'E-Mail';
+const GROUP_FILES = 'Dateien';
 const GROUP_TESTS = 'Tests';
 const GROUP_CLEAN = 'Aufräumen';
 
@@ -158,6 +161,8 @@ function watchActions(stack: Stack): readonly Action[] {
 function databaseActions(stack: Stack): readonly Action[] {
   const profiles = profilesOf(stack);
   const seedProfiles = stack.mode === 'dev' ? profiles : ['demo'];
+  // Its command removes every volume of the stack, also the emulator's.
+  const alsoDeleted = stack.storageEmulator === undefined ? '' : ' und alle Dateien in Azurite';
   return [
     {
       id: 'migrate',
@@ -189,7 +194,7 @@ function databaseActions(stack: Stack): readonly Action[] {
       id: 'reset-db',
       group: GROUP_DATABASE,
       label: 'Datenbank zurücksetzen und neu starten (löscht alle Daten)',
-      confirm: `Alle Daten der Datenbank im Betrieb ${stack.mode} werden gelöscht.`,
+      confirm: `Alle Daten der Datenbank${alsoDeleted} im Betrieb ${stack.mode} werden gelöscht.`,
       steps: [
         { kind: 'compose', profiles: ALL_PROFILES, args: ['down', '-v', '--remove-orphans'] },
         ...upSteps(stack),
@@ -231,6 +236,43 @@ function mailActions(stack: Stack): readonly Action[] {
       group: GROUP_MAIL,
       label: 'Mailserver austragen: zurück zu Mailpit, dann neu starten',
       steps: [{ kind: 'mail-off' }, ...upSteps(stack), { kind: 'links' }],
+    },
+  ];
+}
+
+/**
+ * Where the stack's files go. A stack with an emulator has nothing to enter. For the others, as with
+ * the mail server, both changes end in `up`, which creates the API anew with its new environment.
+ */
+function storageActions(stack: Stack): readonly Action[] {
+  const test: Action = {
+    id: 'storage-test',
+    group: GROUP_FILES,
+    label: 'Datei-Speicher prüfen',
+    failureHint:
+      'NOT_CONFIGURED: kein Speicher eingetragen. REFUSED: Konto oder Schlüssel falsch, oder das Konto sperrt diesen Rechner aus. UNAVAILABLE: Speicher nicht erreichbar (Netz, Endpunkt, Azurite). FAILED: unerwartete Antwort; die Zeile oben nennt den Schritt und den Code.',
+    steps: [
+      {
+        kind: 'compose',
+        profiles: profilesOf(stack),
+        args: ['exec', 'api', 'node', 'dist/cli/check-storage.js'],
+      },
+    ],
+  };
+  if (stack.storageEmulator !== undefined) return [test];
+  return [
+    {
+      id: 'storage-setup',
+      group: GROUP_FILES,
+      label: 'Azure-Speicher eintragen (Connection String), dann neu starten',
+      steps: [{ kind: 'storage-setup' }, ...upSteps(stack), { kind: 'links' }],
+    },
+    test,
+    {
+      id: 'storage-off',
+      group: GROUP_FILES,
+      label: 'Azure-Speicher austragen, dann neu starten',
+      steps: [{ kind: 'storage-off' }, ...upSteps(stack), { kind: 'links' }],
     },
   ];
 }
@@ -314,6 +356,7 @@ export function actionsOf(stack: Stack): readonly Action[] {
     ...watchActions(stack),
     ...databaseActions(stack),
     ...mailActions(stack),
+    ...storageActions(stack),
     ...testActions(stack),
     ...cleanActions(stack),
   ];
