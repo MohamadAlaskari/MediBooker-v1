@@ -155,8 +155,10 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    # The way through the proxy to the web, on a page that needs no practice: /en is the practice's
+    # page (ADR 0016) and answers 404 until the demo practices are filled in.
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/en']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/en/privacy']
       interval: 3s
       timeout: 3s
       retries: 20
