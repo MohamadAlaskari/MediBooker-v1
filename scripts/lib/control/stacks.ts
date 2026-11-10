@@ -115,9 +115,9 @@ export function linksOf(
       ? { label: 'E-Mails (Mailpit)', target: stack.mailUrl }
       : { label: 'E-Mails', target: `echt über ${mailServer}, nicht im Mailpit` };
   return [
-    { label: 'Praxisseite (Arabisch)', target: `${stack.webUrl}/ar/${DEMO_PRACTICE}` },
-    { label: 'Praxisseite (Englisch)', target: `${stack.webUrl}/en/${DEMO_PRACTICE}` },
-    { label: 'Startseite', target: `${stack.webUrl}/en` },
+    // The practice of the installation, at the root of its site (ADR 0016).
+    { label: 'Praxisseite (Arabisch)', target: `${stack.webUrl}/ar` },
+    { label: 'Praxisseite (Englisch)', target: `${stack.webUrl}/en` },
     {
       label: 'Backend (API)',
       target: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`,

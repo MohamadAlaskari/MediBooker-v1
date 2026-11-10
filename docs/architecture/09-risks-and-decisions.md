@@ -167,6 +167,8 @@ The iOS bundle identifier, the Android package name, the display names in Arabic
 - A. One platform app with practice selection (ADR 0005 §3); identifiers in reverse-DNS form of a domain the client owns.
 - B. A white-label app per practice: identifiers, builds and store listings per practice.
 
+Since [ADR 0016](../adr/0016-one-installation-per-practice.md) a patient learns nothing of other practices, so A means one app that a practice's link or QR code binds to one installation and that never lists practices; B needs the practice as the publisher of its listing, as Apple's guideline 4.2.6 asks of apps made from a template.
+
 **Recommendation: A.** B multiplies store and release work and contradicts one account across practices.
 
 ### D7. How the app chooses the deployment
@@ -212,6 +214,8 @@ Hosting is Open in `CLAUDE.md`. Needed before R02 (object storage in the practic
 | C. Self-managed PostgreSQL on virtual machines | Full control of roles and extensions | Backups, PITR, high availability and patching become our work |
 
 **Recommendation: A** if it has a region in the D8 market that meets the residency rules, otherwise B; C only if no managed service meets the PostgreSQL criteria.
+
+Decided in part by the user on 2026-11-10 ([ADR 0016](../adr/0016-one-installation-per-practice.md)): one installation per practice, on its own server in the practice's country. The provider stays open, and the criteria above apply per installation, to a cluster of one practice.
 
 ### D10. Providers and processors
 

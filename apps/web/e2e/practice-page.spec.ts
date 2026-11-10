@@ -5,12 +5,12 @@ const SECTIONS = ['opening-hours', 'free-times', 'services', 'team', 'find-us'];
 
 test.describe('the public practice page (08 P03)', () => {
   test('renders from the API in the language and direction of the path', async ({ page }) => {
-    await page.goto('/ar/al-noor');
+    await page.goto('/ar');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('مركز النور الطبي');
     await expect(page.getByRole('heading', { name: 'الخدمات' })).toBeVisible();
 
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Al Noor Medical Centre');
     await expect(page.getByRole('heading', { name: 'Check-up' })).toBeVisible();
@@ -19,15 +19,15 @@ test.describe('the public practice page (08 P03)', () => {
   });
 
   test('has every section, and the language switch goes to the same practice', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     for (const id of SECTIONS) await expect(page.locator(`#${id}`)).toBeAttached();
     await page.getByRole('link', { name: /العربية/ }).click();
-    await expect(page).toHaveURL(/\/ar\/al-noor$/);
+    await expect(page).toHaveURL(/\/ar$/);
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
   });
 
   test('gives everything tappable at least 44 px', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     for (const link of [
       page.getByRole('link', { name: 'Book appointment' }).first(),
       page.getByRole('link', { name: 'Call us' }),
@@ -40,7 +40,7 @@ test.describe('the public practice page (08 P03)', () => {
   });
 
   test('shows the skip link on focus, tappable, and it leads to the content', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     await page.keyboard.press('Tab');
     const skip = page.getByRole('link', { name: 'Skip to content' });
     await expect(skip).toBeFocused();
@@ -57,19 +57,19 @@ test.describe('the public practice page (08 P03)', () => {
   test('uses the fonts of the language, from this site', async ({ page }) => {
     const fontOf = async (): Promise<string> =>
       page.locator('h1').evaluate((element) => getComputedStyle(element).fontFamily);
-    await page.goto('/ar/al-noor');
+    await page.goto('/ar');
     await expect.poll(fontOf).toMatch(/noto/i);
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     await expect.poll(fontOf).toMatch(/inter/i);
   });
 
   test('sets no cookie and asks no third party', async ({ page, request, baseURL }) => {
     const hosts = new Set<string>();
     page.on('request', (sent) => hosts.add(new URL(sent.url()).host));
-    await page.goto('/en/al-noor', { waitUntil: 'networkidle' });
+    await page.goto('/en', { waitUntil: 'networkidle' });
     expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
 
-    const response = await request.get('/en/al-noor');
+    const response = await request.get('/en');
     expect(response.headers()['set-cookie']).toBeUndefined();
   });
 
@@ -77,14 +77,14 @@ test.describe('the public practice page (08 P03)', () => {
     page,
     baseURL,
   }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href',
-      `${baseURL ?? ''}/en/al-noor`,
+      `${baseURL ?? ''}/en`,
     );
     await expect(page.locator('link[rel="alternate"][hreflang="ar"]')).toHaveAttribute(
       'href',
-      `${baseURL ?? ''}/ar/al-noor`,
+      `${baseURL ?? ''}/ar`,
     );
     const jsonLd = await page.locator('script[type="application/ld+json"]').textContent();
     expect(JSON.parse(jsonLd ?? '')).toMatchObject({
@@ -96,7 +96,7 @@ test.describe('the public practice page (08 P03)', () => {
     expect(jsonLd).toContain('openingHoursSpecification');
   });
 
-  test('names every practice in every language in the sitemap, over all pages of the API', async ({
+  test("names the installation's practice at the root in every language, and no other (ADR 0016)", async ({
     request,
     baseURL,
   }) => {
@@ -104,13 +104,23 @@ test.describe('the public practice page (08 P03)', () => {
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain('xml');
     const sitemap = await response.text();
-    for (const slug of ['al-noor', 'ocean', 'closed']) {
-      for (const locale of ['ar', 'en']) {
-        expect(sitemap).toContain(`<loc>${baseURL ?? ''}/${locale}/${slug}</loc>`);
-      }
+    for (const locale of ['ar', 'en']) {
+      expect(sitemap).toContain(`<loc>${baseURL ?? ''}/${locale}</loc>`);
     }
     expect(sitemap).toContain('hreflang="ar"');
-    expect(sitemap).not.toContain('old-name');
+    for (const other of ['al-noor', 'ocean', 'closed', 'old-name']) {
+      expect(sitemap).not.toContain(other);
+    }
+  });
+
+  test("leads the practice's own path to the root of its installation, for good", async ({
+    request,
+  }) => {
+    for (const locale of ['ar', 'en']) {
+      const response = await request.get(`/${locale}/al-noor`, { maxRedirects: 0 });
+      expect(response.status()).toBe(308);
+      expect(response.headers().location).toMatch(new RegExp(`/${locale}$`));
+    }
   });
 
   test('answers 404 for an unknown practice and for a slug that cannot be one', async ({
@@ -125,7 +135,7 @@ test.describe('the public practice page (08 P03)', () => {
   test('sends a retired slug to the current address for good', async ({ request }) => {
     const response = await request.get('/en/old-name', { maxRedirects: 0 });
     expect(response.status()).toBe(308);
-    expect(response.headers().location).toMatch(/\/en\/al-noor$/);
+    expect(response.headers().location).toMatch(/\/en$/);
   });
 
   test('says so when one practice is unavailable, with the request id', async ({ page }) => {
@@ -139,13 +149,13 @@ test.describe('the public practice page (08 P03)', () => {
     request,
   }) => {
     const visitor = '203.0.113.7';
-    await request.get('/en/al-noor', { headers: { 'X-Forwarded-For': visitor } });
+    await request.get('/en', { headers: { 'X-Forwarded-For': visitor } });
     const seen = await request.get(`http://127.0.0.1:${String(API_STUB_PORT)}/__forwarded-for`);
     expect(await seen.json()).toContain(visitor);
   });
 
   test('keeps a name in another script out of the sentence around it', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const subtitle = await page.locator('#team p').first().textContent();
     expect(subtitle).toBe('The people at ⁨Al Noor Medical Centre⁩.');
   });
@@ -169,7 +179,7 @@ test.describe('the theme of a practice', () => {
     getComputedStyle(element).getPropertyValue('--gray-50').trim();
 
   test('a preset changes the brand and nothing else', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const teal = await page.locator('html').evaluate(brandColor);
     const canvas = await page.locator('html').evaluate(canvasColor);
     await page.goto('/en/ocean');
@@ -204,7 +214,7 @@ test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
 
   test('every section is there and visible', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     for (const id of SECTIONS) await expect(page.locator(`#${id}`)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Check-up' })).toBeVisible();
   });
@@ -214,7 +224,7 @@ test.describe('with reduced motion', () => {
   test.use({ reducedMotion: 'reduce' });
 
   test('sections are in their end state at once', async ({ page }) => {
-    await page.goto('/en/al-noor', { waitUntil: 'networkidle' });
+    await page.goto('/en', { waitUntil: 'networkidle' });
     const section = page.locator('#find-us > div');
     expect(await section.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
   });
@@ -222,7 +232,7 @@ test.describe('with reduced motion', () => {
 
 test.describe('when printed', () => {
   test('shows the sections below the fold too', async ({ page }) => {
-    await page.goto('/en/al-noor', { waitUntil: 'networkidle' });
+    await page.goto('/en', { waitUntil: 'networkidle' });
     await page.emulateMedia({ media: 'print' });
     const section = page.locator('#find-us > div');
     await expect

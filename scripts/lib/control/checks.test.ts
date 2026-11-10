@@ -59,9 +59,10 @@ const AZURITE_PROBE = STACKS.dev.storageEmulator?.probeUrl ?? '';
 /** Everything a healthy stack answers, by the URLs of its checks. */
 function healthyRoutes(mode: 'dev' | 'prod'): Routes {
   const { apiProbeUrl, webProbeUrl, webUrl, apiUrl, mailUrl } = STACKS[mode];
+  // The root is the practice of the installation (ADR 0016).
   const page = (direction: string) => ({
     status: 200,
-    body: `<html dir="${direction}">`,
+    body: `<html dir="${direction}"><h1>Al Noor</h1><script type="application/ld+json">{}</script>`,
     headers: { 'content-security-policy': "script-src 'self' 'nonce-abc'" },
   });
   return {
@@ -75,13 +76,9 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
     [`${webUrl}/`]: { status: 307, headers: { location: '/en' } },
     [`${webUrl}/en`]: page('ltr'),
     [`${webUrl}/ar`]: page('rtl'),
-    [`${webUrl}/en/al-noor`]: {
-      status: 200,
-      body: '<h1>Al Noor</h1><script type="application/ld+json">{}</script>',
-    },
     [`${webUrl}/sitemap.xml`]: {
       status: 200,
-      body: `<url><loc>${webUrl}/en/al-noor</loc></url>`,
+      body: `<url><loc>${webUrl}/en</loc></url>`,
     },
     [`${apiUrl}/api/v1/public/practices/al-noor`]: limitCountingDown(),
     [freeTimesUrl(apiUrl)]: { status: 200, body: '{"days":[{"hasFreeTimes":true}]}' },
@@ -322,16 +319,20 @@ describe('what the smoke test catches', () => {
   });
 
   it('a practice page that fails, or lacks its heading or search data', async () => {
-    const url = 'http://localhost:8080/en/al-noor';
+    const url = 'http://localhost:8080/en';
+    // The probe of the web page and the page check of /en read the same page, so they fail along.
     expect(await failuresWith('prod', { [url]: { status: 500 } })).toEqual([
+      'Status 500',
+      'Status 500 statt 200',
       'Status 500 statt 200',
     ]);
-    expect(await failuresWith('prod', { [url]: { status: 200, body: '<p>x</p>' } })).toEqual([
-      'Keine Überschrift',
-    ]);
-    expect(await failuresWith('prod', { [url]: { status: 200, body: '<h1>x</h1>' } })).toEqual([
-      'Keine Suchdaten',
-    ]);
+    const page = (body: string) => ({
+      status: 200,
+      body: `<html dir="ltr">${body}`,
+      headers: { 'content-security-policy': "script-src 'self' 'nonce-abc'" },
+    });
+    expect(await failuresWith('prod', { [url]: page('<p>x</p>') })).toEqual(['Keine Überschrift']);
+    expect(await failuresWith('prod', { [url]: page('<h1>x</h1>') })).toEqual(['Keine Suchdaten']);
   });
 
   it('a practice without free times, or an API that cannot say', async () => {
@@ -351,9 +352,9 @@ describe('what the smoke test catches', () => {
     ]);
     expect(
       await failuresWith('prod', {
-        [url]: { status: 200, body: '<loc>http://web:3000/en/al-noor</loc>' },
+        [url]: { status: 200, body: '<loc>http://web:3000/en</loc>' },
       }),
-    ).toEqual(['http://localhost:8080/en/al-noor fehlt']);
+    ).toEqual(['http://localhost:8080/en fehlt']);
   });
 
   it('a redirect to the address of the container', async () => {

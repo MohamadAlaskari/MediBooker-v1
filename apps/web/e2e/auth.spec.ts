@@ -442,7 +442,7 @@ test.describe('signing in and out (08 A05)', () => {
 test.describe('the way back from a practice page (08 A05)', () => {
   test('returns to the practice after signing in', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
-    const practice = `/${locale}/al-noor`;
+    const practice = `/${locale}`;
     await page.goto(`/${locale}/sign-in#next=${encodeURIComponent(practice)}`);
     await signIn(page, locale, await existingAccount(testInfo));
     await expect(page).toHaveURL(practice);
@@ -450,7 +450,7 @@ test.describe('the way back from a practice page (08 A05)', () => {
 
   test('stays with a person who has to sign up first', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
-    const practice = `/${locale}/al-noor`;
+    const practice = `/${locale}`;
     const t = texts(locale);
     await page.goto(`/${locale}/sign-in#next=${encodeURIComponent(practice)}`);
     await page.getByRole('link', { name: t.signIn.createAccount }).click();
@@ -482,12 +482,12 @@ test.describe('the way back from a practice page (08 A05)', () => {
   test('a language switch on the way: lands in the language chosen', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const other = otherThan(locale);
-    const way = encodeURIComponent(`/${locale}/al-noor`);
+    const way = encodeURIComponent(`/${locale}`);
     await page.goto(`/${locale}/sign-in#next=${way}`);
     await page.locator(`a[hreflang="${other}"]`).click();
     await expect(page).toHaveURL(`/${other}/sign-in#next=${way}`);
     await signIn(page, other, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${other}/al-noor`);
+    await expect(page).toHaveURL(`/${other}`);
   });
 
   test('a way back in another language: lands in the language of this page', async ({
@@ -503,7 +503,7 @@ test.describe('the way back from a practice page (08 A05)', () => {
   test('a forgotten password on the way keeps it, there and back', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const t = texts(locale);
-    const practice = `/${locale}/al-noor`;
+    const practice = `/${locale}`;
     const way = encodeURIComponent(practice);
     await page.goto(`/${locale}/sign-in#next=${way}`);
     await page.getByRole('link', { name: t.signIn.forgot }).click();
@@ -519,7 +519,7 @@ test.describe('the way back from a practice page (08 A05)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const email = await existingAccount(testInfo);
-    const way = encodeURIComponent(`/${locale}/al-noor`);
+    const way = encodeURIComponent(`/${locale}`);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, email);
     await expect(page).toHaveURL(`/${locale}/appointments`);
@@ -605,7 +605,7 @@ test.describe('the skip link (08 B04)', () => {
     page,
   }, testInfo) => {
     const locale = localeOf(testInfo);
-    const practice = `/${locale}/al-noor`;
+    const practice = `/${locale}`;
     const way = encodeURIComponent(practice);
     await page.goto(`/${locale}/sign-in#next=${way}`);
     await expect(page.getByRole('button', { name: texts(locale).signIn.submit })).toBeEnabled();

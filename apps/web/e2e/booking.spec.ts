@@ -316,7 +316,7 @@ test.describe('booking on the web (08 B04)', () => {
     const otherTime = page.getByRole('link', { name: portal.reschedule.other });
     await expect(otherTime).toBeFocused();
     await otherTime.click();
-    await expect(page).toHaveURL(`/${locale}/al-noor#free-times`);
+    await expect(page).toHaveURL(`/${locale}#free-times`);
   });
 
   test('a double press books one appointment', async ({ page }, testInfo) => {
@@ -541,7 +541,7 @@ test.describe('booking on the web (08 B04)', () => {
     await expect(page.getByText(portal.book.noChoiceTitle)).toBeVisible();
     await expect(page.getByRole('link', { name: portal.book.seeTimes })).toHaveAttribute(
       'href',
-      `/${locale}/al-noor#free-times`,
+      `/${locale}#free-times`,
     );
   });
 
@@ -908,7 +908,7 @@ test.describe('booking on the web (08 B04)', () => {
     const locale = localeOf(testInfo);
     const { auth, portal } = messages[locale];
     await signedIn(page, locale, newAddress(testInfo));
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await page.evaluate((key) => {
       sessionStorage.setItem(key, '{}');
     }, CHOICE_KEY);
@@ -927,7 +927,7 @@ test.describe('booking on the web (08 B04)', () => {
     context,
   }, testInfo) => {
     const locale = localeOf(testInfo);
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await expect(page.locator('#free-times [data-a11y-ignore]')).toBeAttached();
     await page.evaluate((key) => {
       sessionStorage.setItem(key, '{}');
@@ -939,7 +939,7 @@ test.describe('booking on the web (08 B04)', () => {
 
   test('a page removes a stored choice whose minutes are over', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await page.evaluate((key) => {
       sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now() - 16 * 60 * 1000 }));
     }, CHOICE_KEY);
@@ -1919,7 +1919,7 @@ test.describe('the keyboard and the focus (08 B04)', () => {
     const email = newAddress(testInfo);
 
     // The picker, before signing in.
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     const section = page.locator('#free-times');
     const time = section.getByRole('group', { name: free.morning }).getByRole('link').first();
     await expect(time).toBeVisible();
@@ -2018,7 +2018,7 @@ test.describe('the keyboard and the focus (08 B04)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     const next = page.getByRole('button', { name: free.nextWeek });
     const previous = page.getByRole('button', { name: free.previousWeek });
     await expect(next).toBeEnabled();
@@ -2135,7 +2135,7 @@ test.describe('the picker on a phone (08 B04)', () => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
     await page.setViewportSize({ width: 360, height: 740 });
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await measure(page, locale);
     expect(await stripScrolls(page.getByRole('radiogroup', { name: free.days }))).toBe(false);
     await expectAccessible(page, 'the picker at 360 px');
@@ -2147,7 +2147,7 @@ test.describe('the picker on a phone (08 B04)', () => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
     await page.setViewportSize({ width: 320, height: 700 });
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await measure(page, locale);
     const strip = page.getByRole('radiogroup', { name: free.days });
     expect(await stripScrolls(strip)).toBe(true);
@@ -2184,7 +2184,7 @@ test.describe('the picker on a phone (08 B04)', () => {
       await route.fulfill({ json: { days } });
     });
     await page.setViewportSize({ width: 320, height: 700 });
-    await page.goto(`/${locale}/al-noor`);
+    await page.goto(`/${locale}`);
     await page.getByRole('button', { name: free.nextWeek }).click();
     await expect(
       page.getByRole('radiogroup', { name: free.days }).getByRole('radio', { disabled: false }),

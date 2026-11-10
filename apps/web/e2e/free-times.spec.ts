@@ -9,7 +9,7 @@ const TEXTS = {
 
 test.describe('the free times on the practice page (08 P06)', () => {
   test('shows the first free day with its times, in the zone of the practice', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const section = page.locator('#free-times');
     await expect(section.getByRole('heading', { name: 'Sunday, November 8' })).toBeVisible();
     const morning = section.getByRole('group', { name: 'Morning' });
@@ -20,7 +20,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
   });
 
   test('keeps closed days and the weekend from being chosen', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const days = page.getByRole('radiogroup', { name: 'Days' });
     await expect(days.getByRole('radio', { name: 'Friday, November 13' })).toBeDisabled();
     await expect(days.getByRole('radio', { name: 'Monday, November 9' })).toBeEnabled();
@@ -34,7 +34,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
       page,
     }) => {
       const { days, forward, morning } = TEXTS[locale];
-      await page.goto(`/${locale}/al-noor`);
+      await page.goto(`/${locale}`);
       const strip = page.getByRole('radiogroup', { name: days });
       const selected = strip.locator('[aria-checked="true"]');
       await expect(selected).toHaveCount(1);
@@ -60,7 +60,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
   }
 
   test('asks for a chosen doctor, and another service', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const times = page.locator('#free-times').getByRole('link', { name: /Sunday, November 8/ });
     await expect(times).toHaveCount(3);
 
@@ -79,7 +79,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
   });
 
   test('gives every choice a target of at least 44 px', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const section = page.locator('#free-times');
     await expect(section.getByRole('group', { name: 'Morning' })).toBeVisible();
     for (const target of [
@@ -96,7 +96,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
   });
 
   test('keeps the type of the design next to a colour', async ({ page }) => {
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const time = page.locator('#free-times').getByRole('group', { name: 'Morning' });
     await expect(time.getByRole('link').first()).toHaveCSS('font-weight', '600');
     await expect(page.getByRole('link', { name: 'Book appointment' }).first()).toHaveCSS(
@@ -130,7 +130,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
         });
       else await route.fallback();
     });
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const section = page.locator('#free-times');
     await expect(section.getByText('The free times could not be loaded.')).toBeVisible({
       timeout: 20_000,
@@ -145,7 +145,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
 
     test('a time someone else took disappears at the next poll', async ({ page }) => {
       await page.clock.install();
-      await page.goto('/en/al-noor');
+      await page.goto('/en');
       const morning = page.locator('#free-times').getByRole('group', { name: 'Morning' });
       await expect(morning.getByRole('link')).toHaveCount(2);
 
@@ -167,7 +167,7 @@ test.describe('the free times on the practice page (08 P06)', () => {
       ...(baseURL === undefined ? {} : { baseURL }),
     });
     const page = await context.newPage();
-    await page.goto('/en/al-noor');
+    await page.goto('/en');
     const section = page.locator('#free-times');
     await expect(section.getByRole('link', { name: '+966 11 000 0000' })).toBeVisible();
     await expect(section).not.toContainText('Looking for free times');

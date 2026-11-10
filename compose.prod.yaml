@@ -124,6 +124,9 @@ services:
       APP_ENV: local
       API_INTERNAL_URL: http://api:3001
       PUBLIC_SITE_URL: http://localhost:8080
+      # The practice of this installation, at the root of its domain (ADR 0016). The demo practice
+      # unless .env.prod names another; a real installation names its own.
+      PRACTICE_SLUG: ${PRACTICE_SLUG:-al-noor}
     tmpfs:
       - /tmp
       - /app/apps/web/.next/cache:uid=1000,gid=1000

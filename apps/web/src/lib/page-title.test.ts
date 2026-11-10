@@ -41,8 +41,8 @@ describe('pageTitle', () => {
     const without = ROUTES.filter(({ source }) => !source.includes('generateMetadata')).map(
       ({ file }) => file,
     );
-    // The start page is the product itself, which is the title of the root layout.
-    expect(without).toEqual(['page.tsx']);
+    // The start page too: it is the page of the installation's practice (ADR 0016).
+    expect(without).toEqual([]);
   });
 
   it.each(LOCALES)('tells the pages apart in %s, with fixed texts only', async (locale) => {

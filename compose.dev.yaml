@@ -185,6 +185,9 @@ services:
       APP_ENV: local
       API_INTERNAL_URL: http://api:3001
       PUBLIC_SITE_URL: http://localhost:3000
+      # The practice of this installation, at the root of the site (ADR 0016); the other demo
+      # practices stay at their own paths.
+      PRACTICE_SLUG: al-noor
     ports:
       - 127.0.0.1:3000:3000
     depends_on:

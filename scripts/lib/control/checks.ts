@@ -129,11 +129,14 @@ function pageCheck(stack: Stack, locale: string, direction: string): Check {
   };
 }
 
-/** The web app reads the API: the whole way from the page to a practice's own database. */
+/**
+ * The web app reads the API: the whole way from the page to a practice's own database. The
+ * installation's practice is the root of its site (ADR 0016).
+ */
 function practicePageCheck(stack: Stack): Check {
   return {
     name: 'Praxisseite zeigt die Praxis und ihre Suchdaten',
-    url: `${stack.webUrl}/en/${DEMO_PRACTICE}`,
+    url: `${stack.webUrl}/en`,
     hint: SEED_HINT,
     verify: (answer) => {
       const problem = hasStatus(200)(answer);
@@ -162,7 +165,7 @@ function freeTimesCheck(stack: Stack): Check {
 
 /** From the registry, with the address of the site: an image knows it only at run time (RT-30). */
 function sitemapCheck(stack: Stack): Check {
-  const address = `${stack.webUrl}/en/${DEMO_PRACTICE}`;
+  const address = `${stack.webUrl}/en`;
   return {
     name: 'Sitemap nennt die Praxis unter der Adresse der Seite',
     url: `${stack.webUrl}/sitemap.xml`,

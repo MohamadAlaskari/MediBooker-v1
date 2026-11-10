@@ -53,27 +53,22 @@ function useBookingChoice(slug: string): BookingChoice | undefined {
   return choice;
 }
 
-function timesHref(locale: string, slug: string): string {
-  return `/${locale}/${slug}#free-times`;
-}
-
 /** Nothing to book as it stands: why, and the way to the practice's times. */
 function ChooseAgain({
-  slug,
+  timesHref,
   title,
   body,
 }: {
-  readonly slug: string;
+  readonly timesHref: string;
   readonly title: string;
   readonly body: string;
 }): ReactNode {
   const t = useTranslations('portal.book');
-  const locale = useLocale();
   return (
     <Alert className="gap-2">
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{body}</AlertDescription>
-      <LinkButton href={timesHref(locale, slug)}>{t('seeTimes')}</LinkButton>
+      <LinkButton href={timesHref}>{t('seeTimes')}</LinkButton>
     </Alert>
   );
 }
@@ -153,6 +148,7 @@ export function Review({
   onNoteChange,
   onBooked,
   onIncomplete,
+  timesHref,
 }: {
   readonly practice: PublicPracticeDto;
   readonly service: PublicServiceDto;
@@ -161,6 +157,8 @@ export function Review({
   readonly onNoteChange: (note: string) => void;
   readonly onBooked: (appointment: AppointmentDto) => void;
   readonly onIncomplete: () => void;
+  /** The practice's free times, where its page is: the root of an installation (ADR 0016). */
+  readonly timesHref: string;
 }): ReactNode {
   const t = useTranslations('portal');
   const freeTimes = useTranslations('practicePage.freeTimes');
@@ -178,7 +176,7 @@ export function Review({
   if (choice.providerId !== undefined && doctor === undefined) {
     return (
       <ChooseAgain
-        slug={practice.slug}
+        timesHref={timesHref}
         title={t('book.doctorGoneTitle')}
         body={t('book.doctorGoneBody')}
       />
@@ -215,7 +213,7 @@ export function Review({
         <div className="flex flex-col gap-2">
           <FormError error={book.error} fields={[NOTE_FIELD]} notFound={t('book.timeGone')} />
           {taken ? (
-            <LinkButton ref={otherTime} href={timesHref(locale, practice.slug)}>
+            <LinkButton ref={otherTime} href={timesHref}>
               {t('reschedule.other')}
             </LinkButton>
           ) : (
@@ -250,7 +248,7 @@ export function Review({
               {t('book.confirm')}
             </Button>
           )}
-          <LinkButton variant="outline" href={timesHref(locale, practice.slug)}>
+          <LinkButton variant="outline" href={timesHref}>
             <ArrowLeft aria-hidden data-icon="inline-start" className="rtl:rotate-180" />
             {t('book.back')}
           </LinkButton>
@@ -268,7 +266,15 @@ export function Review({
 type Step = 'review' | 'update-details';
 
 /** The booking of a time chosen on a practice's page: PW5 and PW6, and the details at the first time. */
-export function BookPage({ slug }: { readonly slug: string }): ReactNode {
+export function BookPage({
+  slug,
+  practiceHref,
+}: {
+  readonly slug: string;
+  /** Where the practice's page is, which only the server knows (ADR 0016). */
+  readonly practiceHref: string;
+}): ReactNode {
+  const timesHref = `${practiceHref}#free-times`;
   const t = useTranslations('portal.book');
   const locale = useLocale();
   const queryClient = useQueryClient();
@@ -378,13 +384,14 @@ export function BookPage({ slug }: { readonly slug: string }): ReactNode {
       {!me.data.emailVerified ? (
         <ConfirmEmail email={me.data.email} />
       ) : !canBook ? (
-        <ChooseAgain slug={slug} title={t('noChoiceTitle')} body={t('noChoiceBody')} />
+        <ChooseAgain timesHref={timesHref} title={t('noChoiceTitle')} body={t('noChoiceBody')} />
       ) : (
         <Review
           practice={practice.data}
           service={service}
           choice={choice}
           note={note}
+          timesHref={timesHref}
           onNoteChange={setNote}
           onBooked={(appointment) => {
             // PW6 stays. A reload or the language switch now shows this appointment, and not a

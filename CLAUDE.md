@@ -49,7 +49,7 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 | i18n | next-intl on the web, use-intl in the app and for server texts, ICU messages from `@medibooker/i18n`; RTL via CSS logical properties / React Native I18nManager — `docs/adr/0013-i18n-binding.md` | Confirmed (2026-11-06) |
 | Fonts | Noto Sans Arabic (ar) + Inter (en), self-hosted | Proposed |
 | Target market(s) | Not fixed: drives privacy law, data residency, insurance model | Open |
-| Hosting | Region per target market (data residency); provider open | Open |
+| Hosting | One installation per practice: its own server in the practice's country, its own domain and databases — `docs/adr/0016-one-installation-per-practice.md` (2026-11-10); provider open | Open (provider) |
 | Notifications | Push in the patient app; appointment messages per practice by e-mail only, SMS only, or both (SMS to verified phones only); account and security messages always by e-mail; WhatsApp later — see `docs/adr/0001-notification-channels-and-content.md` and `docs/product/notifications.md` | Channels confirmed (2026-11-01); e-mail through a Hostinger mailbox over SMTP, the user's choice of 2026-11-06, processor contract open (RT-91); other providers Open (SMS provider not chosen) |
 | Tenancy | Multi-practice SaaS: one platform, many practices; **one PostgreSQL database per practice** (platform database for accounts, practice registry and membership index) — `docs/adr/0005-multi-tenancy.md` | Confirmed (2026-11-02) |
 | File storage | `ObjectStorage` port in the API; Azure Blob Storage in production, Azurite in development, other providers through another adapter — `docs/adr/0015-object-storage.md` | Confirmed (2026-11-07) |

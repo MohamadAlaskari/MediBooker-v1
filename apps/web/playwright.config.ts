@@ -49,6 +49,9 @@ export default defineConfig({
         API_INTERNAL_URL: `http://127.0.0.1:${String(API_STUB_PORT)}`,
         PUBLIC_SITE_URL: `http://localhost:${String(WEB_PORT)}`,
         APP_ENV: 'ci',
+        // An installation of one practice, as in production (ADR 0016); the stub's other practices
+        // stay at their own paths for the cases they stand for.
+        PRACTICE_SLUG: 'al-noor',
       },
     },
   ],

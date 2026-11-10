@@ -67,9 +67,7 @@ describe('medibooker', () => {
   it('starts directly and prints the links after the commands', () => {
     const { code, out } = run(['dev', 'up', '--dry-run']);
     expect(code).toBe(0);
-    expect(out.indexOf('up -d --wait')).toBeLessThan(
-      out.indexOf('http://localhost:3000/ar/al-noor'),
-    );
+    expect(out.indexOf('up -d --wait')).toBeLessThan(out.indexOf('http://localhost:3000/ar'));
     expect(out).toContain('http://localhost:3001/api/docs');
     expect(out).toContain('GET http://localhost:3001/health/ready');
   });
@@ -77,7 +75,7 @@ describe('medibooker', () => {
   it('shows the links of production', () => {
     const { code, out } = run(['prod', 'links', '--dry-run']);
     expect(code).toBe(0);
-    expect(out).toContain('http://localhost:8080/ar/al-noor');
+    expect(out).toContain('http://localhost:8080/ar');
     expect(out).toContain('http://localhost:8081/health/ready');
   });
 

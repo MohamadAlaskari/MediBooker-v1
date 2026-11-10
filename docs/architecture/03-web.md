@@ -80,7 +80,8 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 |---|---|---|
 | `[locale]/layout.tsx` | `hasLocale` / `notFound`; `<html lang dir data-theme data-brand>` rendered on the server; fonts; providers; skip link; a nonce'd brand `<style>` for a custom practice colour (§9) | dynamic (nonce) |
 | `[locale]/page.tsx` | Neutral platform landing until a design exists | none |
-| `[locale]/(public)/[slug]/` | Practice page PW13/PW14 (P03) with free times (P06); no cookies, no third parties | server fetch with `no-store`; not cached (decision D2) |
+| `[locale]/` | In an installation (ADR 0016) the page of its practice, `PRACTICE_SLUG`; without one a neutral page | as the practice page |
+| `[locale]/(public)/[slug]/` | Practice page PW13/PW14 (P03) with free times (P06); no cookies, no third parties; the installation's own practice leads to `[locale]/` with 308 | server fetch with `no-store`; not cached (decision D2) |
 | `[locale]/(auth)/` | The ways in, for someone without a session: sign-in, the first step of sign-up, verification, reset, two-factor (A05) | client only, `no-store` |
 | `[locale]/(patient)/` | The account of a signed-in person, with the steps of a sign-up after its first (details, check inbox) | client only, `no-store` |
 | `[locale]/(portal)/` | Appointments and booking (B04), in a frame with navigation and signing out | client only, `no-store` |

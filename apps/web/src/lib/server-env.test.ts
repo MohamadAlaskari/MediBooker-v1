@@ -21,6 +21,20 @@ describe('parseServerEnv (03 §2)', () => {
     );
   });
 
+  it('takes the practice of the installation, and blank as none', () => {
+    expect(parseServerEnv({ ...VALID, PRACTICE_SLUG: 'al-noor' }).PRACTICE_SLUG).toBe('al-noor');
+    expect(parseServerEnv({ ...VALID, PRACTICE_SLUG: '' }).PRACTICE_SLUG).toBeUndefined();
+    expect(() => parseServerEnv({ ...VALID, PRACTICE_SLUG: '../x' })).toThrow('PRACTICE_SLUG');
+  });
+
+  it.each(['staging', 'production'])(
+    'requires the practice of the installation in %s, which serves exactly one',
+    (APP_ENV) => {
+      expect(() => parseServerEnv({ ...VALID, APP_ENV })).toThrow('PRACTICE_SLUG');
+      expect(parseServerEnv({ ...VALID, APP_ENV, PRACTICE_SLUG: 'al-noor' }).APP_ENV).toBe(APP_ENV);
+    },
+  );
+
   it('refuses a missing key', () => {
     expect(() =>
       parseServerEnv({ APP_ENV: 'local', PUBLIC_SITE_URL: VALID.PUBLIC_SITE_URL }),

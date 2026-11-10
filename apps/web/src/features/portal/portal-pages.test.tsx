@@ -550,7 +550,7 @@ describe('moving an appointment', () => {
 describe('booking', () => {
   const ACCOUNT = { id: 'a', email: 'sami@example.test', emailVerified: true, locale: 'en' };
   const page = (seed: (client: QueryClient) => void): string =>
-    render(<BookPage slug={SLUG} />, seed);
+    render(<BookPage slug={SLUG} practiceHref={`/en/${SLUG}`} />, seed);
 
   it('has a heading and the way back for a practice it cannot find', () => {
     const html = page((client) => {
@@ -610,6 +610,7 @@ describe('booking', () => {
           onNoteChange={noop}
           onBooked={noop}
           onIncomplete={noop}
+          timesHref={`/en/${SLUG}#free-times`}
         />,
       );
 

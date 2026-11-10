@@ -149,9 +149,9 @@ export async function pickTime(page: Page, locale: Locale, index: number): Promi
   await morningTimes(page, locale).nth(index).click();
 }
 
-/** On the practice's public page. */
+/** On the practice's public page: the installation's own at the root (ADR 0016). */
 export async function chooseTime(page: Page, locale: Locale, choice: Choice = {}): Promise<void> {
-  await page.goto(`/${locale}/${choice.slug ?? 'al-noor'}`);
+  await page.goto(choice.slug === undefined ? `/${locale}` : `/${locale}/${choice.slug}`);
   if (choice.withDoctor === true) await page.getByRole('radio', { name: DOCTOR }).click();
   await openDay(page, locale, choice);
   await pickTime(page, locale, choice.index ?? 0);

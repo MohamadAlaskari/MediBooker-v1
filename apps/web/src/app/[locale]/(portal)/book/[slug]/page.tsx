@@ -2,16 +2,17 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { isPracticeSlug } from '@/features/portal/appointment-view';
 import { BookPage } from '@/features/portal/book-page';
+import { practicePath } from '@/lib/api.server';
 import { pageTitle } from '@/lib/page-title';
 
 export const generateMetadata = pageTitle('portal.book.title');
 
 interface PageProps {
-  readonly params: Promise<{ readonly slug: string }>;
+  readonly params: Promise<{ readonly locale: string; readonly slug: string }>;
 }
 
 export default async function Page({ params }: PageProps): Promise<ReactNode> {
-  const { slug } = await params;
+  const { locale, slug } = await params;
   if (!isPracticeSlug(slug)) notFound();
-  return <BookPage slug={slug} />;
+  return <BookPage slug={slug} practiceHref={practicePath(locale, slug)} />;
 }

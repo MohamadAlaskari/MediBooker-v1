@@ -4,16 +4,16 @@ test.describe('the web skeleton (08 F06)', () => {
   test('renders Arabic right to left and English left to right, from the path', async ({
     page,
   }) => {
+    // The root is the page of the installation's practice (ADR 0016), in the language of the path.
     await page.goto('/ar');
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('MediBooker');
-    await expect(page.getByText('مواعيد عبر الإنترنت')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('مركز النور الطبي');
 
     await page.goto('/en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
-    await expect(page.getByText('Online appointments')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Al Noor Medical Centre');
   });
 
   test('sends a path without a locale to the language of the visitor', async ({ request }) => {

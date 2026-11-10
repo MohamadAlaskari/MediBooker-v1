@@ -16,7 +16,7 @@ It first asks for the mode, then shows the list: build, start, stop, restart, li
 | Stack | `compose.dev.yaml`, project `medibooker-dev` | `compose.prod.yaml`, project `medibooker-prod` |
 | Runs | The sources with live reload, Swagger, demo practices | The built images, read-only, behind the proxy |
 | Environment file | `.env`, copied from `.env.example` when missing | `.env.prod`, written with random secrets on the first start |
-| Practice page | <http://localhost:3000/ar/al-noor>, <http://localhost:3000/en/al-noor> | <http://localhost:8080/ar/al-noor>, <http://localhost:8080/en/al-noor> |
+| Practice page (the demo practice al-noor is the installation's practice, at the root: [ADR 0016](../adr/0016-one-installation-per-practice.md)) | <http://localhost:3000/ar>, <http://localhost:3000/en> | <http://localhost:8080/ar>, <http://localhost:8080/en> |
 | Backend | <http://localhost:3001/api/v1/public/practices/al-noor> | <http://localhost:8080/api/v1/public/practices/al-noor> |
 | Swagger | <http://localhost:3001/api/docs> | Off; on with `OPENAPI_UI_ENABLED=true` in `.env.prod`: <http://localhost:8081/api/docs> |
 | Health | <http://localhost:3001/health/live>, <http://localhost:3001/health/ready>, <http://localhost:3000/healthz> | <http://localhost:8081/health/live>, <http://localhost:8081/health/ready>, <http://localhost:8082/healthz> |
