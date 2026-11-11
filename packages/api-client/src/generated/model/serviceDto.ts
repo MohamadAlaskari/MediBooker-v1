@@ -14,6 +14,12 @@ export interface ServiceDto {
   active: boolean;
   /** The insurance types it is for; empty: every type the practice takes */
   allowedInsuranceTypes: ServiceDtoAllowedInsuranceTypesItem[];
+  /**
+     * Minutes its doctor stays free after it (BR-27)
+     * @minimum 0
+     * @maximum 120
+     */
+  bufferMinutes: number;
   /** The note patients read before and after booking, per locale */
   description: ServiceDtoDescription;
   /**
@@ -28,4 +34,6 @@ export interface ServiceDto {
   name: ServiceDtoName;
   /** The doctors whose current working hours offer it (M04 changes them) */
   providers: SetupProviderDto[];
+  /** Patients bring a referral (BR-26) */
+  referralRequired: boolean;
 }

@@ -575,12 +575,25 @@ test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
       await form.getByRole('tab', { name: languageName(code) }).click();
       await form.getByLabel(d.serviceForm.name, { exact: true }).fill(names[code]);
     }
+    // Ten minutes kept free after it (BR-27), and patients bring a referral (BR-26).
+    await form.getByRole('button', { name: new RegExp(d.serviceForm.buffer) }).click();
+    await page
+      .getByRole('option', { name: d.services.minutes.replace('{minutes}', '10'), exact: true })
+      .click();
+    await form.getByText(d.serviceForm.referral, { exact: true }).click();
     await expectAccessibleAtBothWidths(page, 'the service form');
     await form.getByRole('button', { name: d.serviceForm.create }).click();
     await expect(form).toBeHidden();
     await expect(page.getByRole('status')).toContainText(names[locale]);
 
     const row = table.getByRole('row').filter({ hasText: names[locale] });
+    await expect(row).toContainText(d.services.referral);
+    await row.getByRole('button', { name: d.services.edit }).click();
+    const saved = page.getByRole('dialog', { name: d.serviceForm.editTitle });
+    await expect(
+      saved.getByRole('button', { name: new RegExp(d.serviceForm.buffer) }),
+    ).toContainText(d.services.minutes.replace('{minutes}', '10'));
+    await saved.getByRole('button', { name: d.serviceForm.cancel }).click();
     await row.getByText(d.services.onlineOn, { exact: true }).click();
     await expect(row).toContainText(d.services.onlineOff);
     await row.getByRole('button', { name: d.services.edit }).click();
@@ -589,6 +602,20 @@ test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
     await expect(edit).toBeHidden();
     await expect(row).toContainText(d.services.archived);
     await expect(row.getByRole('switch')).toBeDisabled();
+  });
+
+  test('tells patients on the practice page which service needs a referral', async ({
+    page,
+  }, testInfo) => {
+    const locale = localeOf(testInfo);
+    await page.goto(`/${locale}`);
+    const services = page.locator('#services');
+    await expect(services.getByRole('listitem').filter({ hasText: 'Vaccination' })).toContainText(
+      messages[locale].practicePage.services.referral,
+    );
+    await expect(services.getByRole('listitem').filter({ hasText: 'Check-up' })).not.toContainText(
+      messages[locale].practicePage.services.referral,
+    );
   });
 
   test('lets the reception change the opening hours and the special days, not the services', async ({

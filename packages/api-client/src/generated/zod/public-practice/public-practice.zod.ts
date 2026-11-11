@@ -67,7 +67,8 @@ export const GetPublicPracticeResponse = zod.object({
   "description": zod.string().nullable(),
   "durationMinutes": zod.number(),
   "id": zod.uuid(),
-  "name": zod.string().nullable()
+  "name": zod.string().nullable(),
+  "referralRequired": zod.boolean().describe('Patients bring a referral letter (BR-26)')
 })).describe('Active and bookable online'),
   "slug": zod.string().describe('The current slug, also when the request used a retired one'),
   "specialDays": zod.array(zod.object({

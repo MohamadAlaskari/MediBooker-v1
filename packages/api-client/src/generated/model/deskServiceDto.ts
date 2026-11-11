@@ -13,4 +13,6 @@ export interface DeskServiceDto {
   id: string;
   /** The name of the service per locale */
   name: DeskServiceDtoName;
+  /** Patients bring a referral letter (BR-26) */
+  referralRequired: boolean;
 }

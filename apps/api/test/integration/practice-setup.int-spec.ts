@@ -139,6 +139,8 @@ describe('what the team sets up, on real databases (08 M02)', () => {
           name: { ar: ' تحليل دم ', en: 'Blood test' },
           description: { en: 'Please come fasting.\nWater is allowed.' },
           durationMinutes: 10,
+          bufferMinutes: 5,
+          referralRequired: true,
           allowedInsuranceTypes: ['SELF_PAY', 'SELF_PAY'],
         })
         .expect(201);
@@ -147,6 +149,8 @@ describe('what the team sets up, on real databases (08 M02)', () => {
         name: { ar: 'تحليل دم', en: 'Blood test' },
         description: { en: 'Please come fasting.\nWater is allowed.' },
         durationMinutes: 10,
+        bufferMinutes: 5,
+        referralRequired: true,
         isBookableOnline: true,
         allowedInsuranceTypes: ['SELF_PAY'],
         active: true,
@@ -154,7 +158,14 @@ describe('what the team sets up, on real databases (08 M02)', () => {
       });
       expect(await auditCount('service.create', service.id)).toBe(1);
       expect((await publicPage()).services).toContainEqual(
-        expect.objectContaining({ id: service.id, name: 'Blood test' }),
+        // Patients learn before they book that they bring a referral (BR-26); the buffer is not theirs.
+        {
+          id: service.id,
+          name: 'Blood test',
+          description: 'Please come fasting.\nWater is allowed.',
+          durationMinutes: 10,
+          referralRequired: true,
+        },
       );
 
       const patch = (body: object): request.Test =>
@@ -196,10 +207,12 @@ describe('what the team sets up, on real databases (08 M02)', () => {
           name: { en: 'Check-up', de: 'Kontrolle' },
           description: { ar: 'x'.repeat(501) },
           durationMinutes: 4,
+          bufferMinutes: 121,
         })
         .expect(400);
       expect(fieldErrorsOf(refused.body)).toEqual([
         { field: 'durationMinutes', code: 'TOO_SMALL' },
+        { field: 'bufferMinutes', code: 'TOO_LARGE' },
       ]);
       const texts = await world
         .send(request(world.server()).post(path(practice, 'services')), as('ADMIN'))

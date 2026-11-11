@@ -205,6 +205,10 @@ model Service {
   description           Json     @default("{}")
   /// class: public (5 to 480; CHECK in the migration)
   durationMinutes       Int      @map("duration_minutes") @db.SmallInt
+  /// class: public (BR-27: minutes its doctor stays free after it, 0 to 120; CHECK in the migration)
+  bufferMinutes         Int      @default(0) @map("buffer_minutes") @db.SmallInt
+  /// class: public (BR-26: patients bring a referral)
+  referralRequired      Boolean  @default(false) @map("referral_required")
   /// class: public
   isBookableOnline      Boolean  @default(true) @map("is_bookable_online")
   /// class: public

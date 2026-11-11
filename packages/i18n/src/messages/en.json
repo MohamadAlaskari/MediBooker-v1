@@ -127,7 +127,8 @@
       "title": "Services",
       "subtitle": "What you can book with us.",
       "duration": "{count, plural, one {approx. {minutes} min} other {approx. {minutes} min}}",
-      "empty": "Please call us to ask about our services."
+      "empty": "Please call us to ask about our services.",
+      "referral": "Please bring a referral letter."
     },
     "team": {
       "title": "Our team",
@@ -401,7 +402,8 @@
       "toAppointments": "My appointments",
       "addToCalendar": "Add to calendar",
       "calendarSummary": "Appointment at {practice}",
-      "calendarFileName": "appointment"
+      "calendarFileName": "appointment",
+      "referral": "This service needs a referral. Please bring your referral letter."
     },
     "join": {
       "title": "Your details for {practice}",
@@ -640,7 +642,8 @@
         "SERVICE_NOT_BOOKABLE": "This service cannot be booked for this patient's insurance.",
         "NOT_FOUND": "The patient, the service or the doctor is no longer there. Please choose again.",
         "PATIENT_MAY_EXIST": "A patient with this name and date of birth, or with this insurance number, exists already. Search for them, or add this patient anyway."
-      }
+      },
+      "serviceOptionReferral": "{name} · approx. {minutes} min · referral required"
     },
     "calendar": {
       "title": "Calendar",
@@ -688,7 +691,8 @@
       "added": "{service} was added.",
       "archivedNews": "{service} was archived. Its booked appointments stay.",
       "restoredNews": "{service} is offered again.",
-      "onlineNews": "{online, select, true {Patients can book {service} online again.} other {{service} can now be booked by phone only.}}"
+      "onlineNews": "{online, select, true {Patients can book {service} online again.} other {{service} can now be booked by phone only.}}",
+      "referral": "Referral required"
     },
     "serviceForm": {
       "addTitle": "Add service",
@@ -712,7 +716,12 @@
       "restore": "Offer again",
       "cancel": "Cancel",
       "save": "Save changes",
-      "create": "Add service"
+      "create": "Add service",
+      "buffer": "Buffer after",
+      "bufferNone": "No buffer",
+      "bufferHint": "Time the doctor keeps free after this service, such as for cleaning or notes.",
+      "referral": "Referral required",
+      "referralHint": "Patients see before they book that they bring a referral letter."
     },
     "settings": {
       "title": "Settings",

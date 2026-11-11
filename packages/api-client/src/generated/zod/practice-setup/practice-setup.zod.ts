@@ -82,6 +82,9 @@ export const ListServicesParams = zod.object({
   "practiceId": zod.uuid()
 })
 
+export const listServicesResponseServicesItemBufferMinutesMin = 0;
+export const listServicesResponseServicesItemBufferMinutesMax = 120;
+
 export const listServicesResponseServicesItemDurationMinutesMin = 5;
 export const listServicesResponseServicesItemDurationMinutesMax = 480;
 
@@ -95,6 +98,7 @@ export const ListServicesResponse = zod.object({
   "services": zod.array(zod.object({
   "active": zod.boolean().describe('Offered now; an archived one still names its appointments'),
   "allowedInsuranceTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The insurance types it is for; empty: every type the practice takes'),
+  "bufferMinutes": zod.number().min(listServicesResponseServicesItemBufferMinutesMin).max(listServicesResponseServicesItemBufferMinutesMax).describe('Minutes its doctor stays free after it (BR-27)'),
   "description": zod.record(zod.string(), zod.string()).describe('The note patients read before and after booking, per locale'),
   "durationMinutes": zod.number().min(listServicesResponseServicesItemDurationMinutesMin).max(listServicesResponseServicesItemDurationMinutesMax),
   "id": zod.uuid(),
@@ -103,7 +107,8 @@ export const ListServicesResponse = zod.object({
   "providers": zod.array(zod.object({
   "id": zod.uuid(),
   "name": zod.string()
-})).describe('The doctors whose current working hours offer it (M04 changes them)')
+})).describe('The doctors whose current working hours offer it (M04 changes them)'),
+  "referralRequired": zod.boolean().describe('Patients bring a referral (BR-26)')
 })),
   "timeZone": zod.string().describe('The practice\'s IANA time zone')
 })
@@ -115,18 +120,28 @@ export const CreateServiceParams = zod.object({
   "practiceId": zod.uuid()
 })
 
+export const createServiceBodyBufferMinutesDefault = 0;
+export const createServiceBodyBufferMinutesMin = 0;
+export const createServiceBodyBufferMinutesMax = 120;
+
 export const createServiceBodyDurationMinutesMin = 5;
 export const createServiceBodyDurationMinutesMax = 480;
 
 export const createServiceBodyIsBookableOnlineDefault = true;
+export const createServiceBodyReferralRequiredDefault = false;
 
 export const CreateServiceBody = zod.object({
   "allowedInsuranceTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).optional().describe('Types the practice takes; empty or left out: all of them'),
+  "bufferMinutes": zod.number().min(createServiceBodyBufferMinutesMin).max(createServiceBodyBufferMinutesMax).default(createServiceBodyBufferMinutesDefault),
   "description": zod.record(zod.string(), zod.string()).optional().describe('At most 500 characters per language'),
   "durationMinutes": zod.number().min(createServiceBodyDurationMinutesMin).max(createServiceBodyDurationMinutesMax),
   "isBookableOnline": zod.boolean().default(createServiceBodyIsBookableOnlineDefault),
-  "name": zod.record(zod.string(), zod.string()).describe('In every language of the practice, at most 80 characters')
+  "name": zod.record(zod.string(), zod.string()).describe('In every language of the practice, at most 80 characters'),
+  "referralRequired": zod.boolean().default(createServiceBodyReferralRequiredDefault)
 })
+
+export const createServiceResponseBufferMinutesMin = 0;
+export const createServiceResponseBufferMinutesMax = 120;
 
 export const createServiceResponseDurationMinutesMin = 5;
 export const createServiceResponseDurationMinutesMax = 480;
@@ -136,6 +151,7 @@ export const createServiceResponseDurationMinutesMax = 480;
 export const CreateServiceResponse = zod.object({
   "active": zod.boolean().describe('Offered now; an archived one still names its appointments'),
   "allowedInsuranceTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The insurance types it is for; empty: every type the practice takes'),
+  "bufferMinutes": zod.number().min(createServiceResponseBufferMinutesMin).max(createServiceResponseBufferMinutesMax).describe('Minutes its doctor stays free after it (BR-27)'),
   "description": zod.record(zod.string(), zod.string()).describe('The note patients read before and after booking, per locale'),
   "durationMinutes": zod.number().min(createServiceResponseDurationMinutesMin).max(createServiceResponseDurationMinutesMax),
   "id": zod.uuid(),
@@ -144,7 +160,8 @@ export const CreateServiceResponse = zod.object({
   "providers": zod.array(zod.object({
   "id": zod.uuid(),
   "name": zod.string()
-})).describe('The doctors whose current working hours offer it (M04 changes them)')
+})).describe('The doctors whose current working hours offer it (M04 changes them)'),
+  "referralRequired": zod.boolean().describe('Patients bring a referral (BR-26)')
 })
 
 /**
@@ -155,6 +172,9 @@ export const UpdateServiceParams = zod.object({
   "practiceId": zod.uuid()
 })
 
+export const updateServiceBodyBufferMinutesMin = 0;
+export const updateServiceBodyBufferMinutesMax = 120;
+
 export const updateServiceBodyDurationMinutesMin = 5;
 export const updateServiceBodyDurationMinutesMax = 480;
 
@@ -163,11 +183,16 @@ export const updateServiceBodyDurationMinutesMax = 480;
 export const UpdateServiceBody = zod.object({
   "active": zod.boolean().optional().describe('False archives it: nobody can book it; its appointments stay'),
   "allowedInsuranceTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).optional(),
+  "bufferMinutes": zod.number().min(updateServiceBodyBufferMinutesMin).max(updateServiceBodyBufferMinutesMax).optional(),
   "description": zod.record(zod.string(), zod.string()).optional().describe('Replaces the note in every language'),
   "durationMinutes": zod.number().min(updateServiceBodyDurationMinutesMin).max(updateServiceBodyDurationMinutesMax).optional(),
   "isBookableOnline": zod.boolean().optional(),
-  "name": zod.record(zod.string(), zod.string()).optional().describe('In every language of the practice')
+  "name": zod.record(zod.string(), zod.string()).optional().describe('In every language of the practice'),
+  "referralRequired": zod.boolean().optional()
 })
+
+export const updateServiceResponseBufferMinutesMin = 0;
+export const updateServiceResponseBufferMinutesMax = 120;
 
 export const updateServiceResponseDurationMinutesMin = 5;
 export const updateServiceResponseDurationMinutesMax = 480;
@@ -177,6 +202,7 @@ export const updateServiceResponseDurationMinutesMax = 480;
 export const UpdateServiceResponse = zod.object({
   "active": zod.boolean().describe('Offered now; an archived one still names its appointments'),
   "allowedInsuranceTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The insurance types it is for; empty: every type the practice takes'),
+  "bufferMinutes": zod.number().min(updateServiceResponseBufferMinutesMin).max(updateServiceResponseBufferMinutesMax).describe('Minutes its doctor stays free after it (BR-27)'),
   "description": zod.record(zod.string(), zod.string()).describe('The note patients read before and after booking, per locale'),
   "durationMinutes": zod.number().min(updateServiceResponseDurationMinutesMin).max(updateServiceResponseDurationMinutesMax),
   "id": zod.uuid(),
@@ -185,7 +211,8 @@ export const UpdateServiceResponse = zod.object({
   "providers": zod.array(zod.object({
   "id": zod.uuid(),
   "name": zod.string()
-})).describe('The doctors whose current working hours offer it (M04 changes them)')
+})).describe('The doctors whose current working hours offer it (M04 changes them)'),
+  "referralRequired": zod.boolean().describe('Patients bring a referral (BR-26)')
 })
 
 /**

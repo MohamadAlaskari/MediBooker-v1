@@ -150,3 +150,10 @@ export function durationsWith(current: number): readonly number[] {
     ? DURATIONS
     : [...DURATIONS, current].toSorted((a, b) => a - b);
 }
+
+/** The buffers W13 offers after a service (BR-27), none first, with the service's own. */
+const BUFFERS = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120];
+
+export function buffersWith(current: number): readonly number[] {
+  return BUFFERS.includes(current) ? BUFFERS : [...BUFFERS, current].toSorted((a, b) => a - b);
+}

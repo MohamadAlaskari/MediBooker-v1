@@ -703,9 +703,12 @@ function BookingForm({
             setDate(undefined);
             anew();
           }}
-          options={services.map(({ id, name, durationMinutes }) => ({
+          options={services.map(({ id, name, durationMinutes, referralRequired }) => ({
             id,
-            label: t('serviceOption', { name: textIn(name, locale), minutes: durationMinutes }),
+            label: t(referralRequired ? 'serviceOptionReferral' : 'serviceOption', {
+              name: textIn(name, locale),
+              minutes: durationMinutes,
+            }),
           }))}
         />
         <Choice

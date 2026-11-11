@@ -12,6 +12,11 @@ export interface ServicePatchDto {
   /** False archives it: nobody can book it; its appointments stay */
   active?: boolean;
   allowedInsuranceTypes?: ServicePatchDtoAllowedInsuranceTypesItem[];
+  /**
+     * @minimum 0
+     * @maximum 120
+     */
+  bufferMinutes?: number;
   /** Replaces the note in every language */
   description?: ServicePatchDtoDescription;
   /**
@@ -22,4 +27,5 @@ export interface ServicePatchDto {
   isBookableOnline?: boolean;
   /** In every language of the practice */
   name?: ServicePatchDtoName;
+  referralRequired?: boolean;
 }

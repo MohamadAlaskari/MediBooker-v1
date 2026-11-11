@@ -11,6 +11,11 @@ import type { ServiceInputDtoName } from './serviceInputDtoName';
 export interface ServiceInputDto {
   /** Types the practice takes; empty or left out: all of them */
   allowedInsuranceTypes?: ServiceInputDtoAllowedInsuranceTypesItem[];
+  /**
+     * @minimum 0
+     * @maximum 120
+     */
+  bufferMinutes?: number;
   /** At most 500 characters per language */
   description?: ServiceInputDtoDescription;
   /**
@@ -21,4 +26,5 @@ export interface ServiceInputDto {
   isBookableOnline?: boolean;
   /** In every language of the practice, at most 80 characters */
   name: ServiceInputDtoName;
+  referralRequired?: boolean;
 }

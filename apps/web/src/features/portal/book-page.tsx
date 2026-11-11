@@ -194,6 +194,9 @@ export function Review({
             practice={practice.name ?? ''}
             address={practice.address}
           />
+          {service.referralRequired ? (
+            <p className="text-body-default text-text-warning">{t('book.referral')}</p>
+          ) : null}
         </Card>
         <TextAreaField
           label={t('book.noteLabel')}

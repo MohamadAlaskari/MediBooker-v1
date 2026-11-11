@@ -519,6 +519,9 @@ export class DeskServiceDto {
 
   @ApiProperty({ description: 'Offered now; an inactive one still names old appointments' })
   readonly active!: boolean;
+
+  @ApiProperty({ description: 'Patients bring a referral letter (BR-26)' })
+  readonly referralRequired!: boolean;
 }
 
 /** What the practice asks of a patient's insurance (BR-10), for a patient the team adds (W7). */

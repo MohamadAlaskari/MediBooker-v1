@@ -351,7 +351,8 @@ export const GetDeskCatalogResponse = zod.object({
   "active": zod.boolean().describe('Offered now; an inactive one still names old appointments'),
   "durationMinutes": zod.number(),
   "id": zod.uuid(),
-  "name": zod.record(zod.string(), zod.string()).describe('The name of the service per locale')
+  "name": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "referralRequired": zod.boolean().describe('Patients bring a referral letter (BR-26)')
 }))
 })
 

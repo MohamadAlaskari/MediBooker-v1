@@ -91,6 +91,9 @@ export class PublicServiceDto {
 
   @ApiProperty({ example: 20 })
   readonly durationMinutes!: number;
+
+  @ApiProperty({ description: 'Patients bring a referral letter (BR-26)' })
+  readonly referralRequired!: boolean;
 }
 
 export class PublicTeamMemberDto {

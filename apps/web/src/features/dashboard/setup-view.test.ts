@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   draftOf,
+  buffersWith,
   durationsWith,
   intervalsOfDraft,
   nextRangeOf,
@@ -88,6 +89,14 @@ describe('the editor’s week', () => {
   it('counts the week from its first day', () => {
     expect(weekdaysFrom(7)).toEqual([7, 1, 2, 3, 4, 5, 6]);
     expect(weekdaysFrom(6)).toEqual([6, 7, 1, 2, 3, 4, 5]);
+  });
+});
+
+describe('buffersWith', () => {
+  it('offers no buffer first, and a service’s own among the usual ones', () => {
+    expect(buffersWith(0)[0]).toBe(0);
+    expect(buffersWith(7)).toContain(7);
+    expect(buffersWith(10)).not.toContain(7);
   });
 });
 

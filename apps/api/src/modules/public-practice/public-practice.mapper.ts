@@ -134,6 +134,7 @@ export function toPublicPractice(
           name: text(service.name),
           description: text(service.description),
           durationMinutes: service.durationMinutes,
+          referralRequired: service.referralRequired,
         }))
       : [],
     team: page.showTeam

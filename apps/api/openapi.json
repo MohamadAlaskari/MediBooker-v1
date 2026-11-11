@@ -1248,13 +1248,18 @@
             },
             "description": "The name of the service per locale",
             "type": "object"
+          },
+          "referralRequired": {
+            "description": "Patients bring a referral letter (BR-26)",
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
           "durationMinutes",
-          "active"
+          "active",
+          "referralRequired"
         ],
         "type": "object"
       },
@@ -2329,13 +2334,18 @@
               "string",
               "null"
             ]
+          },
+          "referralRequired": {
+            "description": "Patients bring a referral letter (BR-26)",
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
           "description",
-          "durationMinutes"
+          "durationMinutes",
+          "referralRequired"
         ],
         "type": "object"
       },
@@ -2593,6 +2603,12 @@
             },
             "type": "array"
           },
+          "bufferMinutes": {
+            "description": "Minutes its doctor stays free after it (BR-27)",
+            "maximum": 120,
+            "minimum": 0,
+            "type": "number"
+          },
           "description": {
             "additionalProperties": {
               "type": "string"
@@ -2626,6 +2642,10 @@
               "$ref": "#/components/schemas/SetupProviderDto"
             },
             "type": "array"
+          },
+          "referralRequired": {
+            "description": "Patients bring a referral (BR-26)",
+            "type": "boolean"
           }
         },
         "required": [
@@ -2633,6 +2653,8 @@
           "name",
           "description",
           "durationMinutes",
+          "bufferMinutes",
+          "referralRequired",
           "isBookableOnline",
           "allowedInsuranceTypes",
           "active",
@@ -2653,6 +2675,12 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "bufferMinutes": {
+            "default": 0,
+            "maximum": 120,
+            "minimum": 0,
+            "type": "number"
           },
           "description": {
             "additionalProperties": {
@@ -2684,6 +2712,10 @@
               "en": "Check-up"
             },
             "type": "object"
+          },
+          "referralRequired": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
@@ -2763,6 +2795,11 @@
             },
             "type": "array"
           },
+          "bufferMinutes": {
+            "maximum": 120,
+            "minimum": 0,
+            "type": "number"
+          },
           "description": {
             "additionalProperties": {
               "type": "string"
@@ -2784,6 +2821,9 @@
             },
             "description": "In every language of the practice",
             "type": "object"
+          },
+          "referralRequired": {
+            "type": "boolean"
           }
         },
         "type": "object"

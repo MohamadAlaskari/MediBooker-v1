@@ -67,12 +67,14 @@ function practice(overrides: Partial<PublicPracticeDto>): PublicPracticeDto {
         name: 'Check-up',
         description: 'Preventive care',
         durationMinutes: 30,
+        referralRequired: false,
       },
       {
         id: '10000000-0000-4000-8000-000000000002',
         name: 'Vaccination',
         description: null,
         durationMinutes: 15,
+        referralRequired: true,
       },
     ],
     team: [
@@ -222,6 +224,7 @@ export const PRACTICES: Readonly<Record<string, (language: string) => PublicPrac
           name: LONG_ARABIC.slice(0, 120),
           description: LONG_ARABIC,
           durationMinutes: 45,
+          referralRequired: false,
         },
       ],
     }),

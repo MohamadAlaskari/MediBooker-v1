@@ -38,6 +38,9 @@ export function ServicesSection({ practice, format }: SectionProps): ReactNode {
                 {service.description === null ? null : (
                   <p className="mt-1 text-body-small text-text-secondary">{service.description}</p>
                 )}
+                {service.referralRequired ? (
+                  <p className="mt-1 text-body-small text-text-warning">{t('referral')}</p>
+                ) : null}
               </div>
             </li>
           ))}

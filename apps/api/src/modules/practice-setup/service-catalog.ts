@@ -40,6 +40,8 @@ const SERVICE_FIELDS = {
   name: true,
   description: true,
   durationMinutes: true,
+  bufferMinutes: true,
+  referralRequired: true,
   isBookableOnline: true,
   allowedInsuranceTypes: true,
   active: true,
@@ -137,6 +139,8 @@ export class ServiceCatalog {
           name: name.value,
           description: description.value,
           durationMinutes: input.durationMinutes,
+          bufferMinutes: input.bufferMinutes ?? 0,
+          referralRequired: input.referralRequired ?? false,
           isBookableOnline: input.isBookableOnline ?? true,
           allowedInsuranceTypes: insurance.value,
           sortOrder: (_max.sortOrder ?? -1) + 1,
@@ -203,6 +207,10 @@ export class ServiceCatalog {
           ...(input.durationMinutes === undefined
             ? {}
             : { durationMinutes: input.durationMinutes }),
+          ...(input.bufferMinutes === undefined ? {} : { bufferMinutes: input.bufferMinutes }),
+          ...(input.referralRequired === undefined
+            ? {}
+            : { referralRequired: input.referralRequired }),
           ...(input.isBookableOnline === undefined
             ? {}
             : { isBookableOnline: input.isBookableOnline }),
@@ -268,6 +276,8 @@ export class ServiceCatalog {
       readonly name: unknown;
       readonly description: unknown;
       readonly durationMinutes: number;
+      readonly bufferMinutes: number;
+      readonly referralRequired: boolean;
       readonly isBookableOnline: boolean;
       readonly allowedInsuranceTypes: readonly string[];
       readonly active: boolean;
@@ -279,6 +289,8 @@ export class ServiceCatalog {
       name: service.name as Readonly<Record<string, string>>,
       description: service.description as Readonly<Record<string, string>>,
       durationMinutes: service.durationMinutes,
+      bufferMinutes: service.bufferMinutes,
+      referralRequired: service.referralRequired,
       isBookableOnline: service.isBookableOnline,
       allowedInsuranceTypes: service.allowedInsuranceTypes.filter(isInsuranceType),
       active: service.active,

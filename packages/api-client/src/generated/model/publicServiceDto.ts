@@ -12,4 +12,6 @@ export interface PublicServiceDto {
   id: string;
   /** @nullable */
   name: string | null;
+  /** Patients bring a referral letter (BR-26) */
+  referralRequired: boolean;
 }

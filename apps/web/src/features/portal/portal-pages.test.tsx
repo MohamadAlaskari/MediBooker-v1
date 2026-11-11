@@ -604,7 +604,13 @@ describe('booking', () => {
       render(
         <Review
           practice={PRACTICE}
-          service={{ id: SERVICE_ID, name: 'Check-up', description: null, durationMinutes: 30 }}
+          service={{
+            id: SERVICE_ID,
+            name: 'Check-up',
+            description: null,
+            durationMinutes: 30,
+            referralRequired: false,
+          }}
           choice={{ ...CHOICE, providerId: props.providerId }}
           note={props.note ?? ''}
           onNoteChange={noop}

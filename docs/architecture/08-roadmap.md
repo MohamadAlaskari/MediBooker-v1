@@ -1036,7 +1036,9 @@ As built (this commit), the practice's setup ("Ja mach weiter", 2026-11-11): `GE
 
 From the security review (approved with fixes, no blocker or major): fixed, the one medium: a new week waited for its table lock without a limit and wrote up to 42 rows under it, so a burst of changes could hold all three connections of a practice; now the wait ends after `DATABASE_LOCK_TIMEOUT_MS` (503), a second new week of the same practice in an instance is 429 before it takes a connection, and every write of M02 allows 30 a minute per route and address. Fixed, three minors: an answer named every unknown key a client sent, thousands in a 100 kB body (now only keys that can be language codes, any other once as the field, and at most 100 errors); a key `constructor` or a body nested deeper than 32 levels made the validation pipe's copy throw, a 500 on every route of the API (now 400 from the JSON parser, `json-guards.ts`); letters that show nothing (the Hangul fillers, the blank Braille pattern) passed as a name. The forms say that a note and a reason are public and must name no one and nothing about anyone's health. Open, minor: RT-98.
 
-- **Moved:** the doctors of a service (the check boxes of W13) → M04, whose rules link doctors and services; "Buffer after" and "Referral required" of W13 are not in the domain model and wait for a decision; the rest of W20 (publishing, address, about, team) and the tab row of the settings → M01 and M03.
+Then, the user's decision of 2026-11-11 on the two fields of W13 that the domain did not have ("ok mach das beide"): a service can need a referral (BR-26, `referralRequired`), which patients see on the practice page and before they confirm a booking, and the team in W12 and in W7's choice of service; and it can keep its doctor free after each appointment (BR-27, `bufferMinutes`, 0 to 120, a CHECK of the migration `20261111200000_service_buffer_referral`). The buffer is kept and shown now and holds the doctor from M04 on, which books by duration: until then an appointment holds its one slot, whatever the service's duration. Patients never see the buffer, so the public page names only the referral.
+
+- **Moved:** the doctors of a service (the check boxes of W13) → M04, whose rules link doctors and services; "Buffer after" and "Referral required" of W13 came after the commit, below; the rest of W20 (publishing, address, about, team) and the tab row of the settings → M01 and M03.
 
 ### M03 — Team members and public-profile consent
 
@@ -1052,7 +1054,7 @@ From the review of P03: the write path checks `languages` as language codes (the
 
 **Commit:** `feat(scheduling): manage working hours, exceptions and slots` · **Depends on:** - · **Owner:** backend-engineer and web-engineer
 
-Scope: CRUD `…/availability-rules` (doctors only their own), exceptions, `POST …/slots/generate`, `PATCH …/slots/{id}` block and unblock (BR-07 → `SLOT_HAS_APPOINTMENT`); screen W14.
+Scope: CRUD `…/availability-rules` (doctors only their own), exceptions, `POST …/slots/generate`, `PATCH …/slots/{id}` block and unblock (BR-07 → `SLOT_HAS_APPOINTMENT`); screen W14. From M02: booking by duration, so that the rules' slots become the grid of start times of W14 ("Start times every") and an appointment holds its doctor for the service's duration plus its buffer (BR-27).
 
 Acceptance: a doctor editing another doctor's rule → 404; blocking a booked slot → 409; regeneration is idempotent; Playwright in `ar` and `en`.
 

@@ -27,7 +27,7 @@ import { practiceFormat } from '@/lib/format';
 import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
 import { useDesk } from './desk-context';
-import { durationsWith, isPracticeQueryOf, languageName } from './setup-view';
+import { buffersWith, durationsWith, isPracticeQueryOf, languageName } from './setup-view';
 
 /** As long as the API takes them. */
 const NAME_MAX = 80;
@@ -40,20 +40,32 @@ interface FormState {
   readonly names: Readonly<Record<string, string>>;
   readonly notes: Readonly<Record<string, string>>;
   readonly duration: number;
+  readonly buffer: number;
   readonly online: boolean;
+  readonly referral: boolean;
   readonly insurance: readonly InsuranceType[];
 }
 
 function stateOf(service: ServiceDto | undefined, taken: readonly InsuranceType[]): FormState {
   if (service === undefined) {
-    return { names: {}, notes: {}, duration: 30, online: true, insurance: taken };
+    return {
+      names: {},
+      notes: {},
+      duration: 30,
+      buffer: 0,
+      online: true,
+      referral: false,
+      insurance: taken,
+    };
   }
   const allowed = service.allowedInsuranceTypes;
   return {
     names: service.name,
     notes: service.description,
     duration: service.durationMinutes,
+    buffer: service.bufferMinutes,
     online: service.isBookableOnline,
+    referral: service.referralRequired,
     insurance: allowed.length === 0 ? taken : taken.filter((type) => allowed.includes(type)),
   };
 }
@@ -132,6 +144,8 @@ function ServiceForm({
       name: state.names,
       description: state.notes,
       durationMinutes: state.duration,
+      bufferMinutes: state.buffer,
+      referralRequired: state.referral,
       isBookableOnline: state.online,
       allowedInsuranceTypes: everyType ? [] : [...state.insurance],
     };
@@ -160,6 +174,8 @@ function ServiceForm({
 
   const shownFields = Object.keys(errors);
   const onlineHintId = useId();
+  const bufferHintId = useId();
+  const referralHintId = useId();
   return (
     <form
       noValidate
@@ -217,23 +233,48 @@ function ServiceForm({
           );
         })}
       </Tabs>
-      <Select
-        value={state.duration}
-        onChange={(key) => {
-          if (key !== null) setState({ ...state, duration: Number(key) });
-        }}
-        className="tablet:max-w-[16rem]"
-      >
-        <Label className={LABEL}>{t('duration')}</Label>
-        <SelectTrigger className="mt-2" />
-        <SelectContent>
-          {durationsWith(state.duration).map((minutes) => (
-            <SelectItem key={minutes} id={minutes}>
-              {news('minutes', { minutes: format.number(minutes) })}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2">
+        <Select
+          value={state.duration}
+          onChange={(key) => {
+            if (key !== null) setState({ ...state, duration: Number(key) });
+          }}
+        >
+          <Label className={LABEL}>{t('duration')}</Label>
+          <SelectTrigger className="mt-2" />
+          <SelectContent>
+            {durationsWith(state.duration).map((minutes) => (
+              <SelectItem key={minutes} id={minutes}>
+                {news('minutes', { minutes: format.number(minutes) })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex flex-col gap-1">
+          <Select
+            value={state.buffer}
+            onChange={(key) => {
+              if (key !== null) setState({ ...state, buffer: Number(key) });
+            }}
+            aria-describedby={bufferHintId}
+          >
+            <Label className={LABEL}>{t('buffer')}</Label>
+            <SelectTrigger className="mt-2" />
+            <SelectContent>
+              {buffersWith(state.buffer).map((minutes) => (
+                <SelectItem key={minutes} id={minutes}>
+                  {minutes === 0
+                    ? t('bufferNone')
+                    : news('minutes', { minutes: format.number(minutes) })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p id={bufferHintId} className="text-body-small text-text-secondary">
+            {t('bufferHint')}
+          </p>
+        </div>
+      </div>
       <fieldset className="flex flex-col gap-1">
         <legend className={LABEL}>{t('insurance')}</legend>
         <p className="text-body-small text-text-secondary">{t('insuranceHint')}</p>
@@ -275,6 +316,20 @@ function ServiceForm({
         </Switch>
         <p id={onlineHintId} className="text-body-small text-text-secondary">
           {t('onlineHint')}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          isSelected={state.referral}
+          onChange={(referral) => {
+            setState({ ...state, referral });
+          }}
+          aria-describedby={referralHintId}
+        >
+          {t('referral')}
+        </Checkbox>
+        <p id={referralHintId} className="text-body-small text-text-secondary">
+          {t('referralHint')}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4">
@@ -540,6 +595,9 @@ export function ServicesPage(): ReactNode {
                         <span dir="auto" className="text-label-default text-text-primary">
                           {textIn(service.name, locale)}
                         </span>
+                        {service.referralRequired ? (
+                          <Badge variant="warning">{t('referral')}</Badge>
+                        ) : null}
                         {service.active ? null : <Badge variant="neutral">{t('archived')}</Badge>}
                       </span>
                       {note === '' ? null : (

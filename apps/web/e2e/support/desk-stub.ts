@@ -55,8 +55,14 @@ export const CHECK_UP_ID = '60000000-0000-4000-8000-000000000001';
 export const BLOOD_TEST_ID = '60000000-0000-4000-8000-000000000002';
 export const PROVIDER_ID = '70000000-0000-4000-8000-000000000001';
 export const SERVICES = [
-  { id: CHECK_UP_ID, name: CHECK_UP, durationMinutes: 30, active: true },
-  { id: BLOOD_TEST_ID, name: BLOOD_TEST, durationMinutes: 15, active: true },
+  { id: CHECK_UP_ID, name: CHECK_UP, durationMinutes: 30, active: true, referralRequired: false },
+  {
+    id: BLOOD_TEST_ID,
+    name: BLOOD_TEST,
+    durationMinutes: 15,
+    active: true,
+    referralRequired: false,
+  },
 ];
 
 /** A fresh day per account: what one test changes, another does not see. */

@@ -308,7 +308,7 @@ export class DeskService {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
     });
     const services = await db.service.findMany({
-      select: { id: true, name: true, durationMinutes: true, active: true },
+      select: { id: true, name: true, durationMinutes: true, active: true, referralRequired: true },
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
     const rules = await db.practiceSettings.findUniqueOrThrow({
@@ -322,6 +322,7 @@ export class DeskService {
         name: service.name as Readonly<Record<string, string>>,
         durationMinutes: service.durationMinutes,
         active: service.active,
+        referralRequired: service.referralRequired,
       })),
       insurance: {
         types: rules.insuranceTypes.filter(isInsuranceType),

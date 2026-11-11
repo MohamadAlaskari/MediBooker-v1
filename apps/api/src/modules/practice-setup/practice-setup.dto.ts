@@ -29,6 +29,8 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** The bounds of the database's CHECK on `services.duration_minutes`. */
 const MIN_DURATION = 5;
 const MAX_DURATION = 480;
+/** The bound of the database's CHECK on `services.buffer_minutes` (BR-27). */
+const MAX_BUFFER = 120;
 /** Six intervals on each day of the week are more than any practice opens in. */
 const MAX_INTERVALS = 42;
 
@@ -73,6 +75,16 @@ export class ServiceDto {
 
   @ApiProperty({ minimum: MIN_DURATION, maximum: MAX_DURATION })
   readonly durationMinutes!: number;
+
+  @ApiProperty({
+    minimum: 0,
+    maximum: MAX_BUFFER,
+    description: 'Minutes its doctor stays free after it (BR-27)',
+  })
+  readonly bufferMinutes!: number;
+
+  @ApiProperty({ description: 'Patients bring a referral (BR-26)' })
+  readonly referralRequired!: boolean;
 
   @ApiProperty({ description: 'Patients can book it in the app and the portal (BR-08)' })
   readonly isBookableOnline!: boolean;
@@ -139,6 +151,18 @@ export class ServiceInputDto {
   @Max(MAX_DURATION)
   readonly durationMinutes!: number;
 
+  @ApiPropertyOptional({ minimum: 0, maximum: MAX_BUFFER, default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_BUFFER)
+  readonly bufferMinutes?: number;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  readonly referralRequired?: boolean;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
@@ -174,6 +198,18 @@ export class ServicePatchDto {
   @Min(MIN_DURATION)
   @Max(MAX_DURATION)
   readonly durationMinutes?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: MAX_BUFFER })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_BUFFER)
+  readonly bufferMinutes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  readonly referralRequired?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
