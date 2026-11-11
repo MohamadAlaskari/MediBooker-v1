@@ -6,6 +6,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
   DeskBookingDto,
+  DeskWeekDto,
+  DeskWeekSlotDto,
   DeskNewPatientDto,
   DeskPatientRowDto,
   PublicAvailabilityDto,
@@ -18,8 +20,11 @@ import {
   type Appointment,
   type DeskAccess,
   dayOf,
+  NOW,
+  PROVIDER_ID,
   rowOf,
   SERVICES,
+  SETTINGS,
   TODAY,
 } from './desk-stub.ts';
 
@@ -70,6 +75,65 @@ function freeTimesAnswer(owner: string, date: string): PublicFreeTimesDto {
     times: freeStartsOf(owner)
       .filter((startsAt) => dayInRiyadh(startsAt) === date)
       .map((startsAt) => ({ startsAt })),
+  };
+}
+
+/** The stub doctor's week (W2): its appointments, the times a cancel freed, and the free ones. */
+function weekAnswer(owner: string, from: string): DeskWeekDto {
+  const to = plusDays(from, 6);
+  const inWeek = (startsAt: string): boolean => {
+    const day = dayInRiyadh(startsAt);
+    return day >= from && day <= to;
+  };
+  const held: DeskWeekSlotDto[] = [...dayOf(owner).values()].map((appointment) =>
+    appointment.status === 'CANCELLED'
+      ? {
+          startsAt: appointment.startsAt,
+          endsAt: appointment.endsAt,
+          status: 'OPEN',
+          appointment: null,
+        }
+      : {
+          startsAt: appointment.startsAt,
+          endsAt: appointment.endsAt,
+          status: 'BOOKED',
+          appointment: {
+            id: appointment.id,
+            patient: { firstName: appointment.firstName, lastName: appointment.lastName },
+            serviceName: appointment.serviceName,
+            status: appointment.status,
+          },
+        },
+  );
+  const free: DeskWeekSlotDto[] = freeStartsOf(owner).map((startsAt) => ({
+    startsAt,
+    endsAt: new Date(Date.parse(startsAt) + 30 * MINUTE_MS).toISOString().replace('.000', ''),
+    status: 'OPEN',
+    appointment: null,
+  }));
+  // Training on the stub's Tuesday morning, 08:00 to 11:00 in Riyadh.
+  const absences =
+    from <= '2026-11-10' && to >= '2026-11-10'
+      ? [
+          {
+            startsAt: '2026-11-10T05:00:00Z',
+            endsAt: '2026-11-10T08:00:00Z',
+            reason: 'TRAINING' as const,
+          },
+        ]
+      : [];
+  return {
+    from,
+    to,
+    today: TODAY,
+    now: NOW,
+    providerId: PROVIDER_ID,
+    slots: [...held, ...free]
+      .filter(({ startsAt }) => inWeek(startsAt))
+      .toSorted((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    absences,
+    truncated: false,
+    ...SETTINGS,
   };
 }
 
@@ -189,6 +253,7 @@ const ROUTES = [
   ['free-times', new RegExp(`${DESK}\\/free-times$`)],
   ['book', new RegExp(`${DESK}\\/appointments$`)],
   ['add', new RegExp(`${DESK}\\/patients$`)],
+  ['week', new RegExp(`${DESK}\\/week$`)],
 ] as const;
 
 /** Takes the requests of booking for a patient, and answers whether it did. */
@@ -206,13 +271,15 @@ export function handleDeskBooking(
     problem(response, who.refusal);
     return true;
   }
-  const reads = route === 'availability' || route === 'free-times';
+  const reads = route === 'availability' || route === 'free-times' || route === 'week';
   if (request.method !== (reads ? 'GET' : 'POST')) {
     problem(response, 'NOT_FOUND');
     return true;
   }
   if (route === 'availability') respond(response, 200, availabilityAnswer(who.email));
-  else if (route === 'free-times') {
+  else if (route === 'week') {
+    respond(response, 200, weekAnswer(who.email, searchParams.get('from') ?? TODAY));
+  } else if (route === 'free-times') {
     respond(response, 200, freeTimesAnswer(who.email, searchParams.get('date') ?? TODAY));
   } else if (route === 'book') void book(who.email, request, response);
   else void addPatient(who.email, request, response);

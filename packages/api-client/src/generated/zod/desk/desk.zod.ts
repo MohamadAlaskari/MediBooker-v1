@@ -600,3 +600,49 @@ export const GetDeskPatientResponse = zod.object({
 })).describe('What is still to come, soonest first')
 })
 
+/**
+ * @summary W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited
+ */
+export const GetDeskWeekParams = zod.object({
+  "practiceId": zod.uuid()
+})
+
+export const getDeskWeekQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetDeskWeekQueryParams = zod.object({
+  "providerId": zod.uuid().describe('The doctor whose week the calendar shows'),
+  "from": zod.iso.date().regex(getDeskWeekQueryFromRegExp).optional().describe('The first of seven days, on the practice\'s calendar; left out, today')
+})
+
+export const GetDeskWeekResponse = zod.object({
+  "absences": zod.array(zod.object({
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "reason": zod.enum(['VACATION', 'HOLIDAY', 'TRAINING', 'OTHER']),
+  "startsAt": zod.iso.datetime({"offset":true})
+})),
+  "from": zod.iso.date(),
+  "hourCycle": zod.string().describe('The practice\'s hour cycle, for showing the times'),
+  "now": zod.iso.datetime({"offset":true}).describe('The API\'s now, so that the web reads no clock'),
+  "numberingSystem": zod.string().describe('The practice\'s digits, for showing the times'),
+  "providerId": zod.uuid(),
+  "slots": zod.array(zod.object({
+  "appointment": zod.union([zod.object({
+  "id": zod.uuid(),
+  "patient": zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string()
+}),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])
+}),zod.null()]).describe('The appointment that holds the time; a cancelled one holds none'),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['OPEN', 'BOOKED', 'BLOCKED']).describe('OPEN: free, also again after a cancel; BOOKED: held; BLOCKED: closed by the team')
+})),
+  "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times'),
+  "to": zod.iso.date(),
+  "today": zod.iso.date().describe('Today on the practice\'s calendar'),
+  "truncated": zod.boolean().describe('More times than one answer holds: the calendar shows the first ones')
+})
+

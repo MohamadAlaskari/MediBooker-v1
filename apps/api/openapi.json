@@ -242,6 +242,33 @@
         ],
         "type": "object"
       },
+      "DeskAbsenceDto": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "VACATION",
+              "HOLIDAY",
+              "TRAINING",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startsAt",
+          "endsAt",
+          "reason"
+        ],
+        "type": "object"
+      },
       "DeskAppointmentDto": {
         "properties": {
           "actions": {
@@ -1228,6 +1255,163 @@
           "name",
           "durationMinutes",
           "active"
+        ],
+        "type": "object"
+      },
+      "DeskWeekAppointmentDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/DeskWeekPatientDto"
+          },
+          "serviceName": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The name of the service per locale",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "BOOKED",
+              "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "patient",
+          "serviceName",
+          "status"
+        ],
+        "type": "object"
+      },
+      "DeskWeekDto": {
+        "properties": {
+          "absences": {
+            "items": {
+              "$ref": "#/components/schemas/DeskAbsenceDto"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "hourCycle": {
+            "description": "The practice's hour cycle, for showing the times",
+            "type": "string"
+          },
+          "now": {
+            "description": "The API's now, so that the web reads no clock",
+            "format": "date-time",
+            "type": "string"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits, for showing the times",
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/DeskWeekSlotDto"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone, in which to show the times",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "today": {
+            "description": "Today on the practice's calendar",
+            "format": "date",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "More times than one answer holds: the calendar shows the first ones",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "today",
+          "now",
+          "providerId",
+          "slots",
+          "absences",
+          "truncated",
+          "timeZone",
+          "numberingSystem",
+          "hourCycle"
+        ],
+        "type": "object"
+      },
+      "DeskWeekPatientDto": {
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName"
+        ],
+        "type": "object"
+      },
+      "DeskWeekSlotDto": {
+        "properties": {
+          "appointment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeskWeekAppointmentDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The appointment that holds the time; a cancelled one holds none"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "OPEN: free, also again after a cancel; BOOKED: held; BLOCKED: closed by the team",
+            "enum": [
+              "OPEN",
+              "BOOKED",
+              "BLOCKED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "startsAt",
+          "endsAt",
+          "status",
+          "appointment"
         ],
         "type": "object"
       },
@@ -6127,6 +6311,137 @@
           }
         ],
         "summary": "One patient with what is to come and what was; the read is audited",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/desk/week": {
+      "get": {
+        "operationId": "getDeskWeek",
+        "parameters": [
+          {
+            "description": "The doctor whose week the calendar shows",
+            "in": "query",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The first of seven days, on the practice's calendar; left out, today",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskWeekDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited",
         "tags": [
           "desk"
         ]

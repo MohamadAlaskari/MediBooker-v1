@@ -449,6 +449,7 @@
     "shell": {
       "nav": "Practice dashboard",
       "today": "Today",
+      "calendar": "Calendar",
       "role": "{role, select, ADMIN {Administrator} DOCTOR {Doctor} STAFF {Reception} other {Team}}",
       "appointments": "Appointments",
       "patients": "Patients"
@@ -636,6 +637,27 @@
         "NOT_FOUND": "The patient, the service or the doctor is no longer there. Please choose again.",
         "PATIENT_MAY_EXIST": "A patient with this name and date of birth, or with this insurance number, exists already. Search for them, or add this patient anyway."
       }
+    },
+    "calendar": {
+      "title": "Calendar",
+      "week": "{from} – {to}",
+      "previousWeek": "Previous week",
+      "nextWeek": "Next week",
+      "thisWeek": "This week",
+      "doctor": "Doctor",
+      "legend": "What the colours mean",
+      "booked": "Booked",
+      "checkedIn": "Checked in",
+      "available": "Available",
+      "blocked": "Blocked",
+      "availableFor": "Available · {minutes} min",
+      "absence": "Blocked · {reason, select, VACATION {Vacation} HOLIDAY {Holiday} TRAINING {Training} other {Away}}",
+      "time": "Time",
+      "grid": "The week of {doctor}",
+      "empty": "No working times in this week.",
+      "noDoctor": "The practice has no doctor yet.",
+      "loading": "Loading the calendar",
+      "truncated": "The calendar shows the first times of this week; there are more than one view holds."
     }
   }
 }

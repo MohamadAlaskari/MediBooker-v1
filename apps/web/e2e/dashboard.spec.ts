@@ -506,3 +506,35 @@ test.describe('booking for a patient (08 M05, W7)', () => {
     await expect(record.getByRole('status')).toContainText('سارة مثال');
   });
 });
+
+test.describe('the calendar (08 M05, W2)', () => {
+  test('shows a doctor’s week with booked, free and blocked times, and opens an appointment', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.calendar })
+      .click();
+    await expect(page.getByRole('heading', { level: 1, name: d.calendar.title })).toBeVisible();
+    const grid = page.getByRole('table');
+    // The time column, Sunday and Monday with their times, and Tuesday with its training.
+    await expect(grid.getByRole('columnheader')).toHaveCount(4);
+    await expect(grid).toContainText(d.calendar.availableFor.replace('{minutes}', '30'));
+    const away = `${d.calendar.absence.split('{')[0] ?? ''}${selected(d.calendar.absence, 'TRAINING')}`;
+    await expect(grid.getByText(away).first()).toBeVisible();
+    await expectAccessibleAtBothWidths(page, 'the calendar');
+
+    await grid.getByRole('button', { name: /Omar Beispiel/ }).click();
+    const details = page.getByRole('dialog').filter({ hasText: d.details.kicker });
+    await expect(details).toContainText('Omar Beispiel');
+    await page.keyboard.press('Escape');
+    await expect(details).toBeHidden();
+
+    await page.getByRole('button', { name: d.calendar.nextWeek }).click();
+    await expect(page.getByRole('main')).toContainText(d.calendar.empty);
+    await page.getByRole('button', { name: d.calendar.thisWeek }).click();
+    await expect(grid.getByRole('button', { name: /Omar Beispiel/ })).toBeVisible();
+  });
+});

@@ -40,6 +40,8 @@ import {
   DeskPatientRecordDto,
   DeskPatientRowDto,
   DeskPatientSearchDto,
+  DeskWeekDto,
+  DeskWeekQueryDto,
 } from './desk.dto.js';
 import { DeskService } from './desk.service.js';
 
@@ -198,6 +200,21 @@ export class DeskController {
     @Ip() ip: string,
   ): Promise<DeskDayDto> {
     return this.desk.day(actor, query, ip);
+  }
+
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary:
+      "W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited",
+  })
+  @ApiOkResponse({ type: DeskWeekDto })
+  @Get('week')
+  async getDeskWeek(
+    @CurrentUser() actor: Actor,
+    @Query() query: DeskWeekQueryDto,
+    @Ip() ip: string,
+  ): Promise<DeskWeekDto> {
+    return this.desk.week(actor, query, ip);
   }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })

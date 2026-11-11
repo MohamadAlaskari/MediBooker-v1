@@ -68,15 +68,27 @@ export function iso(date: Date | null): string | null {
   return date === null ? null : instantOf(date).toString();
 }
 
-/** A date of the query string; 2026-02-31 has the right form and is no day, answered like any other. */
+/** The years a day of the desk can lie in: the database has no year 0, and no practice needs 9999. */
+const FIRST_YEAR = 1900;
+const LAST_YEAR = 2199;
+
+/**
+ * A date of the query string; 2026-02-31 has the right form and is no day, and a year far off is
+ * no day of a practice either (security review of M05): both are answered like any other.
+ */
 export function dateOfInput(value: string, field: string): Temporal.PlainDate {
-  try {
-    return Temporal.PlainDate.from(value, { overflow: 'reject' });
-  } catch {
-    throw new DomainException('VALIDATION_FAILED', {
+  const refused = (): DomainException =>
+    new DomainException('VALIDATION_FAILED', {
       fieldErrors: [{ field, code: 'INVALID_VALUE', message: FIELD_ERROR_MESSAGES.INVALID_VALUE }],
     });
+  let date: Temporal.PlainDate;
+  try {
+    date = Temporal.PlainDate.from(value, { overflow: 'reject' });
+  } catch {
+    throw refused();
   }
+  if (date.year < FIRST_YEAR || date.year > LAST_YEAR) throw refused();
+  return date;
 }
 
 /** How the desk shows an appointment in a row, the same in every list of the team (M05). */

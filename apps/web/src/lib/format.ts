@@ -38,6 +38,8 @@ export interface PracticeFormat {
   readonly instantDate: (instant: string) => string;
   /** The hour of an instant on the practice's clock, 0 to 23, for calculating. */
   readonly instantHour: (instant: string) => number;
+  /** The wall-clock time of an instant in the practice's zone as `09:30`, for sorting and matching. */
+  readonly instantClock: (instant: string) => string;
   readonly number: (value: number) => string;
   /** Language codes as one sentence part: "Arabic and English". */
   readonly languages: (codes: readonly string[]) => string;
@@ -84,6 +86,12 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     hourCycle: 'h23',
     timeZone,
   });
+  const clockInZone = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  });
   return {
     clock: (wallClock) => inUtc({ hour, minute: '2-digit' }).format(utcClock(wallClock)),
     weekday: (isoWeekday) =>
@@ -107,6 +115,7 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     instantWeekday: (instant) => inZone({ weekday: 'long' }).format(new Date(instant)),
     instantDate: (instant) => isoDateInZone.format(new Date(instant)),
     instantHour: (instant) => Number(hourInZone.format(new Date(instant))),
+    instantClock: (instant) => clockInZone.format(new Date(instant)),
     number: (value) => new Intl.NumberFormat(formatting).format(value),
     languages: (codes) => {
       const names = new Intl.DisplayNames([locale], { type: 'language' });

@@ -38,9 +38,11 @@ import type {
   DeskPatientRecordDto,
   DeskPatientRowDto,
   DeskPatientSearchDto,
+  DeskWeekDto,
   GetDeskAvailabilityParams,
   GetDeskDayParams,
   GetDeskFreeTimesParams,
+  GetDeskWeekParams,
   ProblemDetailsDto,
   PublicAvailabilityDto,
   PublicFreeTimesDto
@@ -1453,6 +1455,121 @@ export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatie
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDeskPatientQueryOptions(practiceId,patientId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetDeskWeekUrl = (practiceId: string,
+    params: GetDeskWeekParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/practices/${practiceId}/desk/week?${stringifiedParams}` : `/api/v1/practices/${practiceId}/desk/week`
+}
+
+/**
+ * @summary W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited
+ */
+export const getDeskWeek = async (practiceId: string,
+    params: GetDeskWeekParams, options?: Parameters<typeof apiFetch>[1]): Promise<DeskWeekDto> => {
+
+  return apiFetch<DeskWeekDto>(getGetDeskWeekUrl(practiceId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeskWeekQueryKey = (practiceId: string,
+    params?: GetDeskWeekParams,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/week`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDeskWeekQueryOptions = <TData = Awaited<ReturnType<typeof getDeskWeek>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    params: GetDeskWeekParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeskWeekQueryKey(practiceId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeskWeek>>> = ({ signal }) => getDeskWeek(practiceId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeskWeekQueryResult = NonNullable<Awaited<ReturnType<typeof getDeskWeek>>>
+export type GetDeskWeekQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetDeskWeek<TData = Awaited<ReturnType<typeof getDeskWeek>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskWeekParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskWeek>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskWeek>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskWeek<TData = Awaited<ReturnType<typeof getDeskWeek>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskWeekParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskWeek>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskWeek>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskWeek<TData = Awaited<ReturnType<typeof getDeskWeek>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskWeekParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited
+ */
+
+export function useGetDeskWeek<TData = Awaited<ReturnType<typeof getDeskWeek>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskWeekParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskWeek>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeskWeekQueryOptions(practiceId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

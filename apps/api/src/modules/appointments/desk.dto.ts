@@ -556,3 +556,129 @@ export class DeskCatalogDto {
   @ApiProperty({ type: DeskInsuranceRulesDto })
   readonly insurance!: DeskInsuranceRulesDto;
 }
+
+const SLOT_STATUSES = ['OPEN', 'BOOKED', 'BLOCKED'] as const;
+const ABSENCE_REASONS = ['VACATION', 'HOLIDAY', 'TRAINING', 'OTHER'] as const;
+
+/** W2: the week of one doctor. */
+export class DeskWeekQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'The doctor whose week the calendar shows' })
+  @IsUUID('all')
+  readonly providerId!: string;
+
+  @ApiPropertyOptional({
+    format: 'date',
+    pattern: ISO_DATE.source,
+    description: "The first of seven days, on the practice's calendar; left out, today",
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(ISO_DATE)
+  readonly from?: string;
+}
+
+/** The patient as the calendar names them. */
+export class DeskWeekPatientDto {
+  @ApiProperty()
+  readonly firstName!: string;
+
+  @ApiProperty()
+  readonly lastName!: string;
+}
+
+/**
+ * What the calendar shows of an appointment and no more (data minimisation, security review of
+ * M05): who, what and its status. Its details, with what the team may do, come from W6 by its id.
+ */
+export class DeskWeekAppointmentDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly id!: string;
+
+  @ApiProperty({ type: DeskWeekPatientDto })
+  readonly patient!: DeskWeekPatientDto;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'The name of the service per locale',
+  })
+  readonly serviceName!: Readonly<Record<string, string>>;
+
+  @ApiProperty({ enum: APPOINTMENT_STATUSES })
+  readonly status!: AppointmentStatusName;
+}
+
+/** A time of the doctor's week, and the appointment that holds it. */
+export class DeskWeekSlotDto {
+  @ApiProperty({ format: 'date-time' })
+  readonly startsAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly endsAt!: string;
+
+  @ApiProperty({
+    enum: SLOT_STATUSES,
+    description: 'OPEN: free, also again after a cancel; BOOKED: held; BLOCKED: closed by the team',
+  })
+  readonly status!: (typeof SLOT_STATUSES)[number];
+
+  @ApiProperty({
+    type: DeskWeekAppointmentDto,
+    nullable: true,
+    description: 'The appointment that holds the time; a cancelled one holds none',
+  })
+  readonly appointment!: DeskWeekAppointmentDto | null;
+}
+
+/** A time the doctor is away, in which no slot exists. */
+export class DeskAbsenceDto {
+  @ApiProperty({ format: 'date-time' })
+  readonly startsAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly endsAt!: string;
+
+  @ApiProperty({ enum: ABSENCE_REASONS })
+  readonly reason!: (typeof ABSENCE_REASONS)[number];
+}
+
+/** W2: seven days of one doctor, in the order of time. */
+export class DeskWeekDto {
+  @ApiProperty({ format: 'date' })
+  readonly from!: string;
+
+  @ApiProperty({ format: 'date' })
+  readonly to!: string;
+
+  @ApiProperty({ format: 'date', description: "Today on the practice's calendar" })
+  readonly today!: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    description: "The API's now, so that the web reads no clock",
+  })
+  readonly now!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  readonly providerId!: string;
+
+  @ApiProperty({ type: [DeskWeekSlotDto] })
+  readonly slots!: readonly DeskWeekSlotDto[];
+
+  @ApiProperty({ type: [DeskAbsenceDto] })
+  readonly absences!: readonly DeskAbsenceDto[];
+
+  @ApiProperty({
+    description: 'More times than one answer holds: the calendar shows the first ones',
+  })
+  readonly truncated!: boolean;
+
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
+  @ApiProperty({ description: "The practice's digits, for showing the times" })
+  readonly numberingSystem!: string;
+
+  @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
+  readonly hourCycle!: string;
+}

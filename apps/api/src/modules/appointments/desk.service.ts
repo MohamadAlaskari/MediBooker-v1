@@ -37,12 +37,14 @@ import {
 import type {
   DeskAppointmentDto,
   DeskAppointmentPageDto,
+  DeskAppointmentRowDto,
   DeskAppointmentSearchDto,
   DeskBookingDto,
-  DeskAppointmentRowDto,
   DeskCatalogDto,
   DeskDayDto,
   DeskDayQueryDto,
+  DeskWeekDto,
+  DeskWeekQueryDto,
 } from './desk.dto.js';
 import {
   ageOn,
@@ -66,6 +68,23 @@ const LIST_SOURCE = Prisma.sql`appointments a
 
 /** More than a day of a practice holds; the list of the day stops there and says so. */
 export const DESK_DAY_LIMIT = 500;
+
+/** The days of the calendar's week (W2). */
+const WEEK_DAYS = 7;
+
+/**
+ * More slots than a doctor's week holds today, with slots of five minutes and a clock change; the
+ * calendar stops there and says so, as the day does (security review of M05).
+ */
+export const WEEK_SLOT_LIMIT = 2100;
+
+/** What the calendar reads of an appointment: who, what, and its status. */
+const WEEK_APPOINTMENT_FIELDS = {
+  id: true,
+  status: true,
+  patient: { select: { firstName: true, lastName: true } },
+  service: { select: { name: true } },
+} as const;
 
 /** The longest span of days one list of appointments covers (W5). */
 export const MAX_LIST_DAYS = 92;
@@ -309,6 +328,99 @@ export class DeskService {
         providerTypes: rules.insuranceProviderTypes.filter(isInsuranceType),
         numberTypes: rules.insuranceNumberTypes.filter(isInsuranceType),
       },
+    };
+  }
+
+  /**
+   * W2: seven days of one doctor: every slot with the appointment that holds it, and the absences,
+   * in which no slot exists. Every appointment shown writes an audit row, as a list does (BR-18).
+   */
+  async week(
+    { userId }: Actor,
+    { providerId, from }: DeskWeekQueryDto,
+    ip: string | undefined,
+  ): Promise<DeskWeekDto> {
+    const { practice } = requirePracticeContext(this.cls);
+    const db = this.txHost.tx;
+    const settings = await this.rows.displaySettings();
+    const now = this.clock.now();
+    const today = dayOf(now, settings.timeZone);
+    const first = from === undefined ? today : dateOfInput(from, 'from');
+    const last = first.add({ days: WEEK_DAYS - 1 });
+    const id = providerId.toLowerCase();
+    const provider = await db.staffMember.findFirst({
+      where: { id, isProvider: true },
+      select: { id: true },
+    });
+    if (provider === null) throw new DomainException('NOT_FOUND');
+    const start = dbInstantOf(dayRange(first, settings.timeZone).start);
+    const end = dbInstantOf(dayRange(last, settings.timeZone).end);
+    const found = await db.slot.findMany({
+      where: {
+        providerId: id,
+        startsAt: { gte: start, lt: end },
+        // A free slot without a rule only keeps a cancelled time's history: no one can book it.
+        NOT: { status: 'OPEN', ruleId: null },
+      },
+      select: {
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        // At most one that is not cancelled: the partial unique index of BR-01.
+        appointments: {
+          where: { status: { not: 'CANCELLED' } },
+          select: WEEK_APPOINTMENT_FIELDS,
+          take: 1,
+        },
+      },
+      orderBy: { startsAt: 'asc' },
+      take: WEEK_SLOT_LIMIT + 1,
+    });
+    const slots = found.slice(0, WEEK_SLOT_LIMIT);
+    const absences = await db.availabilityException.findMany({
+      where: { providerId: id, startsAt: { lt: end }, endsAt: { gt: start } },
+      select: { startsAt: true, endsAt: true, reason: true },
+      orderBy: { startsAt: 'asc' },
+    });
+    const held = slots.flatMap(({ appointments }) => appointments);
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.audit.recordEachUnlessRecent({
+      userId,
+      action: DESK_AUDIT.list,
+      subjectIds: held.map((appointment) => appointment.id),
+      ipHash,
+      minutes: LIST_AUDIT_MINUTES,
+    });
+    return {
+      from: first.toString(),
+      to: last.toString(),
+      today: today.toString(),
+      now: now.toString(),
+      providerId: id,
+      slots: slots.map((slot) => {
+        const holder = slot.appointments[0];
+        return {
+          startsAt: instantOf(slot.startsAt).toString(),
+          endsAt: instantOf(slot.endsAt).toString(),
+          status: slot.status,
+          appointment:
+            holder === undefined
+              ? null
+              : {
+                  id: holder.id,
+                  patient: holder.patient,
+                  serviceName: holder.service.name as Readonly<Record<string, string>>,
+                  status: holder.status,
+                },
+        };
+      }),
+      absences: absences.map((absence) => ({
+        startsAt: instantOf(absence.startsAt).toString(),
+        endsAt: instantOf(absence.endsAt).toString(),
+        reason: absence.reason,
+      })),
+      truncated: found.length > WEEK_SLOT_LIMIT,
+      ...settings,
     };
   }
 

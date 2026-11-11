@@ -11,7 +11,7 @@ import { Prisma } from '../../generated/practice/client.js';
 import type { AppointmentsService } from './appointments.service.js';
 import type { DeskPatients } from './desk-patients.js';
 import { DeskRows } from './desk-rows.js';
-import { DESK_DAY_LIMIT, DeskService } from './desk.service.js';
+import { DESK_DAY_LIMIT, DeskService, WEEK_SLOT_LIMIT } from './desk.service.js';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
 /** 10:00 in Riyadh on Sunday 15 November 2026. */
@@ -113,9 +113,12 @@ function setUp({
     slot: {
       count: vi.fn().mockResolvedValue(4),
       findFirst: vi.fn().mockResolvedValue({ startsAt: new Date('2026-11-15T10:00:00Z') }),
+      findMany: vi.fn().mockResolvedValue([]),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
+    availabilityException: { findMany: vi.fn().mockResolvedValue([]) },
     staffMember: {
+      findFirst: vi.fn().mockResolvedValue({ id: PROVIDER }),
       findMany: vi
         .fn()
         .mockResolvedValue([
@@ -250,6 +253,118 @@ describe('DeskService.catalog', () => {
         numberTypes: ['PUBLIC'],
       },
     });
+  });
+});
+
+describe('DeskService.week', () => {
+  it('shows a doctor’s week with the appointments that hold its times, and audits them', async () => {
+    const { service, db, audit, inPractice } = setUp();
+    db.slot.findMany.mockResolvedValueOnce([
+      {
+        ...ROW.slot,
+        status: 'BOOKED',
+        appointments: [
+          {
+            id: ID,
+            status: 'BOOKED',
+            patient: { firstName: 'Sami', lastName: 'Beispiel' },
+            service: { name: { en: 'Check-up' } },
+          },
+        ],
+      },
+      {
+        startsAt: new Date('2026-11-15T09:30:00Z'),
+        endsAt: new Date('2026-11-15T10:00:00Z'),
+        status: 'OPEN',
+        appointments: [],
+      },
+    ]);
+    db.availabilityException.findMany.mockResolvedValueOnce([
+      {
+        startsAt: new Date('2026-11-16T05:00:00Z'),
+        endsAt: new Date('2026-11-16T07:00:00Z'),
+        reason: 'TRAINING',
+      },
+    ]);
+    const week = await inPractice(() =>
+      service.week(ACTOR, { providerId: PROVIDER.toUpperCase() }, '203.0.113.1'),
+    );
+    expect(week).toMatchObject({
+      from: '2026-11-15',
+      to: '2026-11-21',
+      today: '2026-11-15',
+      now: '2026-11-15T07:00:00Z',
+      providerId: PROVIDER,
+      timeZone: 'Asia/Riyadh',
+      absences: [
+        { startsAt: '2026-11-16T05:00:00Z', endsAt: '2026-11-16T07:00:00Z', reason: 'TRAINING' },
+      ],
+    });
+    expect(week.truncated).toBe(false);
+    expect(week.slots).toEqual([
+      expect.objectContaining({
+        startsAt: '2026-11-15T09:00:00Z',
+        status: 'BOOKED',
+        // Who, what and its status, and no more: W6 reads the rest by the id.
+        appointment: {
+          id: ID,
+          patient: { firstName: 'Sami', lastName: 'Beispiel' },
+          serviceName: { en: 'Check-up' },
+          status: 'BOOKED',
+        },
+      }),
+      expect.objectContaining({
+        startsAt: '2026-11-15T09:30:00Z',
+        status: 'OPEN',
+        appointment: null,
+      }),
+    ]);
+    // Seven days from midnight in Riyadh, which is 21:00 UTC the day before.
+    expect(db.slot.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        providerId: PROVIDER,
+        startsAt: { gte: new Date('2026-11-14T21:00:00Z'), lt: new Date('2026-11-21T21:00:00Z') },
+        // A free time without a rule is history, bookable for nothing.
+        NOT: { status: 'OPEN', ruleId: null },
+      },
+      take: WEEK_SLOT_LIMIT + 1,
+    });
+    expect(audit.recordEachUnlessRecent).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'appointment.list', subjectIds: [ID] }),
+    );
+  });
+
+  it('stops at the limit of a week and says so', async () => {
+    const { service, db, inPractice } = setUp();
+    const free = {
+      startsAt: new Date('2026-11-15T09:30:00Z'),
+      endsAt: new Date('2026-11-15T10:00:00Z'),
+      status: 'OPEN',
+      appointments: [],
+    };
+    db.slot.findMany.mockResolvedValueOnce(Array.from({ length: WEEK_SLOT_LIMIT + 1 }, () => free));
+    const week = await inPractice(() => service.week(ACTOR, { providerId: PROVIDER }, undefined));
+    expect(week.slots).toHaveLength(WEEK_SLOT_LIMIT);
+    expect(week.truncated).toBe(true);
+  });
+
+  it('refuses a week of a year that no practice has', async () => {
+    const { service, inPractice } = setUp();
+    for (const from of ['0000-01-01', '1899-12-31', '2200-01-01']) {
+      await expect(
+        inPractice(() => service.week(ACTOR, { providerId: PROVIDER, from }, undefined)),
+      ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    }
+  });
+
+  it('answers 404 for no doctor of the practice', async () => {
+    const { service, db, inPractice } = setUp();
+    db.staffMember.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      inPractice(() =>
+        service.week(ACTOR, { providerId: PROVIDER, from: '2026-11-22' }, undefined),
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 

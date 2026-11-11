@@ -55,6 +55,9 @@ describe('practiceFormat', () => {
     expect(practiceFormat('ar', riyadh).instantHour('2026-11-08T09:00:00Z')).toBe(12);
     expect(practiceFormat('en', berlin).instantHour('2026-11-08T22:30:00Z')).toBe(23);
     expect(practiceFormat('en', berlin).instantHour('2026-11-08T23:30:00Z')).toBe(0);
+    // A clock to sort and match by: Latin digits and 24 hours, whatever the practice shows.
+    expect(practiceFormat('ar', riyadh).instantClock('2026-11-08T06:05:00Z')).toBe('09:05');
+    expect(practiceFormat('en', berlin).instantClock('2026-11-08T23:30:00Z')).toBe('00:30');
   });
 
   it('reads an instant in the zone of the practice, also across a clock change', () => {

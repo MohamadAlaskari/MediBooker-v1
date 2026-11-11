@@ -46,6 +46,7 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   getDeskFreeTimes: { account: 403 },
   bookDeskAppointment: { account: 403 },
   addDeskPatient: { account: 403 },
+  getDeskWeek: { account: 403 },
   getDeskPatient: { account: 403 },
 };
 
