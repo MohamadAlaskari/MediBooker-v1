@@ -364,7 +364,7 @@ function practiceActions(stack: Stack): readonly Action[] {
       group: GROUP_PRACTICE,
       label: 'Konto zum Admin der Praxis machen (bestätigte E-Mail-Adresse)',
       failureHint:
-        'ACCOUNT_NOT_FOUND: kein Konto mit dieser Adresse, erst registrieren. EMAIL_NOT_VERIFIED: erst den Link der E-Mail öffnen. NO_PRACTICE: keine Praxis eingespielt ("Demo-Praxen einspielen").',
+        'ACCOUNT_NOT_FOUND: kein Konto mit genau dieser Adresse; die Schreibweise prüfen (etwa .de statt .com), sonst erst registrieren. EMAIL_NOT_VERIFIED: erst den Link der E-Mail öffnen. NO_PRACTICE: keine Praxis eingespielt ("Demo-Praxen einspielen").',
       steps: [
         {
           kind: 'compose',
@@ -389,6 +389,15 @@ export function actionsOf(stack: Stack): readonly Action[] {
     ...cleanActions(stack),
     ...practiceActions(stack),
   ];
+}
+
+/**
+ * The environment of every `docker` call of the menu. Docker Desktop's plugin hooks print hints
+ * such as "Debug this Compose error with Gordon" after a command in a terminal, which reads as an
+ * error of the stack; `DOCKER_CLI_HOOKS` comes before the configuration file and switches them off.
+ */
+export function dockerEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return { ...environment, DOCKER_CLI_HOOKS: 'false' };
 }
 
 /** The arguments of `docker` for one compose step. */

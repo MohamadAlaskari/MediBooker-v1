@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { actionsOf, composeArguments, type Action, type Step } from './actions.ts';
+import {
+  actionsOf,
+  composeArguments,
+  dockerEnvironment,
+  type Action,
+  type Step,
+} from './actions.ts';
 import { STACKS, type Mode } from './stacks.ts';
 
 function action(mode: Mode, id: string): Action {
@@ -194,5 +200,14 @@ describe('composeArguments', () => {
   it('opens a shell in the chosen service', () => {
     const step: Step = { kind: 'compose', args: ['exec'], service: 'required' };
     expect(composeArguments(stack, step, 'web').slice(-3)).toEqual(['exec', 'web', 'sh']);
+  });
+});
+
+describe('dockerEnvironment', () => {
+  it('keeps the environment and switches the plugin hooks off, also over a user setting', () => {
+    expect(dockerEnvironment({ PATH: '/bin', DOCKER_CLI_HOOKS: 'true' })).toEqual({
+      PATH: '/bin',
+      DOCKER_CLI_HOOKS: 'false',
+    });
   });
 });

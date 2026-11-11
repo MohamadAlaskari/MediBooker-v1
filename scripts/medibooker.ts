@@ -6,7 +6,13 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { actionsOf, composeArguments, type Action, type Step } from './lib/control/actions.ts';
+import {
+  actionsOf,
+  composeArguments,
+  dockerEnvironment,
+  type Action,
+  type Step,
+} from './lib/control/actions.ts';
 import {
   allPassed,
   healthChecks,
@@ -82,7 +88,11 @@ function runDocker(args: readonly string[], session: Session): Promise<number> {
   }
   session.lines?.pause();
   return new Promise((resolve) => {
-    const child = spawn('docker', [...args], { cwd: ROOT, stdio: 'inherit' });
+    const child = spawn('docker', [...args], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: dockerEnvironment(process.env),
+    });
     child.on('error', () => {
       resolve(127);
     });
