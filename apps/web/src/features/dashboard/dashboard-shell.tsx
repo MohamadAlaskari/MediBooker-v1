@@ -1,7 +1,15 @@
 'use client';
 
 import { useGetMe, type MembershipDtoRole } from '@medibooker/api-client';
-import { CalendarDays, CalendarPlus, ClipboardList, LayoutGrid, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  CalendarPlus,
+  ClipboardList,
+  HeartPulse,
+  LayoutGrid,
+  Settings,
+  Users,
+} from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
@@ -36,6 +44,8 @@ export function DashboardShell({
     { href: `${home}/calendar`, label: t('calendar'), Icon: CalendarDays },
     { href: `${home}/appointments`, label: t('appointments'), Icon: ClipboardList },
     { href: `${home}/patients`, label: t('patients'), Icon: Users },
+    { href: `${home}/services`, label: t('services'), Icon: HeartPulse },
+    { href: `${home}/settings`, label: t('settings'), Icon: Settings },
   ];
   return (
     <div className="min-h-screen bg-bg-canvas desktop:grid desktop:grid-cols-[16rem_minmax(0,1fr)]">

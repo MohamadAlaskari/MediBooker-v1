@@ -60,7 +60,7 @@ Feature codes from `api-contract` enter the catalogue in the commit that first t
 
 422 is not used; clients branch on `code`. A code is never reused with another meaning.
 
-Field codes (`field-error-codes.ts`): `REQUIRED`, `INVALID_TYPE`, `INVALID_FORMAT` (with `params.format`: `email`, `uuid`, `date`, `datetime`, `pattern`), `INVALID_VALUE`, `TOO_SHORT`, `TOO_LONG`, `TOO_SMALL`, `TOO_LARGE`, `UNKNOWN_FIELD`. Domain field codes arrive with their feature, for example `SLUG_RESERVED`, `INSURANCE_NUMBER_INVALID`, `OVERLAPS_EXISTING`.
+Field codes (`field-error-codes.ts`): `REQUIRED`, `INVALID_TYPE`, `INVALID_FORMAT` (with `params.format`: `email`, `uuid`, `date`, `datetime`, `pattern`), `INVALID_VALUE`, `TOO_SHORT`, `TOO_LONG`, `TOO_SMALL`, `TOO_LARGE`, `UNKNOWN_FIELD`. Domain field codes arrive with their feature, for example `SLUG_RESERVED`, `INSURANCE_NUMBER_INVALID`, `OVERLAPS_EXISTING`. M02 brought `OVERLAPS_EXISTING` (an interval of the week that overlaps an earlier one, from the EXCLUDE) and `ALREADY_EXISTS` (a special day on a date that has one).
 
 ### 1.2 Throwing
 

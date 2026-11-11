@@ -19,8 +19,8 @@ interface DialogContentProps {
   readonly description?: ReactNode;
   /** False while a request runs: neither Escape nor a press outside may leave it without its answer. */
   readonly isDismissable?: boolean;
-  /** Wide for a dialog with columns, such as booking for a patient (W7). */
-  readonly size?: 'default' | 'wide';
+  /** Wide for a dialog with columns, such as booking for a patient (W7); medium for a form (W13). */
+  readonly size?: 'default' | 'medium' | 'wide';
   readonly children: ReactNode | ((close: () => void) => ReactNode);
 }
 
@@ -47,7 +47,7 @@ export function DialogContent({
       <Modal
         className={cn(
           'my-auto w-full rounded-lg bg-bg-surface p-6 shadow-elevation-2',
-          size === 'wide' ? 'max-w-[56rem]' : 'max-w-[28rem]',
+          { default: 'max-w-[28rem]', medium: 'max-w-[40rem]', wide: 'max-w-[56rem]' }[size],
         )}
       >
         <DialogPrimitive

@@ -22,6 +22,7 @@ import { AccountProfileModule } from './modules/account-profile/account-profile.
 import { AppointmentsModule } from './modules/appointments/appointments.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
+import { PracticeSetupModule } from './modules/practice-setup/practice-setup.module.js';
 import { StaffModule } from './modules/staff/staff.module.js';
 import { PublicPracticeModule } from './modules/public-practice/public-practice.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
@@ -61,6 +62,7 @@ export class AppModule {
         StaffModule,
         AppointmentsModule,
         PublicPracticeModule,
+        PracticeSetupModule,
         SchedulingModule,
         ObjectStorageModule,
       ],

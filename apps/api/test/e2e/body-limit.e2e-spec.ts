@@ -59,6 +59,17 @@ describe('body parsers (02 §3 step 7)', () => {
   });
 
   it.each([
+    ['a key the validation pipe would read as a class', '{"note":{"constructor":"x"}}'],
+    ['a body nested deeper than any of the API', `${'['.repeat(40)}${']'.repeat(40)}`],
+  ])('answers 400, not 500, for %s (security review of M02)', async (_case, body) => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/probe/body')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    expect(response.status).toBe(400);
+  });
+
+  it.each([
     ['malformed JSON', 400, '{"email": "sara@example.test",'],
     ['JSON that strict mode refuses', 400, '"sara@example.test secret-value"'],
     [

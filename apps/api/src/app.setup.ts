@@ -10,6 +10,7 @@ import { SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { requestContextMiddleware } from './common/context/request-context.js';
 import { REQUEST_ID_HEADER } from './common/context/request-id.js';
+import { refuseDeepJson, refuseReservedKeys } from './common/errors/json-guards.js';
 import { jsonOnly } from './common/errors/json-only.middleware.js';
 import type { Env } from './config/env.schema.js';
 import { buildOpenApiDocument, OPENAPI_UI_PATH } from './openapi/document.js';
@@ -83,9 +84,14 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
     });
   }
 
-  // 7. JSON bodies up to 100 kB and nothing else; the urlencoded parser stays off.
+  // 7. JSON bodies up to 100 kB and nothing else; the urlencoded parser stays off. Keys and depths
+  // that the validation pipe's copy cannot take are 400 here (json-guards.ts).
   app.use(jsonOnly);
-  app.useBodyParser('json', { limit: '100kb' });
+  app.useBodyParser('json', {
+    limit: '100kb',
+    reviver: refuseReservedKeys,
+    verify: refuseDeepJson,
+  });
 
   // 8.
   app.enableShutdownHooks();

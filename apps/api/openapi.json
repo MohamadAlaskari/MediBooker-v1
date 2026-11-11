@@ -1473,7 +1473,9 @@
           "TOO_SMALL",
           "TOO_LARGE",
           "UNKNOWN_FIELD",
-          "PASSWORD_BREACHED"
+          "PASSWORD_BREACHED",
+          "OVERLAPS_EXISTING",
+          "ALREADY_EXISTS"
         ],
         "type": "string"
       },
@@ -1682,6 +1684,96 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "OpeningHoursDto": {
+        "properties": {
+          "hourCycle": {
+            "description": "The practice's hour cycle",
+            "type": "string"
+          },
+          "intervals": {
+            "description": "By weekday and time",
+            "items": {
+              "$ref": "#/components/schemas/OpeningIntervalDto"
+            },
+            "type": "array"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone",
+            "type": "string"
+          },
+          "weekStart": {
+            "description": "ISO weekday the week starts on",
+            "example": 7,
+            "type": "number"
+          },
+          "weekendDays": {
+            "description": "ISO weekdays",
+            "example": [
+              5,
+              6
+            ],
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "timeZone",
+          "numberingSystem",
+          "hourCycle",
+          "intervals",
+          "weekStart",
+          "weekendDays"
+        ],
+        "type": "object"
+      },
+      "OpeningHoursInputDto": {
+        "properties": {
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/OpeningIntervalDto"
+            },
+            "maxItems": 42,
+            "type": "array"
+          }
+        },
+        "required": [
+          "intervals"
+        ],
+        "type": "object"
+      },
+      "OpeningIntervalDto": {
+        "properties": {
+          "closesAt": {
+            "description": "24:00 is the end of the day",
+            "example": "16:00",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "opensAt": {
+            "example": "08:00",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "weekday": {
+            "description": "ISO weekday: 1 Monday to 7 Sunday",
+            "maximum": 7,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "weekday",
+          "opensAt",
+          "closesAt"
         ],
         "type": "object"
       },
@@ -2483,6 +2575,219 @@
         ],
         "type": "object"
       },
+      "ServiceDto": {
+        "properties": {
+          "active": {
+            "description": "Offered now; an archived one still names its appointments",
+            "type": "boolean"
+          },
+          "allowedInsuranceTypes": {
+            "description": "The insurance types it is for; empty: every type the practice takes",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The note patients read before and after booking, per locale",
+            "type": "object"
+          },
+          "durationMinutes": {
+            "maximum": 480,
+            "minimum": 5,
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "isBookableOnline": {
+            "description": "Patients can book it in the app and the portal (BR-08)",
+            "type": "boolean"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The name per locale",
+            "type": "object"
+          },
+          "providers": {
+            "description": "The doctors whose current working hours offer it (M04 changes them)",
+            "items": {
+              "$ref": "#/components/schemas/SetupProviderDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "durationMinutes",
+          "isBookableOnline",
+          "allowedInsuranceTypes",
+          "active",
+          "providers"
+        ],
+        "type": "object"
+      },
+      "ServiceInputDto": {
+        "properties": {
+          "allowedInsuranceTypes": {
+            "description": "Types the practice takes; empty or left out: all of them",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "At most 500 characters per language",
+            "example": {
+              "en": "Please come fasting."
+            },
+            "type": "object"
+          },
+          "durationMinutes": {
+            "example": 30,
+            "maximum": 480,
+            "minimum": 5,
+            "type": "number"
+          },
+          "isBookableOnline": {
+            "default": true,
+            "type": "boolean"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "In every language of the practice, at most 80 characters",
+            "example": {
+              "ar": "فحص عام",
+              "en": "Check-up"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "durationMinutes"
+        ],
+        "type": "object"
+      },
+      "ServiceListDto": {
+        "properties": {
+          "hourCycle": {
+            "description": "The practice's hour cycle",
+            "type": "string"
+          },
+          "insuranceTypes": {
+            "description": "The types the practice takes",
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "locales": {
+            "description": "The practice's languages: a name is needed in each",
+            "example": [
+              "ar",
+              "en"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits",
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceDto"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "numberingSystem",
+          "hourCycle",
+          "services",
+          "locales",
+          "insuranceTypes"
+        ],
+        "type": "object"
+      },
+      "ServicePatchDto": {
+        "properties": {
+          "active": {
+            "description": "False archives it: nobody can book it; its appointments stay",
+            "type": "boolean"
+          },
+          "allowedInsuranceTypes": {
+            "items": {
+              "enum": [
+                "PUBLIC",
+                "PRIVATE",
+                "SELF_PAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Replaces the note in every language",
+            "type": "object"
+          },
+          "durationMinutes": {
+            "maximum": 480,
+            "minimum": 5,
+            "type": "number"
+          },
+          "isBookableOnline": {
+            "type": "boolean"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "In every language of the practice",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
       "SessionDto": {
         "properties": {
           "account": {
@@ -2499,6 +2804,151 @@
         },
         "required": [
           "account"
+        ],
+        "type": "object"
+      },
+      "SetupProviderDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "example": "Dr. Lina Mansour",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "SpecialDayDto": {
+        "properties": {
+          "closed": {
+            "type": "boolean"
+          },
+          "closesAt": {
+            "example": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "date": {
+            "description": "On the practice's calendar",
+            "example": "2026-11-19",
+            "format": "date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Why, per locale, such as \"Team training\"",
+            "type": "object"
+          },
+          "opensAt": {
+            "example": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "closed",
+          "opensAt",
+          "closesAt",
+          "label"
+        ],
+        "type": "object"
+      },
+      "SpecialDayInputDto": {
+        "properties": {
+          "closed": {
+            "type": "boolean"
+          },
+          "closesAt": {
+            "description": "Only when open",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "date": {
+            "description": "From today to two years ahead, on the practice's calendar",
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "label": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "At most 80 characters per language",
+            "type": "object"
+          },
+          "opensAt": {
+            "description": "Only when open",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "closed"
+        ],
+        "type": "object"
+      },
+      "SpecialDayListDto": {
+        "properties": {
+          "hourCycle": {
+            "description": "The practice's hour cycle",
+            "type": "string"
+          },
+          "locales": {
+            "example": [
+              "ar",
+              "en"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits",
+            "type": "string"
+          },
+          "specialDays": {
+            "items": {
+              "$ref": "#/components/schemas/SpecialDayDto"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone",
+            "type": "string"
+          },
+          "today": {
+            "description": "Today on the practice's calendar",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "numberingSystem",
+          "hourCycle",
+          "specialDays",
+          "today",
+          "locales"
         ],
         "type": "object"
       },
@@ -7172,6 +7622,931 @@
         "summary": "Change the own profile in this practice; what is left out stays",
         "tags": [
           "patients"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/opening-hours": {
+      "get": {
+        "operationId": "getOpeningHours",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpeningHoursDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The practice's opening hours, by weekday",
+        "tags": [
+          "practice-setup"
+        ]
+      },
+      "put": {
+        "operationId": "replaceOpeningHours",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpeningHoursInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpeningHoursDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace the whole week; an overlap is the field error OVERLAPS_EXISTING",
+        "tags": [
+          "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/services": {
+      "get": {
+        "operationId": "listServices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Every service, also the archived ones, with the doctors who offer it",
+        "tags": [
+          "practice-setup"
+        ]
+      },
+      "post": {
+        "operationId": "createService",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a service; admins only",
+        "tags": [
+          "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/services/{serviceId}": {
+      "patch": {
+        "operationId": "updateService",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePatchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change or archive a service; admins only",
+        "tags": [
+          "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/special-days": {
+      "get": {
+        "operationId": "listSpecialDays",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecialDayListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The special days from today on",
+        "tags": [
+          "practice-setup"
+        ]
+      },
+      "post": {
+        "operationId": "createSpecialDay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecialDayInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecialDayDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a special day; a date that has one already is ALREADY_EXISTS",
+        "tags": [
+          "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/special-days/{specialDayId}": {
+      "delete": {
+        "operationId": "deleteSpecialDay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "specialDayId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a special day",
+        "tags": [
+          "practice-setup"
         ]
       }
     },

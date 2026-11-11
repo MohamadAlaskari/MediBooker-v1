@@ -338,7 +338,7 @@ export function deskAccessOf(request: IncomingMessage): DeskAccess {
   if (account === undefined) return { refusal: 'UNAUTHENTICATED' };
   if (!withSecondFactor.has(access)) return { refusal: 'MFA_REQUIRED' };
   if (account.role === undefined) return { refusal: 'NOT_FOUND' };
-  return { email: account.email };
+  return { email: account.email, role: account.role };
 }
 
 /** Takes the requests about accounts, and answers whether it did. */

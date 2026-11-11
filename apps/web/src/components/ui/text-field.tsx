@@ -33,7 +33,9 @@ interface TextFieldProps extends Omit<TextFieldPrimitiveProps, 'className' | 'ch
   readonly autoComplete?: string;
   readonly inputMode?: 'email' | 'text' | 'tel' | 'numeric';
   /** For a value that reads left to right in every language, such as a code (W4). */
-  readonly dir?: 'ltr';
+  readonly dir?: 'ltr' | 'rtl';
+  /** The language of what is typed, when it is not the page's: a text per language (W13). */
+  readonly lang?: string;
   readonly className?: string;
 }
 
@@ -46,6 +48,7 @@ export function TextField({
   autoComplete,
   inputMode,
   dir,
+  lang,
   className,
   ...props
 }: TextFieldProps): ReactNode {
@@ -63,6 +66,7 @@ export function TextField({
         autoComplete={autoComplete}
         inputMode={inputMode}
         dir={dir}
+        lang={lang}
         // A browser's spell check can send what is typed to a service. Nothing here needs it.
         spellCheck={false}
         className={cn(CONTROL, FOCUS_RING, 'w-full px-3 data-[invalid]:border-border-danger')}
@@ -91,6 +95,8 @@ export function TextAreaField({
   hint,
   error,
   inputRef,
+  dir,
+  lang,
   className,
   ...props
 }: TextAreaFieldProps): ReactNode {
@@ -105,6 +111,8 @@ export function TextAreaField({
       <Label className={LABEL}>{label}</Label>
       <TextArea
         ref={inputRef}
+        dir={dir}
+        lang={lang}
         spellCheck={false}
         rows={4}
         className={cn(CONTROL, FOCUS_RING, 'w-full px-3 py-2 data-[invalid]:border-border-danger')}

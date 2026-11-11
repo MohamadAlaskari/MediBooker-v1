@@ -538,3 +538,107 @@ test.describe('the calendar (08 M05, W2)', () => {
     await expect(grid.getByRole('button', { name: /Omar Beispiel/ })).toBeVisible();
   });
 });
+
+/** The name of an ISO weekday as the dashboard writes it. */
+function weekdayName(locale: Locale, isoWeekday: number): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(2024, 0, isoWeekday)),
+  );
+}
+
+/** The name of a language in itself, as the tabs of W13 name it. */
+function languageName(code: Locale): string {
+  return new Intl.DisplayNames([code], { type: 'language' }).of(code) ?? code;
+}
+
+test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
+  test('lets the admin add a service, take it offline and archive it', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'ADMIN');
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.services })
+      .click();
+    await expect(page.getByRole('heading', { level: 1, name: d.services.title })).toBeVisible();
+    const table = page.getByRole('table');
+    await expect(table.getByRole('rowheader', { name: /Check-up|فحص عام/ })).toBeVisible();
+    await expectAccessibleAtBothWidths(page, 'the services');
+
+    await page.getByRole('button', { name: d.services.add }).click();
+    const form = page.getByRole('dialog', { name: d.serviceForm.addTitle });
+    await form.getByRole('button', { name: d.serviceForm.create }).click();
+    await expect(form.getByText(d.serviceForm.nameMissing)).toBeVisible();
+    const names = { ar: 'تخطيط القلب', en: 'ECG' } as const;
+    for (const code of ['en', 'ar'] as const) {
+      await form.getByRole('tab', { name: languageName(code) }).click();
+      await form.getByLabel(d.serviceForm.name, { exact: true }).fill(names[code]);
+    }
+    await expectAccessibleAtBothWidths(page, 'the service form');
+    await form.getByRole('button', { name: d.serviceForm.create }).click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('status')).toContainText(names[locale]);
+
+    const row = table.getByRole('row').filter({ hasText: names[locale] });
+    await row.getByText(d.services.onlineOn, { exact: true }).click();
+    await expect(row).toContainText(d.services.onlineOff);
+    await row.getByRole('button', { name: d.services.edit }).click();
+    const edit = page.getByRole('dialog', { name: d.serviceForm.editTitle });
+    await edit.getByRole('button', { name: d.serviceForm.archive }).click();
+    await expect(edit).toBeHidden();
+    await expect(row).toContainText(d.services.archived);
+    await expect(row.getByRole('switch')).toBeDisabled();
+  });
+
+  test('lets the reception change the opening hours and the special days, not the services', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    const nav = page.getByRole('navigation', { name: d.shell.nav });
+    await nav.getByRole('link', { name: d.shell.services }).click();
+    await expect(page.getByText(d.services.readOnly)).toBeVisible();
+    await expect(page.getByRole('button', { name: d.services.add })).toHaveCount(0);
+
+    await nav.getByRole('link', { name: d.shell.settings }).click();
+    await expect(page.getByRole('heading', { level: 1, name: d.settings.title })).toBeVisible();
+    const hours = page.getByRole('region', { name: d.settings.hoursTitle });
+    await expect(hours).toContainText(d.settings.closed);
+    await expectAccessibleAtBothWidths(page, 'the settings');
+
+    await hours.getByRole('button', { name: d.settings.editHours }).click();
+    const editor = page.getByRole('dialog', { name: d.hoursForm.title });
+    const monday = editor.getByRole('group', { name: weekdayName(locale, 1) });
+    await monday.getByRole('button', { name: d.hoursForm.addHours }).click();
+    await monday.getByLabel(d.hoursForm.opens).nth(1).fill('15:00');
+    await editor.getByRole('button', { name: d.hoursForm.save }).click();
+    await expect(monday.getByRole('alert')).toHaveText(d.hoursForm.overlaps);
+    await expectAccessibleAtBothWidths(page, 'the hours editor with an overlap');
+    await monday.getByLabel(d.hoursForm.opens).nth(1).fill('16:30');
+    await editor.getByRole('button', { name: d.hoursForm.save }).click();
+    await expect(editor).toBeHidden();
+    await expect(page.getByRole('status')).toHaveText(d.settings.savedHours);
+    await expect(hours).toContainText(weekdayName(locale, 1));
+
+    const special = page.getByRole('region', { name: d.settings.specialTitle });
+    const add = async (): Promise<void> => {
+      await special.getByRole('button', { name: d.settings.addSpecial }).click();
+      const form = page.getByRole('dialog', { name: d.specialForm.title });
+      await form.getByLabel(d.specialForm.date, { exact: true }).fill('2026-11-19');
+      await form
+        .getByLabel(d.specialForm.label.replace('{language}', languageName('en')))
+        .fill('Team training');
+      await form.getByRole('button', { name: d.specialForm.save }).click();
+    };
+    await add();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(special).toContainText('Team training');
+    await add();
+    const again = page.getByRole('dialog', { name: d.specialForm.title });
+    await expect(again.getByText(d.specialForm.dateTaken)).toBeVisible();
+    await again.getByRole('button', { name: d.specialForm.cancel }).click();
+    await special.getByRole('button', { name: new RegExp(d.settings.remove) }).click();
+    await expect(special).toContainText(d.settings.noSpecial);
+  });
+});

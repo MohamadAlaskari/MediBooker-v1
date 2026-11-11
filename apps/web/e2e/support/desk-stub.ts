@@ -297,8 +297,10 @@ const DAY_PATH = /^\/api\/v1\/practices\/[^/]+\/desk\/day$/;
 const APPOINTMENT_PATH =
   /^\/api\/v1\/practices\/[^/]+\/desk\/appointments\/([^/]+)(?:\/(check-in|complete|no-show|cancel))?$/;
 
-/** Who may reach the desk, as the API's practice context answers: an email, or why not. */
-export type DeskAccess = { readonly email: string } | { readonly refusal: ErrorCode };
+/** Who may reach the desk, as the API's practice context answers: an email and role, or why not. */
+export type DeskAccess =
+  | { readonly email: string; readonly role: 'STAFF' | 'DOCTOR' | 'ADMIN' }
+  | { readonly refusal: ErrorCode };
 
 /** Takes the requests of the desk, and answers whether it did. */
 export function handleDesk(

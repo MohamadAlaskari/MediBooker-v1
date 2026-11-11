@@ -10,6 +10,8 @@ export const FIELD_ERROR_MESSAGES = {
   TOO_LARGE: 'Too large',
   UNKNOWN_FIELD: 'Unknown field',
   PASSWORD_BREACHED: 'Found in a list of breached passwords',
+  OVERLAPS_EXISTING: 'Overlaps another interval',
+  ALREADY_EXISTS: 'Already exists',
 } as const satisfies Readonly<Record<string, string>>;
 
 export type FieldErrorCode = keyof typeof FIELD_ERROR_MESSAGES;
