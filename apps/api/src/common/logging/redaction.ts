@@ -23,6 +23,7 @@ const SENSITIVE_FIELDS = [
   'dateOfBirth',
   'insuranceNumber',
   'patientNote',
+  'cancelReason',
 ] as const;
 
 /**

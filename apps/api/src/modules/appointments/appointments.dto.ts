@@ -12,7 +12,7 @@ import {
 import { CursorQueryDto } from '../../common/http/cursor-page.js';
 import { FAN_OUT_REASONS, type FanOutReason } from '../../common/tenancy/practice-fan-out.js';
 
-const MAX_NOTE_LENGTH = 500;
+export const MAX_NOTE_LENGTH = 500;
 /** With an offset, so that it names one instant. A date without a time is no time to book. */
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 /**
@@ -21,7 +21,7 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-
  * also the invisible tag characters and reading-direction marks, and unassigned code points. The
  * joiners stay, because Arabic and Persian text and emoji need them.
  */
-const NOTE_TEXT =
+export const NOTE_TEXT =
   /^(?=[\s\S]*[^\s\u{200C}\u{200D}])(?:[^\p{C}\p{Zl}\p{Zp}]|[\n\u{200C}\u{200D}])+$/u;
 
 /** A time, not a slot: the answers about free times name no slot, and the booking picks one. */

@@ -20,6 +20,7 @@ import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.
 import { PUBLIC_PROVIDER } from '../scheduling/domain/public-profile.js';
 import { bookableWindow } from '../scheduling/domain/slots.rules.js';
 import { AppointmentReader } from './appointment-reader.js';
+import { noteContextOf } from './appointment-texts.js';
 import type {
   AppointmentDto,
   BookAppointmentDto,
@@ -105,10 +106,6 @@ function keyOfHeader(idempotencyKey: string | undefined): string {
   if (idempotencyKey === undefined) throw fieldError('Idempotency-Key', 'REQUIRED');
   if (!isUuid(idempotencyKey)) throw fieldError('Idempotency-Key', 'INVALID_VALUE');
   return idempotencyKey.toLowerCase();
-}
-
-function noteContextOf(appointmentId: string): string {
-  return `appointment:${appointmentId}:patient-note`;
 }
 
 function isUniqueViolation(error: unknown): boolean {

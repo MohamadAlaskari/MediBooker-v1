@@ -54,6 +54,59 @@ export class PracticeAudit {
     });
   }
 
+  /**
+   * One row per subject in one statement: what a list showed to whom (BR-18), so that a question
+   * about one patient's record finds a read of a list too.
+   */
+  async recordEach({
+    userId,
+    action,
+    subjectIds,
+    ipHash,
+  }: Omit<PracticeAuditEntry, 'subjectId'> & {
+    readonly subjectIds: readonly string[];
+  }): Promise<void> {
+    if (subjectIds.length === 0) return;
+    const at = dbInstantOf(this.clock.now());
+    const actor = auditActorOf(userId);
+    await this.txHost.tx.auditEvent.createMany({
+      data: subjectIds.map((subjectId) => ({ at, actor, action, subjectId, ipHash })),
+    });
+  }
+
+  /**
+   * Like recordEach, but not again for a subject this person had the same action on within the last
+   * minutes: a list shown again and again is one read, not rows by the thousand that bury the others.
+   */
+  async recordEachUnlessRecent({
+    userId,
+    action,
+    subjectIds,
+    ipHash,
+    minutes,
+  }: Omit<PracticeAuditEntry, 'subjectId'> & {
+    readonly subjectIds: readonly string[];
+    readonly minutes: number;
+  }): Promise<void> {
+    if (subjectIds.length === 0) return;
+    const recent = await this.txHost.tx.auditEvent.findMany({
+      where: {
+        actor: auditActorOf(userId),
+        action,
+        subjectId: { in: [...subjectIds] },
+        at: { gte: dbInstantOf(this.clock.now().subtract({ minutes })) },
+      },
+      select: { subjectId: true },
+    });
+    const seen = new Set(recent.map(({ subjectId }) => subjectId));
+    await this.recordEach({
+      userId,
+      action,
+      subjectIds: subjectIds.filter((subjectId) => !seen.has(subjectId)),
+      ipHash,
+    });
+  }
+
   /** What an operator did with a command, not a person through the API (A04). */
   async recordOperator({ operator, action, subjectId }: PracticeOperatorAuditEntry): Promise<void> {
     await this.txHost.tx.auditEvent.create({

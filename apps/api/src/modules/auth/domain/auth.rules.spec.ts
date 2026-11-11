@@ -22,10 +22,27 @@ describe('lockedUntilAfter', () => {
 });
 
 describe('refreshDecision', () => {
-  const live = { expiresAt: later(3600), rotatedAt: null, revokedAt: null };
+  const live = {
+    expiresAt: later(3600),
+    rotatedAt: null,
+    revokedAt: null,
+    createdAt: later(-60),
+    secondFactor: false,
+  };
 
   it('rotates a live token', () => {
     expect(refreshDecision(live, NOW)).toBe('ROTATE');
+  });
+
+  it('ends a session with both factors that went more than 30 minutes without a refresh', () => {
+    const team = { ...live, secondFactor: true };
+    expect(refreshDecision({ ...team, createdAt: later(-30 * 60) }, NOW)).toBe('ROTATE');
+    expect(refreshDecision({ ...team, createdAt: later(-30 * 60 - 1) }, NOW)).toBe('IDLE');
+    // A patient's session keeps its days (RT-94); a rotated token stays a race or a reuse.
+    expect(refreshDecision({ ...live, createdAt: later(-31 * 60) }, NOW)).toBe('ROTATE');
+    expect(
+      refreshDecision({ ...team, createdAt: later(-31 * 60), rotatedAt: later(-5) }, NOW),
+    ).toBe('RACE');
   });
 
   it('rejects a revoked token, also when it was rotated long ago', () => {

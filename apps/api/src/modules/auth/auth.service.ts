@@ -199,11 +199,17 @@ export class AuthService {
         expiresAt: instantOf(session.expiresAt),
         rotatedAt: session.rotatedAt === null ? null : instantOf(session.rotatedAt),
         revokedAt: session.revokedAt === null ? null : instantOf(session.revokedAt),
+        createdAt: instantOf(session.createdAt),
+        secondFactor: session.amr.includes(AMR_ONE_TIME_CODE),
       },
       now,
     );
     if (decision === 'REUSE') {
       await this.revokeFamily(session.familyId, session.userId, 'auth.refresh.reuse', 'FAILED');
+    }
+    if (decision === 'IDLE') {
+      // The front desk's computer was left: the whole sign-in ends, not only this token.
+      await this.revokeFamily(session.familyId, session.userId, 'auth.session.idle', 'SUCCEEDED');
     }
     if (decision !== 'ROTATE') throw new DomainException('UNAUTHENTICATED');
     return this.txHost.withTransaction(async () => {
@@ -269,6 +275,8 @@ export class AuthService {
     const sessionId = randomUUID();
     const refreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
     const refreshSeconds = REFRESH_TOKEN_DAYS * 86_400;
+    // By the API's clock, not the database's: the idle rule of a refresh reads it against that clock.
+    const now = this.clock.now();
     await this.txHost.tx.session.create({
       data: {
         id: sessionId,
@@ -276,7 +284,8 @@ export class AuthService {
         familyId,
         tokenHash: sha256(refreshToken),
         amr: [...amr],
-        expiresAt: dbInstantOf(this.clock.now().add({ seconds: refreshSeconds })),
+        createdAt: dbInstantOf(now),
+        expiresAt: dbInstantOf(now.add({ seconds: refreshSeconds })),
       },
     });
     return {

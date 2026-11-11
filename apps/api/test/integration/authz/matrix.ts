@@ -32,6 +32,13 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   rescheduleAppointment: { account: 404 },
   listMyAppointmentsInPractice: { account: 404 },
   listMyAppointments: { account: 200 },
+  // The practice's desk (M05): a sign-in with the password only is MFA_REQUIRED before anything else.
+  getDeskDay: { account: 403 },
+  getDeskAppointment: { account: 403 },
+  checkInAppointment: { account: 403 },
+  completeAppointment: { account: 403 },
+  markAppointmentNoShow: { account: 403 },
+  cancelAppointmentAsPractice: { account: 403 },
 };
 
 /** The operationIds that answer without sign-in. */

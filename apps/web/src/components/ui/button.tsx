@@ -26,6 +26,8 @@ export const buttonVariants = cva(
           'bg-bg-brand text-text-on-brand data-[hovered]:bg-bg-brand-hover data-[pressed]:bg-bg-brand-pressed',
         outline: 'border-border-strong bg-bg-surface text-text-primary data-[hovered]:bg-bg-subtle',
         ghost: 'text-text-primary data-[hovered]:bg-bg-subtle',
+        danger:
+          'bg-bg-danger text-text-on-danger data-[hovered]:bg-bg-danger-hover data-[pressed]:bg-bg-danger-hover',
       },
       size: {
         default: 'min-h-touch-target gap-2 px-4',

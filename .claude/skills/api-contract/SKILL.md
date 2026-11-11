@@ -69,12 +69,15 @@ Extend this list; never reuse a code with a different meaning.
 | GET /public/practices/{slug}/availability?serviceId&providerId&from&to | public (decided 2026-11-01) | Days with free times (`hasFreeTimes` per day; no counts of booked times); at most 42 days, by default the next 42; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22 |
 | GET /public/practices/{slug}/slots?serviceId&providerId&date | public (decided 2026-11-01) | Free start times of one day, each only `{ startsAt }`: no slot id, by which two answers could be compared (BR-24); `providerId` only for doctors with a public profile, otherwise grouped as any doctor; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22, BR-24 |
 | POST /practices/{practiceId}/appointments | patient, confirmed (for self) | Book a time: serviceId, startsAt, optional providerId and patientNote; `Idempotency-Key` required; 10 a minute per address, and 429 above the account's share of the connections. The answer's providerId is null unless the doctor's profile is public (BR-24). Staff with patientId follow with M items | BR-01, 02, 03, 08, 09 |
-| GET /appointments?from&to&providerId&status | staff, doctor, admin | Practice appointments | |
+| GET /practices/{practiceId}/desk/day?date | staff, doctor, admin (both factors) | The team's day: appointments in the order of time (at most 500, then `truncated`), counts of the whole day, free times left, `today` and `now`; an audit event per appointment shown | BR-11, BR-18 |
+| GET /practices/{practiceId}/desk/appointments?from&to&providerId&status&cursor | staff, doctor, admin | The appointment list of W5, with the rest of M05 | |
 | GET /practices/{practiceId}/me/appointments?scope=upcoming\|past&limit&cursor | patient | Own appointments in this practice, with the history; `limit` at most 100 | |
-| GET /practices/{practiceId}/appointments/{id} | owner (staff with M05) | Details, never the note; another patient's is 404 | BR-24 |
-| POST /practices/{practiceId}/appointments/{id}/cancel | owner before the deadline (staff with M05) | Cancel; a second cancel answers the same; 10 a minute per address | BR-04 |
-| POST /practices/{practiceId}/appointments/{id}/reschedule | owner before the deadline (staff with M05), confirmed | Atomic move to startsAt with an optional providerId: a new appointment, the old one cancelled; `Idempotency-Key` required; 10 a minute per address | BR-04, BR-05 |
-| POST /appointments/{id}/check-in, /complete, /no-show | staff, doctor, admin | Status changes | BR-11 |
+| GET /practices/{practiceId}/appointments/{id} | owner | Details, never the note; another patient's is 404 | BR-24 |
+| GET /practices/{practiceId}/desk/appointments/{id} | staff, doctor, admin | One appointment with the patient's note, contacts, age and insurance provider; the read is audited | RT-93, BR-18 |
+| POST /practices/{practiceId}/appointments/{id}/cancel | owner before the deadline | Cancel; a second cancel answers the same; 10 a minute per address | BR-04 |
+| POST /practices/{practiceId}/desk/appointments/{id}/cancel | staff, doctor, admin | A cancel by the practice at any time with `cancelReason` (sealed, for the team only); the time is free again; a retry answers alike, and an appointment the patient cancelled or moved is `INVALID_STATUS_TRANSITION` | BR-04, BR-07 |
+| POST /practices/{practiceId}/appointments/{id}/reschedule | owner before the deadline, confirmed (the practice: with W7) | Atomic move to startsAt with an optional providerId: a new appointment, the old one cancelled; `Idempotency-Key` required; 10 a minute per address | BR-04, BR-05 |
+| POST /practices/{practiceId}/desk/appointments/{id}/check-in, /complete, /no-show | staff, doctor, admin | BR-11: on the appointment's day, `NO_SHOW` from its start, `INVALID_STATUS_TRANSITION` otherwise; a retry answers alike | BR-11 |
 | GET, POST, PATCH, DELETE /availability-rules | staff, admin, doctor (own) | Weekly templates | BR-06 |
 | POST /slots/generate | staff, admin | Generate slots for a date range | BR-06 |
 | PATCH /slots/{id} | staff, admin | Block or unblock a slot | BR-07 |

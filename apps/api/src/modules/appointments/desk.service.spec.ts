@@ -1,0 +1,375 @@
+import { ClsServiceManager } from 'nestjs-cls';
+import { describe, expect, it, vi } from 'vitest';
+import type { RequestContext } from '../../common/context/request-context.js';
+import type { PlatformPrismaService } from '../../common/database/platform-prisma.service.js';
+import type { AccountTransactions } from '../../common/tenancy/account-transactions.js';
+import type { PracticeAudit } from '../../common/tenancy/practice-audit.js';
+import type { PracticeKeys } from '../../common/tenancy/practice-keys.js';
+import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
+import { FixedClock } from '../../common/time/fixed-clock.js';
+import { DESK_DAY_LIMIT, DeskService } from './desk.service.js';
+
+const cls = ClsServiceManager.getClsService<RequestContext>();
+/** 10:00 in Riyadh on Sunday 15 November 2026. */
+const NOW = Temporal.Instant.from('2026-11-15T07:00:00Z');
+const STAFF_USER = '00000000-0000-4000-8000-000000000001';
+const PATIENT_USER = '00000000-0000-4000-8000-000000000002';
+const ID = '00000000-0000-4000-8000-0000000000aa';
+const PATIENT = '00000000-0000-4000-8000-0000000000bb';
+const PROVIDER = '00000000-0000-4000-8000-0000000000cc';
+const SLOT = '00000000-0000-4000-8000-0000000000dd';
+const ACTOR = { userId: STAFF_USER, sessionId: 'session', amr: ['pwd', 'otp'] };
+const SETTINGS = { timeZone: 'Asia/Riyadh', numberingSystem: 'latn', hourCycle: 'h23' };
+
+/** Booked at 12:00 in Riyadh today. */
+const ROW = {
+  id: ID,
+  serviceId: 'service',
+  status: 'BOOKED',
+  bookedById: PATIENT_USER,
+  checkedInAt: null,
+  completedAt: null,
+  cancelledAt: null,
+  cancelReasonEncrypted: null,
+  patient: {
+    id: PATIENT,
+    userId: PATIENT_USER,
+    firstName: 'Sami',
+    lastName: 'Beispiel',
+    insuranceType: 'SELF_PAY',
+  },
+  service: { name: { en: 'Check-up' }, durationMinutes: 30 },
+  slot: {
+    providerId: PROVIDER,
+    startsAt: new Date('2026-11-15T09:00:00Z'),
+    endsAt: new Date('2026-11-15T09:30:00Z'),
+  },
+};
+
+const DETAIL = {
+  ...ROW,
+  bookedAt: new Date('2026-11-14T15:00:00Z'),
+  patientNoteEncrypted: 'sealed-note',
+  patient: {
+    ...ROW.patient,
+    dateOfBirth: new Date('1990-04-12T00:00:00Z'),
+    insuranceProvider: null,
+    contactPhone: '+966 50 000 0000',
+  },
+};
+
+function setUp({
+  rows = [ROW],
+  detail = DETAIL,
+  status = 'BOOKED',
+  slotStartsAt = ROW.slot.startsAt,
+  cancelReasonEncrypted = null,
+}: {
+  readonly rows?: readonly object[];
+  readonly detail?: object | null;
+  readonly status?: string;
+  readonly slotStartsAt?: Date;
+  readonly cancelReasonEncrypted?: string | null;
+} = {}) {
+  const changing = {
+    status,
+    slotId: SLOT,
+    cancelReasonEncrypted,
+    slot: { startsAt: slotStartsAt },
+  };
+  const db = {
+    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    practiceSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue(SETTINGS) },
+    appointment: {
+      findMany: vi.fn().mockResolvedValue(rows),
+      groupBy: vi.fn().mockResolvedValue([
+        { status: 'BOOKED', _count: { _all: 3 } },
+        { status: 'CANCELLED', _count: { _all: 1 } },
+      ]),
+      findUnique: vi.fn((args: { select: Record<string, unknown> }) =>
+        Promise.resolve(
+          'patientId' in args.select ? (detail === null ? null : { patientId: PATIENT }) : detail,
+        ),
+      ),
+      findUniqueOrThrow: vi
+        .fn()
+        .mockImplementation((args: { select: Record<string, unknown> }) =>
+          Promise.resolve('slotId' in args.select ? changing : ROW),
+        ),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    slot: {
+      count: vi.fn().mockResolvedValue(4),
+      findFirst: vi.fn().mockResolvedValue({ startsAt: new Date('2026-11-15T10:00:00Z') }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    staffMember: {
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          { id: PROVIDER, title: 'Dr.', firstName: 'Lina', lastName: 'Example' },
+        ]),
+    },
+  };
+  const platform = {
+    user: { findUnique: vi.fn().mockResolvedValue({ email: 'patient@example.test' }) },
+  };
+  const run = vi.fn(<T>(_userId: string, work: () => Promise<T>): Promise<T> => work());
+  const encrypt = vi.fn().mockResolvedValue('sealed-reason');
+  const decrypt = vi.fn((_practice: string, value: string) =>
+    Promise.resolve(value === 'sealed-note' ? 'Synthetic note' : 'Synthetic reason'),
+  );
+  const audit = {
+    record: vi.fn().mockResolvedValue(undefined),
+    recordEachUnlessRecent: vi.fn().mockResolvedValue(undefined),
+    ipHashOf: vi.fn().mockResolvedValue('ip-hash'),
+  };
+  const service = new DeskService(
+    { tx: db } as unknown as PracticeTransactionHost,
+    platform as unknown as PlatformPrismaService,
+    { run } as unknown as AccountTransactions,
+    cls,
+    new FixedClock(NOW),
+    { encrypt, decrypt } as unknown as PracticeKeys,
+    audit as unknown as PracticeAudit,
+  );
+  const inPractice = <T>(work: () => Promise<T>) =>
+    cls.run(() => {
+      cls.set('practice', {
+        practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
+        lease: {} as never,
+        staff: { membershipId: 'membership', role: 'STAFF' },
+      });
+      return work();
+    });
+  return { service, db, platform, audit, encrypt, inPractice };
+}
+
+describe('DeskService.day', () => {
+  it('reads today in the practice, with counts, free times and an audit row per appointment', async () => {
+    const { service, db, audit, inPractice } = setUp();
+    const day = await inPractice(() => service.day(ACTOR, {}, '203.0.113.1'));
+    expect(day).toMatchObject({
+      date: '2026-11-15',
+      today: '2026-11-15',
+      timeZone: 'Asia/Riyadh',
+      counts: { booked: 3, checkedIn: 0, completed: 0, noShow: 0, cancelled: 1 },
+      openTimes: 4,
+      nextOpenAt: '2026-11-15T10:00:00Z',
+      truncated: false,
+    });
+    expect(day.items).toEqual([
+      expect.objectContaining({
+        id: ID,
+        providerName: 'Dr. Lina Example',
+        bookedOnline: true,
+        day: 'TODAY',
+        started: false,
+        actions: ['CHECK_IN', 'CANCEL'],
+      }),
+    ]);
+    // Free times from now on, and from midnight in Riyadh, which is 21:00 UTC the day before.
+    expect(db.appointment.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        slot: {
+          startsAt: {
+            gte: new Date('2026-11-14T21:00:00Z'),
+            lt: new Date('2026-11-15T21:00:00Z'),
+          },
+        },
+      },
+    });
+    expect(db.slot.count.mock.calls[0]?.[0]).toMatchObject({
+      where: { status: 'OPEN', startsAt: { gte: new Date(NOW.epochMilliseconds) } },
+    });
+    expect(audit.recordEachUnlessRecent).toHaveBeenCalledWith({
+      userId: STAFF_USER,
+      action: 'appointment.list',
+      subjectIds: [ID],
+      ipHash: 'ip-hash',
+      minutes: 5,
+    });
+  });
+
+  it('reads another day from its midnight, and a day without appointments names nobody', async () => {
+    const { service, db, inPractice } = setUp({ rows: [] });
+    const day = await inPractice(() => service.day(ACTOR, { date: '2026-11-17' }, undefined));
+    expect(day).toMatchObject({ date: '2026-11-17', today: '2026-11-15', items: [] });
+    expect(db.staffMember.findMany).not.toHaveBeenCalled();
+    expect(db.slot.count.mock.calls[0]?.[0]).toMatchObject({
+      where: { startsAt: { gte: new Date('2026-11-16T21:00:00Z') } },
+    });
+  });
+
+  it('stops at its limit and says so', async () => {
+    const many = Array.from({ length: DESK_DAY_LIMIT + 1 }, () => ROW);
+    const { service, inPractice } = setUp({ rows: many });
+    const day = await inPractice(() => service.day(ACTOR, {}, undefined));
+    expect(day.items).toHaveLength(DESK_DAY_LIMIT);
+    expect(day.truncated).toBe(true);
+  });
+
+  it('refuses a date that has the form of one and is none', async () => {
+    const { service, inPractice } = setUp();
+    await expect(
+      inPractice(() => service.day(ACTOR, { date: '2026-02-31' }, undefined)),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+});
+
+describe('DeskService.appointment', () => {
+  it('opens the note, names the account and audits the read', async () => {
+    const { service, audit, inPractice } = setUp();
+    const view = await inPractice(() => service.appointment(ACTOR, ID.toUpperCase(), undefined));
+    expect(view).toMatchObject({
+      id: ID,
+      patientNote: 'Synthetic note',
+      cancelReason: null,
+      bookedAt: '2026-11-14T15:00:00Z',
+      timeZone: 'Asia/Riyadh',
+      patient: {
+        dateOfBirth: '1990-04-12',
+        age: 36,
+        phone: '+966 50 000 0000',
+        email: 'patient@example.test',
+      },
+    });
+    expect(audit.record).toHaveBeenCalledWith({
+      userId: STAFF_USER,
+      action: 'appointment.read',
+      subjectId: ID,
+      ipHash: 'ip-hash',
+    });
+  });
+
+  it('names no address for a profile without an account, and opens a reason of the practice', async () => {
+    const cancelled = {
+      ...DETAIL,
+      status: 'CANCELLED',
+      cancelledAt: new Date('2026-11-15T06:00:00Z'),
+      cancelReasonEncrypted: 'sealed-reason',
+      patientNoteEncrypted: null,
+      patient: { ...DETAIL.patient, userId: null },
+    };
+    const { service, platform, inPractice } = setUp({ detail: cancelled });
+    const view = await inPractice(() => service.appointment(ACTOR, ID, undefined));
+    expect(view).toMatchObject({
+      patientNote: null,
+      cancelReason: 'Synthetic reason',
+      cancelledByPractice: true,
+      bookedOnline: false,
+      actions: [],
+      patient: { email: null },
+    });
+    expect(platform.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for what is no appointment here', async () => {
+    const { service, inPractice } = setUp({ detail: null });
+    await expect(inPractice(() => service.appointment(ACTOR, ID, undefined))).rejects.toMatchObject(
+      {
+        code: 'NOT_FOUND',
+      },
+    );
+    await expect(
+      inPractice(() => service.appointment(ACTOR, 'nope', undefined)),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('DeskService changes', () => {
+  it('checks in under the patient lock and audits the change', async () => {
+    const { service, db, audit, inPractice } = setUp();
+    await inPractice(() => service.change(ACTOR, ID, 'CHECK_IN', undefined));
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(db.appointment.update).toHaveBeenCalledWith({
+      where: { id: ID },
+      data: { status: 'CHECKED_IN', checkedInAt: new Date(NOW.epochMilliseconds) },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'appointment.check_in', subjectId: ID }),
+    );
+  });
+
+  it('completes and records a no-show with their own data', async () => {
+    const checkedIn = setUp({ status: 'CHECKED_IN' });
+    await checkedIn.inPractice(() => checkedIn.service.change(ACTOR, ID, 'COMPLETE', undefined));
+    expect(checkedIn.db.appointment.update).toHaveBeenCalledWith({
+      where: { id: ID },
+      data: { status: 'COMPLETED', completedAt: new Date(NOW.epochMilliseconds) },
+    });
+    const begun = setUp({ slotStartsAt: new Date('2026-11-15T06:00:00Z') });
+    await begun.inPractice(() => begun.service.change(ACTOR, ID, 'NO_SHOW', undefined));
+    expect(begun.db.appointment.update).toHaveBeenCalledWith({
+      where: { id: ID },
+      data: { status: 'NO_SHOW' },
+    });
+  });
+
+  it('answers a change that is there already alike, without writing, and audits the read', async () => {
+    const { service, db, audit, inPractice } = setUp({ status: 'CHECKED_IN' });
+    const view = await inPractice(() => service.change(ACTOR, ID, 'CHECK_IN', undefined));
+    expect(view.id).toBe(ID);
+    expect(db.appointment.update).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'appointment.list', subjectId: ID }),
+    );
+  });
+
+  it('refuses a cancel of what the patient cancelled or moved, and repeats its own', async () => {
+    const byPatient = setUp({ status: 'CANCELLED' });
+    await expect(
+      byPatient.inPractice(() =>
+        byPatient.service.cancel(ACTOR, ID, 'Synthetic reason', undefined),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
+    const byPractice = setUp({ status: 'CANCELLED', cancelReasonEncrypted: 'sealed-reason' });
+    const view = await byPractice.inPractice(() =>
+      byPractice.service.cancel(ACTOR, ID, 'Another reason', undefined),
+    );
+    expect(view.id).toBe(ID);
+    expect(byPractice.db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses what the matrix does not allow, and an unknown appointment', async () => {
+    const early = setUp();
+    await expect(
+      early.inPractice(() => early.service.change(ACTOR, ID, 'NO_SHOW', undefined)),
+    ).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
+    expect(early.db.appointment.update).not.toHaveBeenCalled();
+    const gone = setUp({ detail: null });
+    await expect(
+      gone.inPractice(() => gone.service.change(ACTOR, ID, 'CHECK_IN', undefined)),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('cancels with a sealed reason and frees the time', async () => {
+    const { service, db, encrypt, audit, inPractice } = setUp();
+    await inPractice(() => service.cancel(ACTOR, ID, 'Synthetic reason', undefined));
+    expect(encrypt).toHaveBeenCalledWith(
+      'practice-a',
+      'Synthetic reason',
+      `appointment:${ID}:cancel-reason`,
+    );
+    expect(db.appointment.update).toHaveBeenCalledWith({
+      where: { id: ID },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(NOW.epochMilliseconds),
+        cancelledById: STAFF_USER,
+        cancelReasonEncrypted: 'sealed-reason',
+      },
+    });
+    expect(db.slot.updateMany).toHaveBeenCalledWith({
+      where: { id: SLOT, status: 'BOOKED' },
+      data: { status: 'OPEN' },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'appointment.cancel_by_practice' }),
+    );
+  });
+});

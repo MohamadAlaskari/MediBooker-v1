@@ -40,6 +40,7 @@ describe('practiceFormat', () => {
     const english = practiceFormat('en', riyadh);
     expect(english.dayLong('2026-11-04')).toBe('Wednesday, November 4');
     expect(english.dayLongWithYear('2024-03-02')).toBe('Saturday, March 2, 2024');
+    expect(english.calendarDate('1990-04-12')).toBe('April 12, 1990');
     expect(english.monthYear('2026-11-04')).toBe('November 2026');
     expect(english.weekdayShort('2026-11-04')).toBe('Wed');
     expect(english.weekdayNarrow('2026-11-04')).toBe('W');

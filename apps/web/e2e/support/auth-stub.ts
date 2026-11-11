@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ProfileDto } from '@medibooker/api-client';
 import { bodyOf, numberEndOf, problem, respond } from './answers.ts';
+import type { DeskAccess } from './desk-stub.ts';
 
 interface Account {
   readonly id: string;
@@ -329,6 +330,16 @@ async function handleSecondFactor(
 }
 
 const MEMBERSHIP_PATH = /^\/api\/v1\/practices\/[^/]+\/me\/membership$/;
+
+/** Who reaches a staff route, in the API's order: signed in, with both factors, on the team (A04). */
+export function deskAccessOf(request: IncomingMessage): DeskAccess {
+  const access = cookiesOf(request).get('mb_access') ?? '';
+  const account = accounts.get(accessTokens.get(access) ?? '');
+  if (account === undefined) return { refusal: 'UNAUTHENTICATED' };
+  if (!withSecondFactor.has(access)) return { refusal: 'MFA_REQUIRED' };
+  if (account.role === undefined) return { refusal: 'NOT_FOUND' };
+  return { email: account.email };
+}
 
 /** Takes the requests about accounts, and answers whether it did. */
 export function handleAccounts(

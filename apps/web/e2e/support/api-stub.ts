@@ -6,8 +6,9 @@
 import { createServer, type ServerResponse } from 'node:http';
 import type { PublicPracticeDto } from '@medibooker/api-client';
 import { problem, respond } from './answers.ts';
-import { handleAccounts, ownerOf } from './auth-stub.ts';
+import { deskAccessOf, handleAccounts, ownerOf } from './auth-stub.ts';
 import { freeStarts, handleBooking, isOffered, publicPracticeFor } from './booking-stub.ts';
+import { handleDesk } from './desk-stub.ts';
 import { PRACTICES } from './practices.ts';
 
 const LIST_PATH = '/api/v1/public/practices';
@@ -77,6 +78,7 @@ const server = createServer((request, response) => {
   const { pathname, searchParams } = new URL(url, 'http://stub');
   const owner = ownerOf(request);
   if (handleBooking(owner, pathname, searchParams, request, response)) return;
+  if (handleDesk(pathname, searchParams, request, response, () => deskAccessOf(request))) return;
   if (handleAccounts(pathname, searchParams, request, response)) return;
   // Everything public only reads.
   if (request.method !== 'GET') {

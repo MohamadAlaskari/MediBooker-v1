@@ -9,8 +9,12 @@ const badgeVariants = cva(
     variants: {
       variant: {
         brand: 'bg-bg-brand text-text-on-brand',
+        brandSubtle: 'bg-bg-brand-subtle text-text-brand',
         neutral: 'bg-bg-subtle text-text-secondary',
         success: 'bg-bg-success-subtle text-text-success',
+        info: 'bg-bg-info-subtle text-text-info',
+        warning: 'bg-bg-warning-subtle text-text-warning',
+        danger: 'bg-bg-danger-subtle text-text-danger',
         outline: 'border border-border-brand bg-bg-surface text-text-brand',
       },
     },

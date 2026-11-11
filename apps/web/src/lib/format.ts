@@ -20,6 +20,8 @@ export interface PracticeFormat {
   readonly dayLong: (isoDate: string) => string;
   /** The same with its year, for what can lie in another one: "Wednesday, 4 November 2026". */
   readonly dayLongWithYear: (isoDate: string) => string;
+  /** A date without its weekday, such as a date of birth: "12 April 1990". */
+  readonly calendarDate: (isoDate: string) => string;
   /** Its month and year: "November 2026". */
   readonly monthYear: (isoDate: string) => string;
   /** Its short weekday: "Wed". */
@@ -95,6 +97,8 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
       inUtc({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(
         utcDate(isoDate),
       ),
+    calendarDate: (isoDate) =>
+      inUtc({ day: 'numeric', month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
     monthYear: (isoDate) => inUtc({ month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
     weekdayShort: (isoDate) => inUtc({ weekday: 'short' }).format(utcDate(isoDate)),
     weekdayNarrow: (isoDate) => inUtc({ weekday: 'narrow' }).format(utcDate(isoDate)),

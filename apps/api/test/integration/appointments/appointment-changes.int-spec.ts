@@ -169,7 +169,11 @@ describe('changing and reading the own appointments on real databases (08 B03)',
       const who = await world.patient(practice);
       const { id } = await booked(who, practice, await world.changeableSlot(practice));
       await world.asOwner(practice, (owner) =>
-        owner.query("UPDATE appointments SET status = 'CHECKED_IN' WHERE id = $1", [id]),
+        // As the desk checks in (M05): the time of it belongs to the status.
+        owner.query(
+          "UPDATE appointments SET status = 'CHECKED_IN', checked_in_at = now() WHERE id = $1",
+          [id],
+        ),
       );
       const response = await world.cancel(who, practice, id).expect(409);
       expect(response.body).toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });

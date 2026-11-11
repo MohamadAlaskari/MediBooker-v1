@@ -25,21 +25,39 @@ export function lockedUntilAfter(
  */
 const RACE_SECONDS = 10;
 
+/**
+ * How long a session with both factors goes without a refresh before it ends (M05, 03 §5). The
+ * dashboard signs out after 15 minutes without activity while its tab is open; a closed tab or a
+ * sleeping computer ends here, when its token comes back. An access token lasts 15 minutes and the
+ * dashboard asks the API on activity, so a session in use refreshes well within this.
+ */
+export const SECOND_FACTOR_IDLE_MINUTES = 30;
+
 export interface RefreshedSessionState {
   readonly expiresAt: Temporal.Instant;
   readonly rotatedAt: Temporal.Instant | null;
   readonly revokedAt: Temporal.Instant | null;
+  /** When this token was issued: at the sign-in, or at the refresh before. */
+  readonly createdAt: Temporal.Instant;
+  /** Signed in with both factors (`amr` holds `otp`). */
+  readonly secondFactor: boolean;
 }
 
-export type RefreshDecision = 'ROTATE' | 'REJECT' | 'RACE' | 'REUSE';
+export type RefreshDecision = 'ROTATE' | 'REJECT' | 'RACE' | 'REUSE' | 'IDLE';
 
-/** What a presented refresh token means: only REUSE revokes its whole family. */
+/**
+ * What a presented refresh token means: REUSE revokes its whole family, and so does IDLE, a session
+ * with both factors that went more than SECOND_FACTOR_IDLE_MINUTES without a refresh.
+ */
 export function refreshDecision(
-  { expiresAt, rotatedAt, revokedAt }: RefreshedSessionState,
+  { expiresAt, rotatedAt, revokedAt, createdAt, secondFactor }: RefreshedSessionState,
   now: Temporal.Instant,
 ): RefreshDecision {
   if (revokedAt !== null || Temporal.Instant.compare(expiresAt, now) <= 0) return 'REJECT';
-  if (rotatedAt === null) return 'ROTATE';
+  if (rotatedAt === null) {
+    const idle = createdAt.until(now).total('minutes') > SECOND_FACTOR_IDLE_MINUTES;
+    return secondFactor && idle ? 'IDLE' : 'ROTATE';
+  }
   const age = rotatedAt.until(now).total('seconds');
   return age <= RACE_SECONDS ? 'RACE' : 'REUSE';
 }

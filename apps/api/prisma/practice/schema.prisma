@@ -497,6 +497,12 @@ model Appointment {
   cancelledAt          DateTime?         @map("cancelled_at") @db.Timestamptz(3)
   /// class: personal (the account that cancelled)
   cancelledById        String?           @map("cancelled_by_id") @db.Uuid
+  /// class: health (only a cancel by the practice has one, BR-04; sealed like the note; CHECK in the migration)
+  cancelReasonEncrypted String?          @map("cancel_reason_encrypted")
+  /// class: health (when the team checked the patient in, BR-11; set exactly for CHECKED_IN and COMPLETED)
+  checkedInAt          DateTime?         @map("checked_in_at") @db.Timestamptz(3)
+  /// class: health (when the team completed the visit, BR-11; set exactly for COMPLETED)
+  completedAt          DateTime?         @map("completed_at") @db.Timestamptz(3)
   /// class: health (the appointment this one replaced, BR-05)
   rescheduledFromId    String?           @unique(map: "appointments_rescheduled_from_id_key") @map("rescheduled_from_id") @db.Uuid
 

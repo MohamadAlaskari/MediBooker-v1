@@ -1,5 +1,6 @@
 export { getAppointmentsMock } from './appointments/appointments.msw'
 export { getAuthMock } from './auth/auth.msw'
+export { getDeskMock } from './desk/desk.msw'
 export { getMeMock } from './me/me.msw'
 export { getPatientsMock } from './patients/patients.msw'
 export { getPublicPracticeMock } from './public-practice/public-practice.msw'
