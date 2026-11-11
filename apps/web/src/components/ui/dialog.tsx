@@ -8,6 +8,7 @@ import {
   Modal,
   ModalOverlay,
 } from 'react-aria-components';
+import { cn } from '@/lib/utils';
 
 export { DialogTrigger };
 
@@ -18,6 +19,8 @@ interface DialogContentProps {
   readonly description?: ReactNode;
   /** False while a request runs: neither Escape nor a press outside may leave it without its answer. */
   readonly isDismissable?: boolean;
+  /** Wide for a dialog with columns, such as booking for a patient (W7). */
+  readonly size?: 'default' | 'wide';
   readonly children: ReactNode | ((close: () => void) => ReactNode);
 }
 
@@ -29,6 +32,7 @@ export function DialogContent({
   title,
   description,
   isDismissable = true,
+  size = 'default',
   children,
 }: DialogContentProps): ReactNode {
   const descriptionId = useId();
@@ -40,7 +44,12 @@ export function DialogContent({
       // cannot scroll: this does. `my-auto` centres it only where there is room, so its top stays.
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-bg-overlay p-4"
     >
-      <Modal className="my-auto w-full max-w-[28rem] rounded-lg bg-bg-surface p-6 shadow-elevation-2">
+      <Modal
+        className={cn(
+          'my-auto w-full rounded-lg bg-bg-surface p-6 shadow-elevation-2',
+          size === 'wide' ? 'max-w-[56rem]' : 'max-w-[28rem]',
+        )}
+      >
         <DialogPrimitive
           data-slot="dialog"
           // Only a script focuses the dialog itself, when it opens.

@@ -8,6 +8,7 @@ import type {
   DeskAppointmentDto,
   DeskAppointmentRowDto,
   DeskDayDto,
+  DeskPatientRowDto,
   ErrorCode,
 } from '@medibooker/api-client';
 import { bodyOf, problem, respond } from './answers.ts';
@@ -39,6 +40,8 @@ export interface Appointment {
   readonly providerName: string;
   readonly bookedOnline: boolean;
   readonly patientNote: string | null;
+  /** A patient of their own, for a booking by the team (W7); left out, one per appointment. */
+  readonly patientId?: string;
   status: Status;
   checkedInAt: string | null;
   completedAt: string | null;
@@ -46,8 +49,8 @@ export interface Appointment {
   cancelReason: string | null;
 }
 
-const CHECK_UP = { en: 'Check-up', ar: 'فحص عام' };
-const BLOOD_TEST = { en: 'Blood test', ar: 'تحليل دم' };
+export const CHECK_UP = { en: 'Check-up', ar: 'فحص عام' };
+export const BLOOD_TEST = { en: 'Blood test', ar: 'تحليل دم' };
 export const CHECK_UP_ID = '60000000-0000-4000-8000-000000000001';
 export const BLOOD_TEST_ID = '60000000-0000-4000-8000-000000000002';
 export const PROVIDER_ID = '70000000-0000-4000-8000-000000000001';
@@ -121,6 +124,16 @@ function seed(): Map<string, Appointment> {
 }
 
 const days = new Map<string, Map<string, Appointment>>();
+const added = new Map<string, DeskPatientRowDto[]>();
+
+/** The patients the team added without an account (W7), per account like the day. */
+export function addedPatientsOf(owner: string): DeskPatientRowDto[] {
+  const existing = added.get(owner);
+  if (existing !== undefined) return existing;
+  const fresh: DeskPatientRowDto[] = [];
+  added.set(owner, fresh);
+  return fresh;
+}
 
 export function dayOf(owner: string): Map<string, Appointment> {
   const existing = days.get(owner);
@@ -148,7 +161,7 @@ export function rowOf(appointment: Appointment): DeskAppointmentRowDto {
   return {
     id: appointment.id,
     patient: {
-      id: appointment.id.replace('40000000', '50000000'),
+      id: appointment.patientId ?? appointment.id.replace('40000000', '50000000'),
       firstName: appointment.firstName,
       lastName: appointment.lastName,
       insuranceType: appointment.insuranceType,

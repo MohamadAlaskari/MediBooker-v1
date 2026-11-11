@@ -16,8 +16,13 @@ import type { PracticeTransactionHost } from '../../common/tenancy/practice-tran
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf, plainDateOf } from '../../common/time/convert.js';
 import { Prisma } from '../../generated/practice/client.js';
+import {
+  INSURANCE_TYPES,
+  type InsuranceTypeName,
+} from '../account-profile/domain/profile.rules.js';
 import { dayRange } from '../scheduling/domain/slots.rules.js';
 import { cancelReasonContextOf, noteContextOf } from './appointment-texts.js';
+import { AppointmentsService } from './appointments.service.js';
 import { DeskPatients } from './desk-patients.js';
 import {
   dateOfInput,
@@ -33,6 +38,7 @@ import type {
   DeskAppointmentDto,
   DeskAppointmentPageDto,
   DeskAppointmentSearchDto,
+  DeskBookingDto,
   DeskAppointmentRowDto,
   DeskCatalogDto,
   DeskDayDto,
@@ -47,6 +53,11 @@ import {
   type DeskTiming,
 } from './domain/desk.rules.js';
 import { patientSearchOf } from './domain/patient-search.rules.js';
+
+/** A type of insurance the API knows, of the text[] the practice's settings keep. */
+function isInsuranceType(value: string): value is InsuranceTypeName {
+  return (INSURANCE_TYPES as readonly string[]).includes(value);
+}
 
 /** The appointments of W5 with their slot and patient, which its conditions name as `s` and `p`. */
 const LIST_SOURCE = Prisma.sql`appointments a
@@ -107,6 +118,7 @@ export class DeskService {
     private readonly audit: PracticeAudit,
     private readonly rows: DeskRows,
     private readonly patients: DeskPatients,
+    private readonly appointments: AppointmentsService,
   ) {}
 
   async day(
@@ -280,6 +292,10 @@ export class DeskService {
       select: { id: true, name: true, durationMinutes: true, active: true },
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
+    const rules = await db.practiceSettings.findUniqueOrThrow({
+      where: { id: 1 },
+      select: { insuranceTypes: true, insuranceProviderTypes: true, insuranceNumberTypes: true },
+    });
     return {
       providers: providers.map((member) => ({ id: member.id, name: displayNameOf(member) })),
       services: services.map((service) => ({
@@ -288,7 +304,33 @@ export class DeskService {
         durationMinutes: service.durationMinutes,
         active: service.active,
       })),
+      insurance: {
+        types: rules.insuranceTypes.filter(isInsuranceType),
+        providerTypes: rules.insuranceProviderTypes.filter(isInsuranceType),
+        numberTypes: rules.insuranceNumberTypes.filter(isInsuranceType),
+      },
     };
+  }
+
+  /**
+   * W7: books for a patient of the practice (`AppointmentsService.bookAsPractice`), and answers with
+   * the row as the desk shows it.
+   */
+  async book(
+    actor: Actor,
+    input: DeskBookingDto,
+    idempotencyKey: string | undefined,
+    ip: string | undefined,
+  ): Promise<DeskAppointmentRowDto> {
+    const id = await this.appointments.bookAsPractice(actor, input, idempotencyKey, ip);
+    const settings = await this.rows.displaySettings();
+    const row = await this.txHost.tx.appointment.findUniqueOrThrow({
+      where: { id },
+      select: ROW_FIELDS,
+    });
+    const [view] = await this.rows.viewsOf([row], settings.timeZone);
+    if (view === undefined) throw new DomainException('NOT_FOUND');
+    return view;
   }
 
   /** W6: one appointment, with what the patient wrote and how to reach them. */

@@ -8,6 +8,7 @@ import type { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { FixedClock } from '../../common/time/fixed-clock.js';
 import { Prisma } from '../../generated/practice/client.js';
+import type { AppointmentsService } from './appointments.service.js';
 import type { DeskPatients } from './desk-patients.js';
 import { DeskRows } from './desk-rows.js';
 import { DESK_DAY_LIMIT, DeskService } from './desk.service.js';
@@ -138,6 +139,7 @@ function setUp({
   const txHost = { tx: db } as unknown as PracticeTransactionHost;
   const clock = new FixedClock(NOW);
   const conditionOf = vi.fn().mockResolvedValue(Prisma.sql`p.search_name <> ''`);
+  const bookAsPractice = vi.fn().mockResolvedValue(ID);
   const service = new DeskService(
     txHost,
     platform as unknown as PlatformPrismaService,
@@ -148,6 +150,7 @@ function setUp({
     audit as unknown as PracticeAudit,
     new DeskRows(txHost, clock),
     { conditionOf } as unknown as DeskPatients,
+    { bookAsPractice } as unknown as AppointmentsService,
   );
   const inPractice = <T>(work: () => Promise<T>) =>
     cls.run(() => {
@@ -158,7 +161,7 @@ function setUp({
       });
       return work();
     });
-  return { service, db, platform, audit, encrypt, conditionOf, inPractice };
+  return { service, db, platform, audit, encrypt, conditionOf, bookAsPractice, inPractice };
 }
 
 /** The statement of a call of the mocked `$queryRaw`, with every value it binds. */
@@ -230,12 +233,34 @@ describe('DeskService.list', () => {
 });
 
 describe('DeskService.catalog', () => {
-  it('names every doctor and lists every service', async () => {
-    const { service, inPractice } = setUp();
+  it('names every doctor, lists every service, and says what the practice asks of insurance', async () => {
+    const { service, db, inPractice } = setUp();
+    db.practiceSettings.findUniqueOrThrow.mockResolvedValueOnce({
+      // A type the API does not know stays out, so the answer keeps to its enum.
+      insuranceTypes: ['PUBLIC', 'SELF_PAY', 'SOMETHING_NEW'],
+      insuranceProviderTypes: ['PUBLIC'],
+      insuranceNumberTypes: ['PUBLIC'],
+    });
     await expect(inPractice(() => service.catalog())).resolves.toEqual({
       providers: [{ id: PROVIDER, name: 'Dr. Lina Example' }],
       services: [{ id: 'service', name: { en: 'Check-up' }, durationMinutes: 30, active: true }],
+      insurance: {
+        types: ['PUBLIC', 'SELF_PAY'],
+        providerTypes: ['PUBLIC'],
+        numberTypes: ['PUBLIC'],
+      },
     });
+  });
+});
+
+describe('DeskService.book', () => {
+  it('books through the patient booking with the team’s rules, and answers the row of the desk', async () => {
+    const { service, bookAsPractice, inPractice } = setUp();
+    const input = { patientId: PATIENT, serviceId: 'service', startsAt: '2026-11-15T09:00:00Z' };
+    const key = '00000000-0000-4000-8000-0000000000ee';
+    const row = await inPractice(() => service.book(ACTOR, input, key, '203.0.113.1'));
+    expect(bookAsPractice).toHaveBeenCalledWith(ACTOR, input, key, '203.0.113.1');
+    expect(row).toMatchObject({ id: ID, status: 'BOOKED', providerName: 'Dr. Lina Example' });
   });
 });
 

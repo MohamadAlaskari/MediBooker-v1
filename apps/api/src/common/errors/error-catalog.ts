@@ -21,6 +21,7 @@ export const ERROR_CATALOG = {
   NOT_FOUND: { status: 404, title: 'Not found' },
   CONFLICT: { status: 409, title: 'Conflict' },
   ALREADY_JOINED: { status: 409, title: 'Already a patient of this practice' },
+  PATIENT_MAY_EXIST: { status: 409, title: 'A patient like this may exist already' },
   MFA_ALREADY_ENABLED: { status: 409, title: 'The second factor is already set up' },
   SLOT_NOT_AVAILABLE: { status: 409, title: 'Slot not available' },
   APPOINTMENT_OVERLAP: { status: 409, title: 'Appointment overlaps another one' },

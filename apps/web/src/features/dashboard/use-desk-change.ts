@@ -18,10 +18,13 @@ export interface DeskChange {
   readonly cancelReason?: string;
 }
 
-/** Every answer of the desk of this practice, in the generated client's query keys. */
+/**
+ * Every answer of the desk of this practice, in the generated client's query keys: a GET's key
+ * starts with its path, a search (a POST that reads) with its method and then its path.
+ */
 export function isDeskQueryOf(practiceId: string, queryKey: readonly unknown[]): boolean {
-  const [path] = queryKey;
-  return typeof path === 'string' && path.startsWith(`/api/v1/practices/${practiceId}/desk/`);
+  const desk = `/api/v1/practices/${practiceId}/desk/`;
+  return queryKey.some((part) => typeof part === 'string' && part.startsWith(desk));
 }
 
 /**

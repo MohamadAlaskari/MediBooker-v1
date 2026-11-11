@@ -3,13 +3,14 @@
 import { useGetDeskPatient, type DeskAppointmentRowDto } from '@medibooker/api-client';
 import { isolate } from '@medibooker/i18n';
 import { useLocale, useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/sheet';
 import { practiceFormat, type PracticeFormat } from '@/lib/format';
 import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
+import { BookForPatient } from './book-for-patient';
 import { useDesk } from './desk-context';
 import { initialsOf, statusVariantOf } from './desk-view';
 
@@ -88,6 +89,7 @@ export function PatientSheet({
   const details = useTranslations('dashboard.details');
   const locale = useLocale();
   const { practiceId } = useDesk();
+  const [news, setNews] = useState('');
   const record = useGetDeskPatient(practiceId, patientId ?? '', {
     query: { enabled: patientId !== undefined, retry: false },
   });
@@ -100,7 +102,10 @@ export function PatientSheet({
     <Sheet
       isOpen={patientId !== undefined}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          setNews('');
+          onClose();
+        }
       }}
       kicker={t('kicker')}
       title={title}
@@ -161,6 +166,14 @@ export function PatientSheet({
               </dl>
             </div>
           </section>
+          <div className="flex flex-col gap-2">
+            <div>
+              <BookForPatient patient={patient} format={format} onBooked={setNews} />
+            </div>
+            <p role="status" className="text-body-default text-text-primary">
+              {news}
+            </p>
+          </div>
           <Visits
             title={t('upcoming')}
             empty={t('nothingUpcoming')}

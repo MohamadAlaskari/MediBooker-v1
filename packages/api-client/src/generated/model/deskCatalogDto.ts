@@ -4,10 +4,12 @@
  * MediBooker API
  * OpenAPI spec version: 1
  */
+import type { DeskInsuranceRulesDto } from './deskInsuranceRulesDto';
 import type { DeskProviderDto } from './deskProviderDto';
 import type { DeskServiceDto } from './deskServiceDto';
 
 export interface DeskCatalogDto {
+  insurance: DeskInsuranceRulesDto;
   providers: DeskProviderDto[];
   services: DeskServiceDto[];
 }

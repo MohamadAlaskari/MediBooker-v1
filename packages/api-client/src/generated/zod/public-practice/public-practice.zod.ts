@@ -112,7 +112,7 @@ export const GetPublicAvailabilityParams = zod.object({
 
 export const GetPublicAvailabilityQueryParams = zod.object({
   "serviceId": zod.uuid(),
-  "providerId": zod.uuid().optional().describe('A doctor with a public profile'),
+  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
   "from": zod.string().optional().describe('First day, in the practice\'s time zone; default: today'),
   "to": zod.string().optional().describe('Last day; at most 42 days in all; default: the 42nd day')
 })
@@ -133,7 +133,7 @@ export const GetPublicFreeTimesParams = zod.object({
 
 export const GetPublicFreeTimesQueryParams = zod.object({
   "serviceId": zod.uuid(),
-  "providerId": zod.uuid().optional().describe('A doctor with a public profile'),
+  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
   "date": zod.string().describe('A day in the practice\'s time zone')
 })
 

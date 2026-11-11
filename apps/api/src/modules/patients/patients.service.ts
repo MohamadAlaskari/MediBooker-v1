@@ -20,11 +20,9 @@ import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbDateOf, dbInstantOf, instantOf, plainDateOf } from '../../common/time/convert.js';
-import {
-  insuranceNumberEnd,
-  type InsuranceTypeName,
-  isPlausibleBirthDate,
-} from '../account-profile/domain/profile.rules.js';
+import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.js';
+import { birthDateOf } from './domain/birth-date.rules.js';
+import { sealedInsuranceNumber } from './insurance-number.js';
 import {
   checkedInsurance,
   type FieldProblem,
@@ -423,33 +421,15 @@ export class PatientsService {
   }
 
   /** The number under this practice's key, its end, and its blind index with this practice's key. */
-  private async sealed(id: string, number: string) {
+  private sealed(id: string, number: string): ReturnType<typeof sealedInsuranceNumber> {
     const { practice } = requirePracticeContext(this.cls);
-    return {
-      insuranceNumberEncrypted: await this.keys.encrypt(
-        practice.id,
-        number,
-        `patient:${id}:insurance-number`,
-      ),
-      insuranceNumberEnd: insuranceNumberEnd(number),
-      insuranceNumberIndex: await this.keys.keyedHash(practice.id, 'insurance-number', number),
-    };
+    return sealedInsuranceNumber(this.keys, practice.id, id, number);
   }
 
   private birthDateOf(value: string | undefined): {
     readonly value: Temporal.PlainDate | undefined;
     readonly problems: readonly FieldProblem[];
   } {
-    if (value === undefined) {
-      return { value: undefined, problems: [{ field: 'dateOfBirth', code: 'REQUIRED' }] };
-    }
-    try {
-      const date = Temporal.PlainDate.from(value, { overflow: 'reject' });
-      const today = this.clock.now().toZonedDateTimeISO('UTC').toPlainDate();
-      if (isPlausibleBirthDate(date, today)) return { value: date, problems: [] };
-    } catch {
-      // A date like 2026-02-31 has the right form and is no date: answered like any other.
-    }
-    return { value: undefined, problems: [{ field: 'dateOfBirth', code: 'INVALID_VALUE' }] };
+    return birthDateOf(value, this.clock.now().toZonedDateTimeISO('UTC').toPlainDate());
   }
 }

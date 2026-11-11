@@ -8,6 +8,7 @@ import {
   isInBookingWindow,
   isProfileComplete,
   isServiceBookable,
+  isServiceBookableByPractice,
 } from './booking.rules.js';
 
 const SERVICE = { active: true, isBookableOnline: true, allowedInsuranceTypes: [] };
@@ -85,6 +86,21 @@ describe('isServiceBookable (BR-08)', () => {
   it('refuses a service that is not active or not online', () => {
     expect(isServiceBookable({ ...SERVICE, active: false }, 'PUBLIC')).toBe(false);
     expect(isServiceBookable({ ...SERVICE, isBookableOnline: false }, 'PUBLIC')).toBe(false);
+  });
+});
+
+describe('isServiceBookableByPractice (BR-08, W7)', () => {
+  it('takes a service patients cannot book online, but not an inactive one', () => {
+    expect(isServiceBookableByPractice({ ...SERVICE, isBookableOnline: false }, 'PUBLIC')).toBe(
+      true,
+    );
+    expect(isServiceBookableByPractice({ ...SERVICE, active: false }, 'PUBLIC')).toBe(false);
+  });
+
+  it('still takes only the insurance types a service names', () => {
+    const service = { ...SERVICE, isBookableOnline: false, allowedInsuranceTypes: ['SELF_PAY'] };
+    expect(isServiceBookableByPractice(service, 'SELF_PAY')).toBe(true);
+    expect(isServiceBookableByPractice(service, 'PUBLIC')).toBe(false);
   });
 });
 

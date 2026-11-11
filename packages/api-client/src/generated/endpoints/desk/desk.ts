@@ -24,18 +24,26 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  BookDeskAppointmentHeaders,
   CancelAsPracticeDto,
   DeskAppointmentDto,
   DeskAppointmentPageDto,
   DeskAppointmentRowDto,
   DeskAppointmentSearchDto,
+  DeskBookingDto,
   DeskCatalogDto,
   DeskDayDto,
+  DeskNewPatientDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
+  DeskPatientRowDto,
   DeskPatientSearchDto,
+  GetDeskAvailabilityParams,
   GetDeskDayParams,
-  ProblemDetailsDto
+  GetDeskFreeTimesParams,
+  ProblemDetailsDto,
+  PublicAvailabilityDto,
+  PublicFreeTimesDto
 } from '../../model';
 
 import { apiFetch } from '../../../http/fetcher';
@@ -61,7 +69,96 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getSearchDeskAppointmentsUrl = (practiceId: string,) => {
+export const getBookDeskAppointmentUrl = (practiceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/appointments`
+}
+
+/**
+ * @summary Book a free time for a patient of the practice (W7); the row as the desk shows it
+ */
+export const bookDeskAppointment = async (practiceId: string,
+    deskBookingDto: DeskBookingDto,
+    headers: BookDeskAppointmentHeaders, options?: Parameters<typeof apiFetch>[1]): Promise<DeskAppointmentRowDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<DeskAppointmentRowDto>(getBookDeskAppointmentUrl(practiceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',...headers, ...getHeaders(options?.headers) },
+    body: JSON.stringify(deskBookingDto)
+  }
+);}
+
+
+
+
+
+export const getBookDeskAppointmentMutationKey = () => ['bookDeskAppointment'] as const;
+
+export const getBookDeskAppointmentMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookDeskAppointment>>, TError,BookDeskAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bookDeskAppointment>>, TError,BookDeskAppointmentMutationVariables, TContext> => {
+
+const mutationKey = getBookDeskAppointmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bookDeskAppointment>>, BookDeskAppointmentMutationVariables> = (props) => {
+          const {practiceId,data,headers} = props ?? {};
+
+          return  bookDeskAppointment(practiceId,data,headers,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BookDeskAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof bookDeskAppointment>>>
+    export type BookDeskAppointmentMutationBody = DeskBookingDto
+    export type BookDeskAppointmentMutationError = ErrorType<ProblemDetailsDto>
+    export type BookDeskAppointmentMutationVariables = {practiceId: string;data: DeskBookingDto;headers: BookDeskAppointmentHeaders}
+
+    /**
+ * @summary Book a free time for a patient of the practice (W7); the row as the desk shows it
+ */
+export const useBookDeskAppointment = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookDeskAppointment>>, TError,BookDeskAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bookDeskAppointment>>,
+        TError,
+        BookDeskAppointmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getBookDeskAppointmentMutationOptions(options), queryClient);
+    }
+    export const getSearchDeskAppointmentsUrl = (practiceId: string,) => {
 
 
 
@@ -605,7 +702,122 @@ export const useMarkAppointmentNoShow = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getMarkAppointmentNoShowMutationOptions(options), queryClient);
     }
-    export const getGetDeskCatalogUrl = (practiceId: string,) => {
+    export const getGetDeskAvailabilityUrl = (practiceId: string,
+    params: GetDeskAvailabilityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/practices/${practiceId}/desk/availability?${stringifiedParams}` : `/api/v1/practices/${practiceId}/desk/availability`
+}
+
+/**
+ * @summary Days with free times for the team (W7): every active service and doctor, from now on
+ */
+export const getDeskAvailability = async (practiceId: string,
+    params: GetDeskAvailabilityParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicAvailabilityDto> => {
+
+  return apiFetch<PublicAvailabilityDto>(getGetDeskAvailabilityUrl(practiceId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeskAvailabilityQueryKey = (practiceId: string,
+    params?: GetDeskAvailabilityParams,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/availability`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDeskAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof getDeskAvailability>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    params: GetDeskAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeskAvailabilityQueryKey(practiceId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeskAvailability>>> = ({ signal }) => getDeskAvailability(practiceId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeskAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getDeskAvailability>>>
+export type GetDeskAvailabilityQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetDeskAvailability<TData = Awaited<ReturnType<typeof getDeskAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskAvailabilityParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskAvailability<TData = Awaited<ReturnType<typeof getDeskAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskAvailability<TData = Awaited<ReturnType<typeof getDeskAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Days with free times for the team (W7): every active service and doctor, from now on
+ */
+
+export function useGetDeskAvailability<TData = Awaited<ReturnType<typeof getDeskAvailability>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskAvailabilityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeskAvailabilityQueryOptions(practiceId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetDeskCatalogUrl = (practiceId: string,) => {
 
 
 
@@ -820,7 +1032,210 @@ export function useGetDeskDay<TData = Awaited<ReturnType<typeof getDeskDay>>, TE
 
 
 
-export const getSearchDeskPatientsUrl = (practiceId: string,) => {
+export const getGetDeskFreeTimesUrl = (practiceId: string,
+    params: GetDeskFreeTimesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/practices/${practiceId}/desk/free-times?${stringifiedParams}` : `/api/v1/practices/${practiceId}/desk/free-times`
+}
+
+/**
+ * @summary The free times of one day for the team (W7)
+ */
+export const getDeskFreeTimes = async (practiceId: string,
+    params: GetDeskFreeTimesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicFreeTimesDto> => {
+
+  return apiFetch<PublicFreeTimesDto>(getGetDeskFreeTimesUrl(practiceId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeskFreeTimesQueryKey = (practiceId: string,
+    params?: GetDeskFreeTimesParams,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/free-times`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDeskFreeTimesQueryOptions = <TData = Awaited<ReturnType<typeof getDeskFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    params: GetDeskFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeskFreeTimesQueryKey(practiceId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeskFreeTimes>>> = ({ signal }) => getDeskFreeTimes(practiceId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeskFreeTimesQueryResult = NonNullable<Awaited<ReturnType<typeof getDeskFreeTimes>>>
+export type GetDeskFreeTimesQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetDeskFreeTimes<TData = Awaited<ReturnType<typeof getDeskFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskFreeTimesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskFreeTimes>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskFreeTimes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskFreeTimes<TData = Awaited<ReturnType<typeof getDeskFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskFreeTimes>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskFreeTimes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskFreeTimes<TData = Awaited<ReturnType<typeof getDeskFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The free times of one day for the team (W7)
+ */
+
+export function useGetDeskFreeTimes<TData = Awaited<ReturnType<typeof getDeskFreeTimes>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    params: GetDeskFreeTimesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskFreeTimes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeskFreeTimesQueryOptions(practiceId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getAddDeskPatientUrl = (practiceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/patients`
+}
+
+/**
+ * @summary Add a patient without an account (W7), to book on the phone and at the desk
+ */
+export const addDeskPatient = async (practiceId: string,
+    deskNewPatientDto: DeskNewPatientDto, options?: Parameters<typeof apiFetch>[1]): Promise<DeskPatientRowDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<DeskPatientRowDto>(getAddDeskPatientUrl(practiceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deskNewPatientDto)
+  }
+);}
+
+
+
+
+
+export const getAddDeskPatientMutationKey = () => ['addDeskPatient'] as const;
+
+export const getAddDeskPatientMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addDeskPatient>>, TError,AddDeskPatientMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addDeskPatient>>, TError,AddDeskPatientMutationVariables, TContext> => {
+
+const mutationKey = getAddDeskPatientMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addDeskPatient>>, AddDeskPatientMutationVariables> = (props) => {
+          const {practiceId,data} = props ?? {};
+
+          return  addDeskPatient(practiceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddDeskPatientMutationResult = NonNullable<Awaited<ReturnType<typeof addDeskPatient>>>
+    export type AddDeskPatientMutationBody = DeskNewPatientDto
+    export type AddDeskPatientMutationError = ErrorType<ProblemDetailsDto>
+    export type AddDeskPatientMutationVariables = {practiceId: string;data: DeskNewPatientDto}
+
+    /**
+ * @summary Add a patient without an account (W7), to book on the phone and at the desk
+ */
+export const useAddDeskPatient = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addDeskPatient>>, TError,AddDeskPatientMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addDeskPatient>>,
+        TError,
+        AddDeskPatientMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddDeskPatientMutationOptions(options), queryClient);
+    }
+    export const getSearchDeskPatientsUrl = (practiceId: string,) => {
 
 
 

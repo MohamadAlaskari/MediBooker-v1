@@ -7,7 +7,7 @@
 
 export type GetPublicAvailabilityParams = {
   serviceId: string;
-  /** A doctor with a public profile */
+  /** A doctor: on the public routes one with a public profile */
   providerId?: string;
   /** First day, in the practice's time zone; default: today */
   from?: string;

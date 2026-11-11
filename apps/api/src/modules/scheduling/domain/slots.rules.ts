@@ -139,6 +139,18 @@ export function bookableWindow(
   };
 }
 
+/**
+ * BR-03 for the team (W7): from now on, without the lead time patients keep, because the team books
+ * on the phone and at the desk for a time it agrees with the patient; never in the past, and no
+ * further ahead than patients can.
+ */
+export function practiceBookableWindow(
+  now: Temporal.Instant,
+  settings: { readonly maxHorizonDays: number },
+): { readonly earliest: Temporal.Instant; readonly latest: Temporal.Instant } {
+  return bookableWindow(now, { minLeadTimeMinutes: 0, maxHorizonDays: settings.maxHorizonDays });
+}
+
 /** How many days a range holds, both ends included; zero or less when it runs backwards. */
 export function daysInRange(from: Temporal.PlainDate, to: Temporal.PlainDate): number {
   return from.until(to, { largestUnit: 'days' }).days + 1;

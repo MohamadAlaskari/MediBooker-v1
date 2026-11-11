@@ -389,3 +389,120 @@ test.describe('the team’s lists (08 M05)', () => {
     );
   });
 });
+
+test.describe('booking for a patient (08 M05, W7)', () => {
+  test('books for a patient found by name, and the week shows it', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page.getByRole('link', { name: d.shell.appointments }).click();
+    const table = page.getByRole('table');
+    await expect(table.getByRole('row')).toHaveCount(9);
+    // A change from the list reads the list again, also when it is a search (a POST).
+    const omar = table.getByRole('row', { name: /Omar Beispiel/ });
+    await omar
+      .getByRole('button', { name: new RegExp(`${d.today.checkIn}.*Omar Beispiel`) })
+      .click();
+    await expect(omar).toContainText(selected(d.status, 'CHECKED_IN'));
+
+    const urls = urlsAsked(page);
+    await page.getByRole('button', { name: d.book.open }).click();
+    const dialog = page.getByRole('dialog', { name: d.book.title });
+    await dialog.getByLabel(d.book.search, { exact: true }).fill('ساره');
+    await dialog.getByRole('button', { name: /سارة مثال/ }).click();
+    await expect(dialog.getByRole('button', { name: d.book.change })).toBeVisible();
+    await dialog.getByRole('button', { name: new RegExp(d.book.chooseService) }).click();
+    await page
+      .getByRole('option', { name: new RegExp(locale === 'ar' ? 'فحص عام' : 'Check-up') })
+      .click();
+    await dialog
+      .getByRole('radiogroup', { name: d.book.days })
+      .getByRole('radio', { disabled: false })
+      .first()
+      .click();
+    await dialog.getByRole('radio', { name: /12:00/ }).click();
+    await expect(dialog).toContainText(locale === 'ar' ? 'فحص عام' : 'Check-up');
+    await expectAccessibleAtBothWidths(page, 'the booking for a patient');
+    await dialog.getByRole('button', { name: d.book.confirm }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('main').getByRole('status')).toContainText('سارة مثال');
+    await expect(table.getByRole('row', { name: /سارة مثال/ })).toHaveCount(2);
+    expect(urls.filter((url) => decodeURIComponent(url).includes('ساره'))).toEqual([]);
+  });
+
+  test('adds a patient without an account, with what the practice asks, and books for them', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    const details = texts(locale).details;
+    await page.getByRole('link', { name: d.shell.appointments }).click();
+    await page.getByRole('button', { name: d.book.open }).click();
+    const dialog = page.getByRole('dialog', { name: d.book.title });
+    await dialog.getByRole('button', { name: d.book.newPatient }).click();
+    const form = dialog.getByRole('group', { name: d.book.newPatientTitle });
+    await form.getByRole('button', { name: d.book.addPatient }).click();
+    await expect(form.getByText(d.book.required).first()).toBeVisible();
+    // A person the practice may know already: the team is asked to look first.
+    await form.getByLabel(details.firstName).fill('Sami');
+    await form.getByLabel(details.lastName).fill('Beispiel');
+    await form.getByLabel(details.dateOfBirth).fill('1990-04-12');
+    await form.getByRole('button', { name: new RegExp(details.insuranceType) }).click();
+    await page.getByRole('option', { name: details.SELF_PAY }).click();
+    await form.getByRole('button', { name: d.book.addPatient }).click();
+    await expect(form.getByRole('alert')).toContainText(d.book.errors.PATIENT_MAY_EXIST);
+    await expect(form.getByRole('button', { name: d.book.addAnyway })).toBeVisible();
+    // Other details are another person: the question goes, and so does "add anyway".
+    await form.getByLabel(details.firstName).fill('Lina');
+    await form.getByLabel(details.dateOfBirth).fill('1985-02-03');
+    await expect(form.getByRole('button', { name: d.book.addAnyway })).toHaveCount(0);
+    await form.getByRole('button', { name: d.book.addPatient }).click();
+    await expect(dialog.getByRole('button', { name: d.book.change })).toBeVisible();
+    await expect(dialog).toContainText('Lina Beispiel');
+    await dialog.getByRole('button', { name: new RegExp(d.book.chooseService) }).click();
+    await page
+      .getByRole('option', { name: new RegExp(locale === 'ar' ? 'تحليل دم' : 'Blood test') })
+      .click();
+    await dialog
+      .getByRole('radiogroup', { name: d.book.days })
+      .getByRole('radio', { disabled: false })
+      .first()
+      .click();
+    await dialog.getByRole('radio', { name: /12:30/ }).click();
+    await dialog.getByRole('button', { name: d.book.confirm }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('table').getByRole('row', { name: /Lina Beispiel/ })).toBeVisible();
+    // The patient the team added is one of the practice's patients now.
+    await page.getByRole('link', { name: d.shell.patients }).click();
+    await page.getByLabel(d.patients.search, { exact: true }).fill('Lina');
+    await expect(page.getByRole('table')).toContainText('Lina Beispiel');
+  });
+
+  test('books from a patient’s record, for that patient', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page.getByRole('link', { name: d.shell.patients }).click();
+    await page.getByLabel(d.patients.search, { exact: true }).fill('سارة');
+    await page
+      .getByRole('table')
+      .getByRole('button', { name: /سارة مثال/ })
+      .click();
+    const record = page.getByRole('dialog').filter({ hasText: d.patients.kicker });
+    await record.getByRole('button', { name: d.book.openFor }).click();
+    const dialog = page.getByRole('dialog', { name: d.book.title });
+    await expect(dialog.getByLabel(d.book.search, { exact: true })).toHaveCount(0);
+    await expect(dialog).toContainText('سارة مثال');
+    await dialog.getByRole('button', { name: new RegExp(d.book.chooseService) }).click();
+    await page
+      .getByRole('option', { name: new RegExp(locale === 'ar' ? 'فحص عام' : 'Check-up') })
+      .click();
+    await dialog
+      .getByRole('radiogroup', { name: d.book.days })
+      .getByRole('radio', { disabled: false })
+      .first()
+      .click();
+    await dialog.getByRole('radio', { name: /13:00/ }).click();
+    await dialog.getByRole('button', { name: d.book.confirm }).click();
+    await expect(dialog).toBeHidden();
+    await expect(record.getByRole('status')).toContainText('سارة مثال');
+  });
+});

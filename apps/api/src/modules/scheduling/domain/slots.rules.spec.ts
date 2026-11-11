@@ -5,6 +5,7 @@ import {
   daysInRange,
   daysWithFreeTimes,
   generateSlots,
+  practiceBookableWindow,
   type SlotGenerationInput,
   type SlotRule,
 } from './slots.rules.js';
@@ -180,6 +181,16 @@ describe('bookableWindow (BR-03)', () => {
       maxHorizonDays: 90,
     });
     expect(latest.toString()).toBe('2027-02-13T07:00:00Z');
+  });
+});
+
+describe('practiceBookableWindow (BR-03, W7)', () => {
+  it('opens now for the team, without the lead time, and ends at the same horizon', () => {
+    const now = instant('2026-11-15T07:00:00Z');
+    expect(practiceBookableWindow(now, { maxHorizonDays: 90 })).toEqual({
+      earliest: now,
+      latest: instant('2027-02-13T07:00:00Z'),
+    });
   });
 });
 

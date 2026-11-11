@@ -15,7 +15,10 @@ export class PublicAvailabilityQueryDto {
   @IsUUID()
   readonly serviceId!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'A doctor with a public profile' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A doctor: on the public routes one with a public profile',
+  })
   @IsOptional()
   @IsUUID()
   readonly providerId?: string;
@@ -44,7 +47,10 @@ export class PublicFreeTimesQueryDto {
   @IsUUID()
   readonly serviceId!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'A doctor with a public profile' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A doctor: on the public routes one with a public profile',
+  })
   @IsOptional()
   @IsUUID()
   readonly providerId?: string;

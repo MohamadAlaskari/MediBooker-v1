@@ -105,13 +105,13 @@ Reference the IDs in code comments and test names, for example `it('BR-01 reject
 | BR-01 | A slot has at most one active appointment. No double booking, also under concurrent requests. | Partial unique index + row lock in a transaction |
 | BR-02 | Each patient profile (not account) has at most `maxFutureAppointmentsPerPatient` future active appointments (default 2, as in v1). Staff may override with a reason, which is audited. | Service, serialized per patient |
 | BR-25 | A patient profile holds no two active appointments that overlap in time at one practice, also with different doctors; a reschedule does not count the appointment it replaces. `APPOINTMENT_OVERLAP`. | Service, under the patient's lock |
-| BR-03 | Bookable window: `startsAt ≥ now + minLeadTime` (default 2 h) and `≤ now + maxHorizon` (default 90 days). Never in the past. | Service |
+| BR-03 | Bookable window: `startsAt ≥ now + minLeadTime` (default 2 h) and `≤ now + maxHorizon` (default 90 days). Never in the past. The team booking for a patient (W7) keeps no lead time: from now on, up to the same horizon. | Service |
 | BR-04 | Patients can cancel or reschedule until `cancellationDeadlineHours` (default 24 elapsed hours, ADR 0014) before the start. After that the app shows the practice phone number. Staff can always cancel, with a reason. | Service |
 | BR-05 | Reschedule is atomic: book the new slot and cancel the old appointment in one transaction. If the new booking fails, the old appointment stays unchanged. | Transaction |
 | BR-06 | Slots are generated from availability rules for a date range. Generation is idempotent (unique providerId + startsAt) and skips exceptions and public holidays. | Job + unique index |
 | BR-07 | A slot with an active appointment cannot be blocked or deleted. Staff cancel the appointment first; the patient is notified. | Service |
-| BR-08 | Patients can book only active services with `isBookableOnline` that allow their insurance type, and only in slots whose rule allows that service. | Service |
-| BR-09 | Booking requires a verified e-mail (`ACTIVE` user) and a complete patient profile. | Guard + service |
+| BR-08 | Patients can book only active services with `isBookableOnline` that allow their insurance type, and only in slots whose rule allows that service. The team (W7) also books a service that is not bookable online. | Service |
+| BR-09 | Booking requires a verified e-mail (`ACTIVE` user) and a complete patient profile. Not for the team (W7), which books for a patient on the phone or at the desk, also for one without an account. | Guard + service |
 | BR-10 | Insurance requirements come from `PracticeSettings`: which types exist, which need a provider and a number, and the number format (validator per market; e.g. Germany `PUBLIC` = letter + 9 digits). `SELF_PAY` never needs a number. | DTO + service |
 | BR-11 | Only staff, doctors and admins set `CHECKED_IN`, `COMPLETED` and `NO_SHOW`, and only on the appointment's day. `NO_SHOW` only after the start time. | Service |
 | BR-12 | Every state change writes an `AuditEvent` and emits a realtime event after commit. | Service + event bus |

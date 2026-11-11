@@ -8,6 +8,53 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Book a free time for a patient of the practice (W7); the row as the desk shows it
+ */
+export const BookDeskAppointmentParams = zod.object({
+  "practiceId": zod.uuid()
+})
+
+export const BookDeskAppointmentHeader = zod.object({
+  "Idempotency-Key": zod.uuid().describe('A new UUID per attempt: sent again, it answers with the first result')
+})
+
+export const bookDeskAppointmentBodyStartsAtRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$');
+
+
+export const BookDeskAppointmentBody = zod.object({
+  "patientId": zod.uuid(),
+  "providerId": zod.uuid().optional().describe('A doctor of the practice; left out, any doctor free at that time'),
+  "serviceId": zod.uuid(),
+  "startsAt": zod.iso.datetime({"offset":true}).regex(bookDeskAppointmentBodyStartsAtRegExp)
+})
+
+export const BookDeskAppointmentResponse = zod.object({
+  "actions": zod.array(zod.enum(['CHECK_IN', 'COMPLETE', 'NO_SHOW', 'CANCEL'])).describe('What the team can do with it now (BR-04, BR-11)'),
+  "bookedOnline": zod.boolean().describe('Booked by the patient online; false when the practice booked it'),
+  "cancelledAt": zod.iso.datetime({"offset":true}).nullable(),
+  "cancelledByPractice": zod.boolean().describe('Cancelled by the practice, with a reason; false for anything else'),
+  "checkedInAt": zod.iso.datetime({"offset":true}).nullable(),
+  "completedAt": zod.iso.datetime({"offset":true}).nullable(),
+  "day": zod.enum(['PAST', 'TODAY', 'FUTURE']).describe('Its day against today, both in the practice\'s time zone, by the clock of the API'),
+  "durationMinutes": zod.number(),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid(),
+  "patient": zod.object({
+  "firstName": zod.string(),
+  "id": zod.uuid(),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']),
+  "lastName": zod.string()
+}),
+  "providerId": zod.uuid(),
+  "providerName": zod.string().describe('Every doctor is named for the team, with or without a public profile'),
+  "serviceId": zod.uuid(),
+  "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
+  "started": zod.boolean().describe('Whether its start has come, by the clock of the API'),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])
+})
+
+/**
  * @summary The appointments of some days, a page at a time; reads only, and every one shown is audited
  */
 export const SearchDeskAppointmentsParams = zod.object({
@@ -263,6 +310,27 @@ export const MarkAppointmentNoShowResponse = zod.object({
 })
 
 /**
+ * @summary Days with free times for the team (W7): every active service and doctor, from now on
+ */
+export const GetDeskAvailabilityParams = zod.object({
+  "practiceId": zod.uuid()
+})
+
+export const GetDeskAvailabilityQueryParams = zod.object({
+  "serviceId": zod.uuid(),
+  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
+  "from": zod.string().optional().describe('First day, in the practice\'s time zone; default: today'),
+  "to": zod.string().optional().describe('Last day; at most 42 days in all; default: the 42nd day')
+})
+
+export const GetDeskAvailabilityResponse = zod.object({
+  "days": zod.array(zod.object({
+  "date": zod.string().describe('ISO date in the practice\'s time zone'),
+  "hasFreeTimes": zod.boolean()
+}))
+})
+
+/**
  * @summary The doctors and services of the practice, for filters and booking
  */
 export const GetDeskCatalogParams = zod.object({
@@ -270,6 +338,11 @@ export const GetDeskCatalogParams = zod.object({
 })
 
 export const GetDeskCatalogResponse = zod.object({
+  "insurance": zod.object({
+  "numberTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The types that need a number'),
+  "providerTypes": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The types that need a provider'),
+  "types": zod.array(zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY'])).describe('The types the practice takes')
+}),
   "providers": zod.array(zod.object({
   "id": zod.uuid(),
   "name": zod.string()
@@ -338,6 +411,75 @@ export const GetDeskDayResponse = zod.object({
   "timeZone": zod.string().describe('The practice\'s IANA time zone, in which to show the times'),
   "today": zod.iso.date().describe('Today on the practice\'s calendar'),
   "truncated": zod.boolean().describe('More appointments than one answer holds: the list stops there')
+})
+
+/**
+ * @summary The free times of one day for the team (W7)
+ */
+export const GetDeskFreeTimesParams = zod.object({
+  "practiceId": zod.uuid()
+})
+
+export const GetDeskFreeTimesQueryParams = zod.object({
+  "serviceId": zod.uuid(),
+  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
+  "date": zod.string().describe('A day in the practice\'s time zone')
+})
+
+export const GetDeskFreeTimesResponse = zod.object({
+  "date": zod.string().describe('ISO date in the practice\'s time zone'),
+  "times": zod.array(zod.object({
+  "startsAt": zod.string().describe('An instant')
+}))
+})
+
+/**
+ * @summary Add a patient without an account (W7), to book on the phone and at the desk
+ */
+export const AddDeskPatientParams = zod.object({
+  "practiceId": zod.uuid()
+})
+
+export const addDeskPatientBodyDateOfBirthRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const addDeskPatientBodyFirstNameMax = 100;
+
+
+export const addDeskPatientBodyFirstNameRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const addDeskPatientBodyInsuranceNumberRegExp = new RegExp('^[\\p{L}\\p{Nd}][\\p{L}\\p{Nd} ./-]{5,39}$', 'u');
+export const addDeskPatientBodyInsuranceProviderMax = 100;
+
+
+export const addDeskPatientBodyInsuranceProviderRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const addDeskPatientBodyLastNameMax = 100;
+
+
+export const addDeskPatientBodyLastNameRegExp = new RegExp('^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$', 'u');
+export const addDeskPatientBodyPhoneRegExp = new RegExp('^\\+?(?=(?:[ ()-]*\\p{Nd}){6})[\\p{Nd} ()-]{6,20}$', 'u');
+
+
+export const AddDeskPatientBody = zod.object({
+  "confirmDuplicate": zod.boolean().optional().describe('Add although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart'),
+  "dateOfBirth": zod.iso.date().regex(addDeskPatientBodyDateOfBirthRegExp).optional(),
+  "firstName": zod.string().min(1).max(addDeskPatientBodyFirstNameMax).regex(addDeskPatientBodyFirstNameRegExp).optional(),
+  "insuranceNumber": zod.string().regex(addDeskPatientBodyInsuranceNumberRegExp).optional().describe('Left out, the known one stays; the format depends on the practice and its market'),
+  "insuranceProvider": zod.string().max(addDeskPatientBodyInsuranceProviderMax).regex(addDeskPatientBodyInsuranceProviderRegExp).optional(),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']).optional(),
+  "lastName": zod.string().min(1).max(addDeskPatientBodyLastNameMax).regex(addDeskPatientBodyLastNameRegExp).optional(),
+  "phone": zod.string().regex(addDeskPatientBodyPhoneRegExp).nullish()
+})
+
+export const AddDeskPatientResponse = zod.object({
+  "age": zod.number().describe('Whole years on today\'s date in the practice'),
+  "dateOfBirth": zod.iso.date(),
+  "firstName": zod.string(),
+  "hasAccount": zod.boolean().describe('The profile belongs to an account; false for one the practice keeps'),
+  "id": zod.uuid(),
+  "insuranceProvider": zod.string().nullable(),
+  "insuranceType": zod.enum(['PUBLIC', 'PRIVATE', 'SELF_PAY']),
+  "lastName": zod.string(),
+  "lastVisitAt": zod.iso.datetime({"offset":true}).nullable().describe('The start of the last visit that took place (checked in or completed)'),
+  "nextAppointmentAt": zod.iso.datetime({"offset":true}).nullable().describe('The start of the next booked appointment'),
+  "phone": zod.string().nullable()
 })
 
 /**

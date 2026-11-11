@@ -5,6 +5,7 @@ import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
+import type { Prisma } from '../../generated/practice/client.js';
 import { PUBLIC_PROVIDER } from './domain/public-profile.js';
 import {
   bookableWindow,
@@ -12,6 +13,7 @@ import {
   daysInRange,
   daysWithFreeTimes,
   type InstantRange,
+  practiceBookableWindow,
 } from './domain/slots.rules.js';
 import type {
   PublicAvailabilityDto,
@@ -28,14 +30,41 @@ interface Offer {
   readonly providerId?: string | undefined;
 }
 
+/**
+ * Who asks for free times: which services and which doctors by name they may ask about, and from
+ * when to when they may book. Both see the same starts, without a slot id and without who has them.
+ */
+export interface FreeTimesAudience {
+  readonly services: Prisma.ServiceWhereInput;
+  readonly providers: Prisma.StaffMemberWhereInput;
+  readonly window: (
+    now: Temporal.Instant,
+    settings: { readonly minLeadTimeMinutes: number; readonly maxHorizonDays: number },
+  ) => { readonly earliest: Temporal.Instant; readonly latest: Temporal.Instant };
+}
+
+/** The public page and the patients (BR-03, BR-08, BR-22, BR-24). */
+export const PUBLIC_AUDIENCE: FreeTimesAudience = {
+  services: { active: true, isBookableOnline: true },
+  providers: PUBLIC_PROVIDER,
+  window: bookableWindow,
+};
+
+/** The team, booking for a patient (W7): every active service and doctor, from now on. */
+export const PRACTICE_AUDIENCE: FreeTimesAudience = {
+  services: { active: true },
+  providers: { isProvider: true },
+  window: practiceBookableWindow,
+};
+
 function laterOf(a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant {
   return Temporal.Instant.compare(a, b) >= 0 ? a : b;
 }
 
 /**
- * The free times of the practice of the current `@PracticeScoped('slug')` request (BR-03, BR-08,
- * BR-22). A service that cannot be booked online and a provider without a public profile both
- * answer 404, like an id of another practice, which this database does not know.
+ * The free times of the practice of the current request (BR-03, BR-08, BR-22), as its audience may
+ * see them. A service or a provider outside the audience answers 404, like an id of another
+ * practice, which this database does not know.
  */
 @Injectable()
 export class PublicFreeTimesService {
@@ -44,9 +73,12 @@ export class PublicFreeTimesService {
     private readonly clock: Clock,
   ) {}
 
-  async availability(query: PublicAvailabilityQueryDto): Promise<PublicAvailabilityDto> {
+  async availability(
+    query: PublicAvailabilityQueryDto,
+    audience: FreeTimesAudience = PUBLIC_AUDIENCE,
+  ): Promise<PublicAvailabilityDto> {
     const settings = await this.settings();
-    await this.assertOffered(query);
+    await this.assertOffered(query, audience);
     const { timeZone } = settings;
     const from =
       query.from === undefined
@@ -67,7 +99,7 @@ export class PublicFreeTimesService {
     const starts = await this.freeStarts(
       query,
       { start: dayRange(from, timeZone).start, end: dayRange(to, timeZone).end },
-      settings,
+      audience.window(this.clock.now(), settings),
     );
     return {
       days: daysWithFreeTimes(from, to, starts, timeZone).map(({ date, hasFreeTimes }) => ({
@@ -77,11 +109,18 @@ export class PublicFreeTimesService {
     };
   }
 
-  async freeTimesOfDay(query: PublicFreeTimesQueryDto): Promise<PublicFreeTimesDto> {
+  async freeTimesOfDay(
+    query: PublicFreeTimesQueryDto,
+    audience: FreeTimesAudience = PUBLIC_AUDIENCE,
+  ): Promise<PublicFreeTimesDto> {
     const settings = await this.settings();
-    await this.assertOffered(query);
+    await this.assertOffered(query, audience);
     const date = Temporal.PlainDate.from(query.date);
-    const starts = await this.freeStarts(query, dayRange(date, settings.timeZone), settings);
+    const starts = await this.freeStarts(
+      query,
+      dayRange(date, settings.timeZone),
+      audience.window(this.clock.now(), settings),
+    );
     return {
       date: date.toString(),
       times: starts.map((start) => ({ startsAt: start.toString() })),
@@ -99,16 +138,19 @@ export class PublicFreeTimesService {
     });
   }
 
-  private async assertOffered({ serviceId, providerId }: Offer): Promise<void> {
+  private async assertOffered(
+    { serviceId, providerId }: Offer,
+    audience: FreeTimesAudience,
+  ): Promise<void> {
     const db = this.txHost.tx;
     const service = await db.service.findFirst({
-      where: { id: serviceId, active: true, isBookableOnline: true },
+      where: { id: serviceId, ...audience.services },
       select: { id: true },
     });
     if (service === null) throw new DomainException('NOT_FOUND');
     if (providerId === undefined) return;
     const provider = await db.staffMember.findFirst({
-      where: { id: providerId, ...PUBLIC_PROVIDER },
+      where: { id: providerId, ...audience.providers },
       select: { id: true },
     });
     if (provider === null) throw new DomainException('NOT_FOUND');
@@ -121,9 +163,11 @@ export class PublicFreeTimesService {
   private async freeStarts(
     { serviceId, providerId }: Offer,
     { start, end }: InstantRange,
-    settings: { readonly minLeadTimeMinutes: number; readonly maxHorizonDays: number },
+    {
+      earliest,
+      latest,
+    }: { readonly earliest: Temporal.Instant; readonly latest: Temporal.Instant },
   ): Promise<Temporal.Instant[]> {
-    const { earliest, latest } = bookableWindow(this.clock.now(), settings);
     const rows = await this.txHost.tx.slot.groupBy({
       by: ['startsAt'],
       where: {

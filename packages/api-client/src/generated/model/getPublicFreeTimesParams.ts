@@ -7,7 +7,7 @@
 
 export type GetPublicFreeTimesParams = {
   serviceId: string;
-  /** A doctor with a public profile */
+  /** A doctor: on the public routes one with a public profile */
   providerId?: string;
   /** A day in the practice's time zone */
   date: string;

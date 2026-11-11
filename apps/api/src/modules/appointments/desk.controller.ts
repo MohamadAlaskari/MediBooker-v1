@@ -1,7 +1,9 @@
-import { Body, Controller, Get, HttpCode, Ip, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Ip, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -11,6 +13,17 @@ import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
 import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
+import {
+  PRACTICE_AUDIENCE,
+  PublicFreeTimesService,
+} from '../scheduling/public-free-times.service.js';
+import {
+  PublicAvailabilityDto,
+  PublicAvailabilityQueryDto,
+  PublicFreeTimesDto,
+  PublicFreeTimesQueryDto,
+} from '../scheduling/public-free-times.dto.js';
+import { IDEMPOTENCY_HEADER } from './appointments.controller.js';
 import { DeskPatients } from './desk-patients.js';
 import {
   CancelAsPracticeDto,
@@ -18,11 +31,14 @@ import {
   DeskAppointmentPageDto,
   DeskAppointmentRowDto,
   DeskAppointmentSearchDto,
+  DeskBookingDto,
   DeskCatalogDto,
   DeskDayDto,
   DeskDayQueryDto,
+  DeskNewPatientDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
+  DeskPatientRowDto,
   DeskPatientSearchDto,
 } from './desk.dto.js';
 import { DeskService } from './desk.service.js';
@@ -40,6 +56,13 @@ const DESK_CHANGE_LIMIT = { default: { limit: 120, ttl: 60_000 } };
 const DESK_SEARCH_LIMIT = { default: { limit: 60, ttl: 60_000 } };
 
 /**
+ * Per route, address and minute, stricter than the default for what creates (health-data-security
+ * §8): a reception books one patient on the phone at a time, and adds a new one more rarely.
+ */
+const DESK_BOOK_LIMIT = { default: { limit: 30, ttl: 60_000 } };
+const DESK_ADD_PATIENT_LIMIT = { default: { limit: 20, ttl: 60_000 } };
+
+/**
  * The practice's side of its appointments (M05), for every role of its team with both factors
  * (A04). A path of its own: a person can be a patient of the practice and on its team, and the path
  * says in which of the two they act, never a guess of the API.
@@ -53,7 +76,60 @@ export class DeskController {
   constructor(
     private readonly desk: DeskService,
     private readonly patients: DeskPatients,
+    private readonly freeTimes: PublicFreeTimesService,
   ) {}
+
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary: 'Days with free times for the team (W7): every active service and doctor, from now on',
+  })
+  @ApiOkResponse({ type: PublicAvailabilityDto })
+  @Get('availability')
+  async getDeskAvailability(
+    @Query() query: PublicAvailabilityQueryDto,
+  ): Promise<PublicAvailabilityDto> {
+    return this.freeTimes.availability(query, PRACTICE_AUDIENCE);
+  }
+
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({ summary: 'The free times of one day for the team (W7)' })
+  @ApiOkResponse({ type: PublicFreeTimesDto })
+  @Get('free-times')
+  async getDeskFreeTimes(@Query() query: PublicFreeTimesQueryDto): Promise<PublicFreeTimesDto> {
+    return this.freeTimes.freeTimesOfDay(query, PRACTICE_AUDIENCE);
+  }
+
+  @Throttle(DESK_BOOK_LIMIT)
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary: 'Book a free time for a patient of the practice (W7); the row as the desk shows it',
+  })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiCreatedResponse({ type: DeskAppointmentRowDto })
+  @Post('appointments')
+  async bookDeskAppointment(
+    @CurrentUser() actor: Actor,
+    @Body() input: DeskBookingDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Ip() ip: string,
+  ): Promise<DeskAppointmentRowDto> {
+    return this.desk.book(actor, input, idempotencyKey, ip);
+  }
+
+  @Throttle(DESK_ADD_PATIENT_LIMIT)
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary: 'Add a patient without an account (W7), to book on the phone and at the desk',
+  })
+  @ApiCreatedResponse({ type: DeskPatientRowDto })
+  @Post('patients')
+  async addDeskPatient(
+    @CurrentUser() actor: Actor,
+    @Body() input: DeskNewPatientDto,
+    @Ip() ip: string,
+  ): Promise<DeskPatientRowDto> {
+    return this.patients.add(actor, input, ip);
+  }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
   @ApiOperation({ summary: 'The doctors and services of the practice, for filters and booking' })

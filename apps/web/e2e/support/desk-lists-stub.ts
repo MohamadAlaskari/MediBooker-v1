@@ -17,6 +17,7 @@ import type {
 } from '@medibooker/api-client';
 import { bodyOf, problem, respond } from './answers.ts';
 import {
+  addedPatientsOf,
   type Appointment,
   type DeskAccess,
   dayOf,
@@ -129,8 +130,14 @@ function patientOf(appointment: Appointment): DeskPatientRowDto {
   };
 }
 
+/** Every patient of the stub's practice for this account: of the week, quiet ones, and added ones. */
+export function patientsOf(owner: string): DeskPatientRowDto[] {
+  const ofTheWeek = [...dayOf(owner).values()].filter(({ patientId }) => patientId === undefined);
+  return [...ofTheWeek.map(patientOf), ...QUIET_PATIENTS, ...addedPatientsOf(owner)];
+}
+
 function patientsAnswer(owner: string, search: DeskPatientSearchDto): DeskPatientPageDto {
-  const all = [...[...dayOf(owner).values()].map(patientOf), ...QUIET_PATIENTS]
+  const all = patientsOf(owner)
     .filter((patient) => matches(`${patient.firstName} ${patient.lastName}`, search.query))
     .filter(
       (patient) =>
@@ -158,6 +165,7 @@ function recordOf(appointment: Appointment): DeskPatientRecordDto {
 const CATALOG: DeskCatalogDto = {
   providers: [{ id: PROVIDER_ID, name: 'Dr. Lina Example' }],
   services: SERVICES,
+  insurance: { types: ['PUBLIC', 'SELF_PAY'], providerTypes: ['PUBLIC'], numberTypes: ['PUBLIC'] },
 };
 
 const PRACTICE_DESK = String.raw`^\/api\/v1\/practices\/[^/]+\/desk`;

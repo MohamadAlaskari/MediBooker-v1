@@ -18,7 +18,7 @@ import {
  * account's profile and a change keeps it. What is still missing then is named in the answer, so a
  * person is asked only for that. A null is no value, except for a phone, which it removes.
  */
-class PatientDetailsDto {
+export class PatientDetailsDto {
   @ApiPropertyOptional({ minLength: 1, maxLength: MAX_NAME_LENGTH, pattern: PLAIN_TEXT.source })
   @ValidateIf(({ firstName }: PatientDetailsDto) => firstName !== undefined)
   @IsString()

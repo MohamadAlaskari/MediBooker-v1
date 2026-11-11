@@ -35,7 +35,7 @@ const CHANGE_LIMIT = { default: { limit: 10, ttl: 60_000 } };
 /** One request can open a client for each of a person's practices, from a budget all of them share. */
 const FAN_OUT_LIMIT = { default: { limit: 30, ttl: 60_000 } };
 
-const IDEMPOTENCY_HEADER = {
+export const IDEMPOTENCY_HEADER = {
   name: 'Idempotency-Key',
   required: true,
   description: 'A new UUID per attempt: sent again, it answers with the first result',

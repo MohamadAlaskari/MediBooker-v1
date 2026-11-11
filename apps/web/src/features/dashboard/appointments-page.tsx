@@ -20,6 +20,7 @@ import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
 import { AppointmentSheet } from './appointment-sheet';
 import { AppointmentTable, type RowGroup } from './appointment-table';
+import { BookForPatient } from './book-for-patient';
 import { useDesk } from './desk-context';
 import { nextDay } from './desk-view';
 import { Pager, useCursorPages, useSettled } from './pager';
@@ -166,6 +167,7 @@ export function AppointmentsPage(): ReactNode {
           >
             <ChevronRight aria-hidden className="rtl:-scale-x-100" />
           </Button>
+          {format === undefined ? null : <BookForPatient format={format} onBooked={setNews} />}
         </div>
       </header>
       <section

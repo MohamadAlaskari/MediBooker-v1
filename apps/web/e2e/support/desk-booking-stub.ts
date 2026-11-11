@@ -1,0 +1,220 @@
+/**
+ * Booking for a patient (M05, W7) as the API answers it, over the stub's day of `desk-stub.ts`: the
+ * team's free days and times, a booking that joins the day and the lists, and a patient without an
+ * account who joins the search. The rules themselves are the API's, which its own tests prove.
+ */
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type {
+  DeskBookingDto,
+  DeskNewPatientDto,
+  DeskPatientRowDto,
+  PublicAvailabilityDto,
+  PublicFreeTimesDto,
+} from '@medibooker/api-client';
+import { bodyOf, type FieldProblem, problem, respond } from './answers.ts';
+import { patientsOf } from './desk-lists-stub.ts';
+import {
+  addedPatientsOf,
+  type Appointment,
+  type DeskAccess,
+  dayOf,
+  rowOf,
+  SERVICES,
+  TODAY,
+} from './desk-stub.ts';
+
+const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
+const RIYADH_OFFSET_MS = 3 * 60 * MINUTE_MS;
+const AVAILABILITY_DAYS = 42;
+/** The stub's free starts: after its clock today (12:00 to 13:00 in Riyadh), and tomorrow morning. */
+const STARTS = [
+  '2026-11-08T09:00:00Z',
+  '2026-11-08T09:30:00Z',
+  '2026-11-08T10:00:00Z',
+  '2026-11-09T05:00:00Z',
+  '2026-11-09T05:30:00Z',
+];
+
+function plusDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+function dayInRiyadh(instant: string): string {
+  return new Date(Date.parse(instant) + RIYADH_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** The starts nobody has booked: a booking takes its start away, as the API's slot does. */
+function freeStartsOf(owner: string): string[] {
+  const taken = new Set(
+    [...dayOf(owner).values()]
+      .filter(({ status }) => status !== 'CANCELLED')
+      .map(({ startsAt }) => startsAt),
+  );
+  return STARTS.filter((startsAt) => !taken.has(startsAt));
+}
+
+function availabilityAnswer(owner: string): PublicAvailabilityDto {
+  const free = new Set(freeStartsOf(owner).map(dayInRiyadh));
+  return {
+    days: Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
+      const date = plusDays(TODAY, offset);
+      return { date, hasFreeTimes: free.has(date) };
+    }),
+  };
+}
+
+function freeTimesAnswer(owner: string, date: string): PublicFreeTimesDto {
+  return {
+    date,
+    times: freeStartsOf(owner)
+      .filter((startsAt) => dayInRiyadh(startsAt) === date)
+      .map((startsAt) => ({ startsAt })),
+  };
+}
+
+async function book(
+  owner: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  if (typeof request.headers['idempotency-key'] !== 'string') {
+    problem(response, 'VALIDATION_FAILED', {
+      errors: [{ field: 'Idempotency-Key', code: 'REQUIRED' }],
+    });
+    return;
+  }
+  const input = await bodyOf<DeskBookingDto>(request);
+  const patient = patientsOf(owner).find(({ id }) => id === input.patientId);
+  const service = SERVICES.find(({ id }) => id === input.serviceId);
+  if (patient === undefined || service === undefined) {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  if (!freeStartsOf(owner).includes(input.startsAt)) {
+    problem(response, 'SLOT_NOT_AVAILABLE');
+    return;
+  }
+  const day = dayOf(owner);
+  const appointment: Appointment = {
+    id: `40000000-0000-4000-8000-0000000001${String(day.size).padStart(2, '0')}`,
+    date: input.startsAt.slice(0, 10),
+    startsAt: input.startsAt,
+    endsAt: new Date(Date.parse(input.startsAt) + service.durationMinutes * MINUTE_MS)
+      .toISOString()
+      .replace('.000', ''),
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    insuranceType: patient.insuranceType,
+    serviceName: service.name,
+    durationMinutes: service.durationMinutes,
+    providerName: 'Dr. Lina Example',
+    bookedOnline: false,
+    patientNote: null,
+    patientId: patient.id,
+    status: 'BOOKED',
+    checkedInAt: null,
+    completedAt: null,
+    cancelledAt: null,
+    cancelReason: null,
+  };
+  day.set(appointment.id, appointment);
+  respond(response, 201, rowOf(appointment));
+}
+
+const REQUIRED = ['firstName', 'lastName', 'dateOfBirth', 'insuranceType'] as const;
+
+async function addPatient(
+  owner: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  const input = await bodyOf<DeskNewPatientDto>(request);
+  // The stub practice asks a provider and a number of a public insurance only, as the catalogue says.
+  const isPublic = input.insuranceType === 'PUBLIC';
+  const errors: FieldProblem[] = [
+    ...REQUIRED.filter((field) => (input[field] ?? '') === '').map((field): FieldProblem => ({
+      field,
+      code: 'REQUIRED',
+    })),
+    ...(isPublic && input.insuranceProvider === undefined
+      ? [{ field: 'insuranceProvider', code: 'REQUIRED' } as const]
+      : []),
+    ...(isPublic && input.insuranceNumber === undefined
+      ? [{ field: 'insuranceNumber', code: 'REQUIRED' } as const]
+      : []),
+  ];
+  if (
+    errors.length > 0 ||
+    input.firstName === undefined ||
+    input.lastName === undefined ||
+    input.dateOfBirth === undefined ||
+    input.insuranceType === undefined
+  ) {
+    problem(response, 'VALIDATION_FAILED', { errors });
+    return;
+  }
+  // The API's check of the same person twice, by name and date of birth (W7).
+  const name = `${input.firstName} ${input.lastName}`.toLowerCase();
+  const same = patientsOf(owner).some(
+    (known) =>
+      `${known.firstName} ${known.lastName}`.toLowerCase() === name &&
+      known.dateOfBirth === input.dateOfBirth,
+  );
+  if (same && input.confirmDuplicate !== true) {
+    problem(response, 'PATIENT_MAY_EXIST');
+    return;
+  }
+  const added = addedPatientsOf(owner);
+  const patient: DeskPatientRowDto = {
+    id: `50000000-0000-4000-8000-0000000003${String(added.length).padStart(2, '0')}`,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    insuranceType: input.insuranceType,
+    dateOfBirth: input.dateOfBirth,
+    age: Number(TODAY.slice(0, 4)) - Number(input.dateOfBirth.slice(0, 4)),
+    phone: input.phone ?? null,
+    insuranceProvider: input.insuranceProvider ?? null,
+    hasAccount: false,
+    lastVisitAt: null,
+    nextAppointmentAt: null,
+  };
+  added.push(patient);
+  respond(response, 201, patient);
+}
+
+const DESK = String.raw`^\/api\/v1\/practices\/[^/]+\/desk`;
+const ROUTES = [
+  ['availability', new RegExp(`${DESK}\\/availability$`)],
+  ['free-times', new RegExp(`${DESK}\\/free-times$`)],
+  ['book', new RegExp(`${DESK}\\/appointments$`)],
+  ['add', new RegExp(`${DESK}\\/patients$`)],
+] as const;
+
+/** Takes the requests of booking for a patient, and answers whether it did. */
+export function handleDeskBooking(
+  pathname: string,
+  searchParams: URLSearchParams,
+  request: IncomingMessage,
+  response: ServerResponse,
+  access: () => DeskAccess,
+): boolean {
+  const route = ROUTES.find(([, path]) => path.test(pathname))?.[0];
+  if (route === undefined) return false;
+  const who = access();
+  if ('refusal' in who) {
+    problem(response, who.refusal);
+    return true;
+  }
+  const reads = route === 'availability' || route === 'free-times';
+  if (request.method !== (reads ? 'GET' : 'POST')) {
+    problem(response, 'NOT_FOUND');
+    return true;
+  }
+  if (route === 'availability') respond(response, 200, availabilityAnswer(who.email));
+  else if (route === 'free-times') {
+    respond(response, 200, freeTimesAnswer(who.email, searchParams.get('date') ?? TODAY));
+  } else if (route === 'book') void book(who.email, request, response);
+  else void addPatient(who.email, request, response);
+  return true;
+}

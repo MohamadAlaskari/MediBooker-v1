@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { Injectable } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
@@ -5,6 +6,7 @@ import type { RequestContext } from '../../common/context/request-context.js';
 import { isUuid } from '../../common/context/request-id.js';
 import { PlatformPrismaService } from '../../common/database/platform-prisma.service.js';
 import { DomainException } from '../../common/errors/domain.exception.js';
+import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
 import { cursorPageOf, decodeCursor, invalidCursor } from '../../common/http/cursor-page.js';
 import type { Actor } from '../../common/security/actor.js';
 import { PracticeAudit } from '../../common/tenancy/practice-audit.js';
@@ -12,11 +14,15 @@ import { requirePracticeContext } from '../../common/tenancy/practice-context.js
 import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
-import { dbInstantOf, plainDateOf } from '../../common/time/convert.js';
+import { dbDateOf, dbInstantOf, plainDateOf } from '../../common/time/convert.js';
 import { Prisma } from '../../generated/practice/client.js';
 import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.js';
+import { birthDateOf } from '../patients/domain/birth-date.rules.js';
+import { checkedInsurance, type FieldProblem } from '../patients/domain/insurance.rules.js';
+import { insuranceNumberIndexOf, sealedInsuranceNumber } from '../patients/insurance-number.js';
 import { DESK_AUDIT, DeskRows, iso, LIST_AUDIT_MINUTES, ROW_FIELDS } from './desk-rows.js';
 import type {
+  DeskNewPatientDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
   DeskPatientRowDto,
@@ -28,13 +34,36 @@ import {
   ASCII_DIGITS,
   type PatientSearch,
   patientSearchOf,
+  searchTextOf,
 } from './domain/patient-search.rules.js';
 
 /** What the record of a patient shows of what is to come and what was. */
 const RECORD_APPOINTMENTS = 5;
 
-/** The audit actions of the team's reads of patients (BR-18). */
-export const PATIENT_AUDIT = { list: 'patient.list', read: 'patient.read' } as const;
+/** The audit actions of the team's reads of patients (BR-18), and of a patient it adds (W7). */
+export const PATIENT_AUDIT = {
+  list: 'patient.list',
+  read: 'patient.read',
+  add: 'patient.add_by_practice',
+  /** Added although a patient with the same name and date of birth or number exists (W7). */
+  addDespiteMatch: 'patient.add_by_practice_despite_match',
+} as const;
+
+const INSURANCE_RULES = {
+  insuranceTypes: true,
+  insuranceProviderTypes: true,
+  insuranceNumberTypes: true,
+} as const;
+
+function validationFailed(problems: readonly FieldProblem[]): DomainException {
+  return new DomainException('VALIDATION_FAILED', {
+    fieldErrors: problems.map(({ field, code }) => ({
+      field,
+      code,
+      message: FIELD_ERROR_MESSAGES[code],
+    })),
+  });
+}
 
 /** Every condition, or TRUE for none. */
 function allOf(conditions: readonly Prisma.Sql[]): Prisma.Sql {
@@ -145,6 +174,99 @@ export class DeskPatients {
     };
   }
 
+  /**
+   * W7 "Add patient": a person without an account, or not yet with one, as a patient of the practice,
+   * with what it asks of every patient (BR-10): the number sealed and indexed as at a join (B01).
+   * Such a profile books only through the team, which an account can take over later (FA01).
+   */
+  async add(
+    { userId }: Actor,
+    input: DeskNewPatientDto,
+    ip: string | undefined,
+  ): Promise<DeskPatientRowDto> {
+    const { practice } = requirePracticeContext(this.cls);
+    const db = this.txHost.tx;
+    const rules = await db.practiceSettings.findUniqueOrThrow({
+      where: { id: 1 },
+      select: INSURANCE_RULES,
+    });
+    const insurance = checkedInsurance(rules, practice.market, {
+      type: input.insuranceType,
+      provider: input.insuranceProvider ?? null,
+      number: input.insuranceNumber,
+      numberKnown: false,
+    });
+    const today = this.clock.now().toZonedDateTimeISO('UTC').toPlainDate();
+    const birthDate = birthDateOf(input.dateOfBirth, today);
+    const { firstName, lastName, insuranceType } = input;
+    const problems: readonly FieldProblem[] = [
+      ...(firstName === undefined ? [{ field: 'firstName', code: 'REQUIRED' } as const] : []),
+      ...(lastName === undefined ? [{ field: 'lastName', code: 'REQUIRED' } as const] : []),
+      ...birthDate.problems,
+      ...insurance.problems,
+    ];
+    if (
+      problems.length > 0 ||
+      firstName === undefined ||
+      lastName === undefined ||
+      birthDate.value === undefined ||
+      insuranceType === undefined
+    ) {
+      throw validationFailed(problems);
+    }
+    const dateOfBirth = birthDate.value;
+    const id = randomUUID();
+    const number = insurance.number;
+    const sealed =
+      number === undefined
+        ? undefined
+        : await sealedInsuranceNumber(this.keys, practice.id, id, number);
+    // The same person twice would split their history and count BR-02 and BR-25 twice: a match by
+    // name and date of birth, or by insurance number, asks the team to look first (security review).
+    const [match] = await db.$queryRaw<{ id: string }[]>`
+      SELECT p.id FROM patients p
+      WHERE (p.search_name = ${searchTextOf(`${firstName} ${lastName}`)}
+          AND p.date_of_birth = ${dateOfBirth.toString()}::date)
+        OR p.insurance_number_index = ${sealed?.insuranceNumberIndex ?? null}
+      LIMIT 1`;
+    if (match !== undefined && input.confirmDuplicate !== true) {
+      throw new DomainException('PATIENT_MAY_EXIST');
+    }
+    const action = match === undefined ? PATIENT_AUDIT.add : PATIENT_AUDIT.addDespiteMatch;
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.txHost.withTransaction(async () => {
+      await this.txHost.tx.patient.create({
+        data: {
+          id,
+          userId: null,
+          relationship: 'SELF',
+          firstName,
+          lastName,
+          dateOfBirth: dbDateOf(dateOfBirth),
+          contactPhone: input.phone ?? null,
+          insuranceType,
+          insuranceProvider: insurance.provider,
+          ...(sealed ?? {}),
+        },
+      });
+      await this.audit.record({ userId, action, subjectId: id, ipHash });
+    });
+    const settings = await this.rows.displaySettings();
+    return {
+      id,
+      firstName,
+      lastName,
+      insuranceType,
+      dateOfBirth: dateOfBirth.toString(),
+      age: ageOn(dateOfBirth, dayOf(this.clock.now(), settings.timeZone)),
+      phone: input.phone ?? null,
+      insuranceProvider: insurance.provider,
+      hasAccount: false,
+      lastVisitAt: null,
+      nextAppointmentAt: null,
+    };
+  }
+
   /** One patient with what is to come and what was; the read is audited (BR-18). */
   async record(
     { userId }: Actor,
@@ -240,7 +362,7 @@ export class DeskPatients {
     ]);
     if (search.insuranceNumber === undefined) return Prisma.sql`(${match})`;
     const { practice } = requirePracticeContext(this.cls);
-    const hash = await this.keys.keyedHash(practice.id, 'insurance-number', search.insuranceNumber);
+    const hash = await insuranceNumberIndexOf(this.keys, practice.id, search.insuranceNumber);
     return Prisma.sql`((${match}) OR p.insurance_number_index = ${hash})`;
   }
 

@@ -49,6 +49,17 @@ export function isServiceBookable(service: BookableService, insuranceType: strin
   );
 }
 
+/**
+ * BR-08 for the team (W7): an active service that allows the patient's insurance type, also one that
+ * patients cannot book online, which is what such a service is for.
+ */
+export function isServiceBookableByPractice(
+  service: BookableService,
+  insuranceType: string,
+): boolean {
+  return isServiceBookable({ ...service, isBookableOnline: true }, insuranceType);
+}
+
 /** BR-03, both ends included: the window of `bookableWindow`, which counts elapsed time. */
 export function isInBookingWindow(
   startsAt: Temporal.Instant,

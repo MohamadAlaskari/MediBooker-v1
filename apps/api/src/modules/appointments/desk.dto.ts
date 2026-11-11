@@ -1,7 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { CursorQueryDto } from '../../common/http/cursor-page.js';
-import { MAX_NOTE_LENGTH, NOTE_TEXT } from './appointments.dto.js';
+import { PatientDetailsDto } from '../patients/patients.dto.js';
+import { INSTANT, MAX_NOTE_LENGTH, NOTE_TEXT } from './appointments.dto.js';
 import {
   APPOINTMENT_STATUSES,
   type AppointmentStatusName,
@@ -24,6 +34,49 @@ export class DeskDayQueryDto {
   @IsString()
   @Matches(ISO_DATE)
   readonly date?: string;
+}
+
+/**
+ * W7: a time for a patient of the practice, booked by the team. A time, not a slot, as for a
+ * patient's own booking: the API picks a free slot of that time in its transaction.
+ */
+export class DeskBookingDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  readonly patientId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  readonly serviceId!: string;
+
+  @ApiProperty({ format: 'date-time', pattern: INSTANT.source })
+  @IsString()
+  @Matches(INSTANT)
+  readonly startsAt!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A doctor of the practice; left out, any doctor free at that time',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  readonly providerId?: string;
+}
+
+/**
+ * W7 "Add patient": a person without an account as a patient of the practice, with what the
+ * practice asks of every patient (BR-10). The names, the date of birth and the insurance type are
+ * required, which the answer names field by field; a phone, a provider and a number as the
+ * practice's rules ask.
+ */
+export class DeskNewPatientDto extends PatientDetailsDto {
+  @ApiPropertyOptional({
+    description:
+      'Add although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart',
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly confirmDuplicate?: boolean;
 }
 
 /** Why the practice cancels (BR-04). The patient is not told the reason. */
@@ -468,11 +521,38 @@ export class DeskServiceDto {
   readonly active!: boolean;
 }
 
-/** What the team chooses from: the doctors and the services of the practice. */
+/** What the practice asks of a patient's insurance (BR-10), for a patient the team adds (W7). */
+export class DeskInsuranceRulesDto {
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The types the practice takes',
+  })
+  readonly types!: readonly (typeof INSURANCE_TYPES)[number][];
+
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The types that need a provider',
+  })
+  readonly providerTypes!: readonly (typeof INSURANCE_TYPES)[number][];
+
+  @ApiProperty({
+    enum: INSURANCE_TYPES,
+    isArray: true,
+    description: 'The types that need a number',
+  })
+  readonly numberTypes!: readonly (typeof INSURANCE_TYPES)[number][];
+}
+
+/** What the team chooses from: the doctors and the services of the practice, and its insurance rules. */
 export class DeskCatalogDto {
   @ApiProperty({ type: [DeskProviderDto] })
   readonly providers!: readonly DeskProviderDto[];
 
   @ApiProperty({ type: [DeskServiceDto] })
   readonly services!: readonly DeskServiceDto[];
+
+  @ApiProperty({ type: DeskInsuranceRulesDto })
+  readonly insurance!: DeskInsuranceRulesDto;
 }

@@ -14,7 +14,8 @@ import { FAN_OUT_REASONS, type FanOutReason } from '../../common/tenancy/practic
 
 export const MAX_NOTE_LENGTH = 500;
 /** With an offset, so that it names one instant. A date without a time is no time to book. */
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+export const INSTANT =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 /**
  * What a person writes for the practice, also over several lines, but with a visible character and
  * without what a screen would not show or would disguise it with: control and format characters,

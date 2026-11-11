@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PlatformDatabaseModule } from '../../common/database/platform-database.module.js';
 import { TenancyModule } from '../../common/tenancy/tenancy.module.js';
+import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { AppointmentReader } from './appointment-reader.js';
 import {
   AppointmentsController,
@@ -16,7 +17,7 @@ import { IdempotencyKeySweepJob } from './idempotency-key-sweep.job.js';
 
 /** A patient's appointments (B02, B03), and the practice's side of them (M05). */
 @Module({
-  imports: [PlatformDatabaseModule, TenancyModule],
+  imports: [PlatformDatabaseModule, TenancyModule, SchedulingModule],
   controllers: [
     AppointmentsController,
     MyPracticeAppointmentsController,
