@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { CursorQueryDto } from '../../common/http/cursor-page.js';
 import { MAX_NOTE_LENGTH, NOTE_TEXT } from './appointments.dto.js';
 import {
   APPOINTMENT_STATUSES,
@@ -233,4 +234,245 @@ export class DeskAppointmentDto extends DeskAppointmentRowDto {
 
   @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
   readonly hourCycle!: string;
+}
+
+/** The longest search the team types: a name, a phone number, a date or an insurance number. */
+const MAX_SEARCH_LENGTH = 100;
+
+/**
+ * W5: the appointments of some days, with what the team narrows them to. The body of a POST that
+ * only reads: a name or number typed into the search stays out of every URL and its logs
+ * (health-data-security; security review of M05).
+ */
+export class DeskAppointmentSearchDto extends CursorQueryDto {
+  @ApiPropertyOptional({
+    format: 'date',
+    pattern: ISO_DATE.source,
+    description: "The first day, on the practice's calendar; left out, today",
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(ISO_DATE)
+  readonly from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date',
+    pattern: ISO_DATE.source,
+    description: 'The last day, included; left out, six days after the first. At most 92 days',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(ISO_DATE)
+  readonly to?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  readonly providerId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  readonly serviceId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  readonly patientId?: string;
+
+  @ApiPropertyOptional({ enum: APPOINTMENT_STATUSES })
+  @IsOptional()
+  @IsIn(APPOINTMENT_STATUSES)
+  readonly status?: AppointmentStatusName;
+
+  @ApiPropertyOptional({
+    maxLength: MAX_SEARCH_LENGTH,
+    description: 'A patient by name, phone number, date of birth or insurance number',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_SEARCH_LENGTH)
+  readonly query?: string;
+}
+
+export class DeskAppointmentPageDto {
+  @ApiProperty({ type: [DeskAppointmentRowDto] })
+  readonly items!: readonly DeskAppointmentRowDto[];
+
+  @ApiProperty({ type: String, nullable: true, description: 'Null on the last page' })
+  readonly nextCursor!: string | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'How many appointments the whole list holds; only on the first page, null after a cursor',
+  })
+  readonly total!: number | null;
+
+  @ApiProperty({ format: 'date' })
+  readonly from!: string;
+
+  @ApiProperty({ format: 'date' })
+  readonly to!: string;
+
+  @ApiProperty({ format: 'date', description: "Today on the practice's calendar" })
+  readonly today!: string;
+
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
+  @ApiProperty({ description: "The practice's digits, for showing the times" })
+  readonly numberingSystem!: string;
+
+  @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
+  readonly hourCycle!: string;
+}
+
+/** W8: the patients of the practice, found as the team types; a body, as W5's (see there). */
+export class DeskPatientSearchDto extends CursorQueryDto {
+  @ApiPropertyOptional({
+    maxLength: MAX_SEARCH_LENGTH,
+    description:
+      'A name in Arabic or Latin letters however written, digits of a phone number, a date of birth or an insurance number',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_SEARCH_LENGTH)
+  readonly query?: string;
+
+  @ApiPropertyOptional({ enum: INSURANCE_TYPES })
+  @IsOptional()
+  @IsIn(INSURANCE_TYPES)
+  readonly insuranceType?: (typeof INSURANCE_TYPES)[number];
+}
+
+/** A patient as a row of W8 shows them. */
+export class DeskPatientRowDto extends DeskPatientDto {
+  @ApiProperty({ format: 'date' })
+  readonly dateOfBirth!: string;
+
+  @ApiProperty({ description: "Whole years on today's date in the practice" })
+  readonly age!: number;
+
+  @ApiProperty({ nullable: true, type: 'string' })
+  readonly phone!: string | null;
+
+  @ApiProperty({ nullable: true, type: 'string' })
+  readonly insuranceProvider!: string | null;
+
+  @ApiProperty({
+    description: 'The profile belongs to an account; false for one the practice keeps',
+  })
+  readonly hasAccount!: boolean;
+
+  @ApiProperty({
+    format: 'date-time',
+    nullable: true,
+    type: 'string',
+    description: 'The start of the last visit that took place (checked in or completed)',
+  })
+  readonly lastVisitAt!: string | null;
+
+  @ApiProperty({
+    format: 'date-time',
+    nullable: true,
+    type: 'string',
+    description: 'The start of the next booked appointment',
+  })
+  readonly nextAppointmentAt!: string | null;
+}
+
+export class DeskPatientPageDto {
+  @ApiProperty({ type: [DeskPatientRowDto] })
+  readonly items!: readonly DeskPatientRowDto[];
+
+  @ApiProperty({ type: String, nullable: true, description: 'Null on the last page' })
+  readonly nextCursor!: string | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'How many patients the whole list holds; only on the first page, null after a cursor',
+  })
+  readonly total!: number | null;
+
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
+  @ApiProperty({ description: "The practice's digits, for showing the times" })
+  readonly numberingSystem!: string;
+
+  @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
+  readonly hourCycle!: string;
+}
+
+/** One patient for the team, with what is to come and what was (W8); the read is audited. */
+export class DeskPatientRecordDto {
+  @ApiProperty({ type: DeskPatientDetailsDto })
+  readonly patient!: DeskPatientDetailsDto;
+
+  @ApiProperty({
+    nullable: true,
+    type: 'string',
+    description: 'The last characters of the insurance number, never the number itself',
+  })
+  readonly insuranceNumberEnd!: string | null;
+
+  @ApiProperty({
+    type: [DeskAppointmentRowDto],
+    description: 'What is still to come, soonest first',
+  })
+  readonly upcoming!: readonly DeskAppointmentRowDto[];
+
+  @ApiProperty({
+    type: [DeskAppointmentRowDto],
+    description: 'The last appointments, latest first',
+  })
+  readonly recent!: readonly DeskAppointmentRowDto[];
+
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
+  @ApiProperty({ description: "The practice's digits, for showing the times" })
+  readonly numberingSystem!: string;
+
+  @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
+  readonly hourCycle!: string;
+}
+
+export class DeskProviderDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly id!: string;
+
+  @ApiProperty()
+  readonly name!: string;
+}
+
+export class DeskServiceDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly id!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'The name of the service per locale',
+  })
+  readonly name!: Readonly<Record<string, string>>;
+
+  @ApiProperty()
+  readonly durationMinutes!: number;
+
+  @ApiProperty({ description: 'Offered now; an inactive one still names old appointments' })
+  readonly active!: boolean;
+}
+
+/** What the team chooses from: the doctors and the services of the practice. */
+export class DeskCatalogDto {
+  @ApiProperty({ type: [DeskProviderDto] })
+  readonly providers!: readonly DeskProviderDto[];
+
+  @ApiProperty({ type: [DeskServiceDto] })
+  readonly services!: readonly DeskServiceDto[];
 }

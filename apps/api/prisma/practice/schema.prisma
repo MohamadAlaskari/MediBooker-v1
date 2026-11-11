@@ -413,6 +413,9 @@ model Patient {
   insuranceNumberEnd       String?             @map("insurance_number_end")
   /// class: secret (keyed hash with a key of this practice: the same number differs per practice)
   insuranceNumberIndex     String?             @map("insurance_number_index")
+  /// class: personal (the name as the team's search compares it; written by the trigger
+  /// patients_search_name of the migration, never by the API)
+  searchName               String              @default("") @map("search_name")
   /// class: personal
   createdAt                DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: personal

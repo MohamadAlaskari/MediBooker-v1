@@ -26,8 +26,14 @@ import type {
 import type {
   CancelAsPracticeDto,
   DeskAppointmentDto,
+  DeskAppointmentPageDto,
   DeskAppointmentRowDto,
+  DeskAppointmentSearchDto,
+  DeskCatalogDto,
   DeskDayDto,
+  DeskPatientPageDto,
+  DeskPatientRecordDto,
+  DeskPatientSearchDto,
   GetDeskDayParams,
   ProblemDetailsDto
 } from '../../model';
@@ -54,6 +60,127 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getSearchDeskAppointmentsUrl = (practiceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/appointments/search`
+}
+
+/**
+ * @summary The appointments of some days, a page at a time; reads only, and every one shown is audited
+ */
+export const searchDeskAppointments = async (practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options?: Parameters<typeof apiFetch>[1]): Promise<DeskAppointmentPageDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<DeskAppointmentPageDto>(getSearchDeskAppointmentsUrl(practiceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deskAppointmentSearchDto)
+  }
+);}
+
+
+
+
+
+export const getSearchDeskAppointmentsQueryKey = (practiceId: string,
+    deskAppointmentSearchDto?: DeskAppointmentSearchDto,) => {
+    return [
+    'POST', `/api/v1/practices/${practiceId}/desk/appointments/search`, deskAppointmentSearchDto
+    ] as const;
+    }
+
+
+export const getSearchDeskAppointmentsQueryOptions = <TData = Awaited<ReturnType<typeof searchDeskAppointments>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchDeskAppointmentsQueryKey(practiceId,deskAppointmentSearchDto);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchDeskAppointments>>> = ({ signal }) => searchDeskAppointments(practiceId,deskAppointmentSearchDto, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SearchDeskAppointmentsQueryResult = NonNullable<Awaited<ReturnType<typeof searchDeskAppointments>>>
+export type SearchDeskAppointmentsQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useSearchDeskAppointments<TData = Awaited<ReturnType<typeof searchDeskAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchDeskAppointments>>,
+          TError,
+          Awaited<ReturnType<typeof searchDeskAppointments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchDeskAppointments<TData = Awaited<ReturnType<typeof searchDeskAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchDeskAppointments>>,
+          TError,
+          Awaited<ReturnType<typeof searchDeskAppointments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchDeskAppointments<TData = Awaited<ReturnType<typeof searchDeskAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The appointments of some days, a page at a time; reads only, and every one shown is audited
+ */
+
+export function useSearchDeskAppointments<TData = Awaited<ReturnType<typeof searchDeskAppointments>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskAppointmentSearchDto: DeskAppointmentSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskAppointments>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSearchDeskAppointmentsQueryOptions(practiceId,deskAppointmentSearchDto,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
 
 export const getGetDeskAppointmentUrl = (practiceId: string,
     appointmentId: string,) => {
@@ -478,7 +605,107 @@ export const useMarkAppointmentNoShow = <TError = ErrorType<ProblemDetailsDto>,
       > => {
       return useMutation(getMarkAppointmentNoShowMutationOptions(options), queryClient);
     }
-    export const getGetDeskDayUrl = (practiceId: string,
+    export const getGetDeskCatalogUrl = (practiceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/catalog`
+}
+
+/**
+ * @summary The doctors and services of the practice, for filters and booking
+ */
+export const getDeskCatalog = async (practiceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DeskCatalogDto> => {
+
+  return apiFetch<DeskCatalogDto>(getGetDeskCatalogUrl(practiceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeskCatalogQueryKey = (practiceId: string,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/catalog`
+    ] as const;
+    }
+
+
+export const getGetDeskCatalogQueryOptions = <TData = Awaited<ReturnType<typeof getDeskCatalog>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeskCatalogQueryKey(practiceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeskCatalog>>> = ({ signal }) => getDeskCatalog(practiceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeskCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof getDeskCatalog>>>
+export type GetDeskCatalogQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetDeskCatalog<TData = Awaited<ReturnType<typeof getDeskCatalog>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskCatalog<TData = Awaited<ReturnType<typeof getDeskCatalog>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskCatalog<TData = Awaited<ReturnType<typeof getDeskCatalog>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The doctors and services of the practice, for filters and booking
+ */
+
+export function useGetDeskCatalog<TData = Awaited<ReturnType<typeof getDeskCatalog>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskCatalog>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeskCatalogQueryOptions(practiceId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetDeskDayUrl = (practiceId: string,
     params?: GetDeskDayParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -582,6 +809,235 @@ export function useGetDeskDay<TData = Awaited<ReturnType<typeof getDeskDay>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDeskDayQueryOptions(practiceId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getSearchDeskPatientsUrl = (practiceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/patients/search`
+}
+
+/**
+ * @summary The patients of the practice, found as the team types; reads only, and every one shown is audited
+ */
+export const searchDeskPatients = async (practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options?: Parameters<typeof apiFetch>[1]): Promise<DeskPatientPageDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<DeskPatientPageDto>(getSearchDeskPatientsUrl(practiceId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deskPatientSearchDto)
+  }
+);}
+
+
+
+
+
+export const getSearchDeskPatientsQueryKey = (practiceId: string,
+    deskPatientSearchDto?: DeskPatientSearchDto,) => {
+    return [
+    'POST', `/api/v1/practices/${practiceId}/desk/patients/search`, deskPatientSearchDto
+    ] as const;
+    }
+
+
+export const getSearchDeskPatientsQueryOptions = <TData = Awaited<ReturnType<typeof searchDeskPatients>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchDeskPatientsQueryKey(practiceId,deskPatientSearchDto);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchDeskPatients>>> = ({ signal }) => searchDeskPatients(practiceId,deskPatientSearchDto, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SearchDeskPatientsQueryResult = NonNullable<Awaited<ReturnType<typeof searchDeskPatients>>>
+export type SearchDeskPatientsQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useSearchDeskPatients<TData = Awaited<ReturnType<typeof searchDeskPatients>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchDeskPatients>>,
+          TError,
+          Awaited<ReturnType<typeof searchDeskPatients>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchDeskPatients<TData = Awaited<ReturnType<typeof searchDeskPatients>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchDeskPatients>>,
+          TError,
+          Awaited<ReturnType<typeof searchDeskPatients>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchDeskPatients<TData = Awaited<ReturnType<typeof searchDeskPatients>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The patients of the practice, found as the team types; reads only, and every one shown is audited
+ */
+
+export function useSearchDeskPatients<TData = Awaited<ReturnType<typeof searchDeskPatients>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    deskPatientSearchDto: DeskPatientSearchDto, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchDeskPatients>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSearchDeskPatientsQueryOptions(practiceId,deskPatientSearchDto,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getGetDeskPatientUrl = (practiceId: string,
+    patientId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/patients/${patientId}`
+}
+
+/**
+ * @summary One patient with what is to come and what was; the read is audited
+ */
+export const getDeskPatient = async (practiceId: string,
+    patientId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DeskPatientRecordDto> => {
+
+  return apiFetch<DeskPatientRecordDto>(getGetDeskPatientUrl(practiceId,patientId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeskPatientQueryKey = (practiceId: string,
+    patientId: string,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/patients/${patientId}`
+    ] as const;
+    }
+
+
+export const getGetDeskPatientQueryOptions = <TData = Awaited<ReturnType<typeof getDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeskPatientQueryKey(practiceId,patientId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeskPatient>>> = ({ signal }) => getDeskPatient(practiceId,patientId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined && patientId !== null && patientId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeskPatientQueryResult = NonNullable<Awaited<ReturnType<typeof getDeskPatient>>>
+export type GetDeskPatientQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskPatient>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskPatient>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeskPatient>>,
+          TError,
+          Awaited<ReturnType<typeof getDeskPatient>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary One patient with what is to come and what was; the read is audited
+ */
+
+export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeskPatientQueryOptions(practiceId,patientId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

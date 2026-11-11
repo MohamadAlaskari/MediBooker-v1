@@ -15,12 +15,20 @@ function firstGrapheme(text: string, locale: string): string {
   return first?.segment ?? '';
 }
 
+/** Tashkeel, the superscript alef and the tatweel: an avatar shows the bare letter. */
+const ARABIC_MARKS = /[\u{064B}-\u{065F}\u{0670}\u{0640}]/gu;
+
+/** The article of a family name, ال or ٱل before more letters, or آل before another word. */
+const FAMILY_ARTICLE = /^(?:[\u{0627}\u{0671}]\u{0644}(?=\p{L})|\u{0622}\u{0644}\s+)/u;
+
 /**
- * The letters of an avatar: the first of each name, in capitals where a script has them. Kept apart
- * by a non-joiner, so that two Arabic letters do not join into one word.
+ * The letters of an avatar: the first of each name, in capitals where a script has them, and of a
+ * family name the first after its article, which most Arabic ones have. Kept apart by a
+ * non-joiner, so that two Arabic letters do not join into one word.
  */
 export function initialsOf(firstName: string, lastName: string, locale: string): string {
-  return [firstName, lastName]
+  const bare = (name: string): string => name.replaceAll(ARABIC_MARKS, '').trim();
+  return [bare(firstName), bare(lastName).replace(FAMILY_ARTICLE, '')]
     .map((name) => firstGrapheme(name, locale).toLocaleUpperCase(locale))
     .filter((letter) => letter !== '')
     .join(ZERO_WIDTH_NON_JOINER);

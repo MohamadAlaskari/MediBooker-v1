@@ -24,6 +24,7 @@ description: Contract-first API rules for MediBooker v2 — how the OpenAPI spec
 | Timestamps | ISO 8601 in UTC with `Z` (`2026-11-04T08:30:00Z`). Date-only values as `YYYY-MM-DD`, interpreted in the practice time zone |
 | Enums | UPPER_SNAKE (`BOOKED`, `PUBLIC`) |
 | Lists | `GET /x?limit=20&cursor=…` → `{ items: [...], nextCursor: string \| null }`; `limit` ≤ 100 |
+| Searches | What a person types to find someone (a name, a phone number, a date of birth, an insurance number) is personal data and never in a URL: `POST /x/search` with the filters, `limit` and `cursor` in the body, 200, reads only; a `total` only on the first page, null after a cursor, so no count comes without a row shown and audited (M05) |
 | Errors | `application/problem+json`: `{ type, title, status, detail, code, requestId, params?, errors?: [{ field, code, message, params? }] }`; `type` is `urn:medibooker:problem:<kebab-code>`; the status comes from the catalogue (`common/errors/error-catalog.ts`, ADR 0011) |
 | Validation errors | 400 with `errors[]`; field paths in camelCase |
 | Conflicts | 409 with a specific `code` |
@@ -70,7 +71,8 @@ Extend this list; never reuse a code with a different meaning.
 | GET /public/practices/{slug}/slots?serviceId&providerId&date | public (decided 2026-11-01) | Free start times of one day, each only `{ startsAt }`: no slot id, by which two answers could be compared (BR-24); `providerId` only for doctors with a public profile, otherwise grouped as any doctor; `Cache-Control: public, max-age=30`; rate-limited | BR-03, BR-22, BR-24 |
 | POST /practices/{practiceId}/appointments | patient, confirmed (for self) | Book a time: serviceId, startsAt, optional providerId and patientNote; `Idempotency-Key` required; 10 a minute per address, and 429 above the account's share of the connections. The answer's providerId is null unless the doctor's profile is public (BR-24). Staff with patientId follow with M items | BR-01, 02, 03, 08, 09 |
 | GET /practices/{practiceId}/desk/day?date | staff, doctor, admin (both factors) | The team's day: appointments in the order of time (at most 500, then `truncated`), counts of the whole day, free times left, `today` and `now`; an audit event per appointment shown | BR-11, BR-18 |
-| GET /practices/{practiceId}/desk/appointments?from&to&providerId&status&cursor | staff, doctor, admin | The appointment list of W5, with the rest of M05 | |
+| POST /practices/{practiceId}/desk/appointments/search { from, to, providerId, serviceId, patientId, status, query, limit, cursor } | staff, doctor, admin | W5: the appointments of up to 92 days in the order of time, a page at a time, `total` on the first page; an audit row per appointment shown, once in five minutes per person; 60 a minute per address | BR-18 |
+| GET /practices/{practiceId}/desk/catalog | staff, doctor, admin | The doctors and services of the practice, for filters and booking | |
 | GET /practices/{practiceId}/me/appointments?scope=upcoming\|past&limit&cursor | patient | Own appointments in this practice, with the history; `limit` at most 100 | |
 | GET /practices/{practiceId}/appointments/{id} | owner | Details, never the note; another patient's is 404 | BR-24 |
 | GET /practices/{practiceId}/desk/appointments/{id} | staff, doctor, admin | One appointment with the patient's note, contacts, age and insurance provider; the read is audited | RT-93, BR-18 |
@@ -81,7 +83,7 @@ Extend this list; never reuse a code with a different meaning.
 | GET, POST, PATCH, DELETE /availability-rules | staff, admin, doctor (own) | Weekly templates | BR-06 |
 | POST /slots/generate | staff, admin | Generate slots for a date range | BR-06 |
 | PATCH /slots/{id} | staff, admin | Block or unblock a slot | BR-07 |
-| GET /patients?query, GET /patients/{id}, PATCH /patients/{id} | staff, doctor, admin | Patient records (reads are audited) | |
+| POST /practices/{practiceId}/desk/patients/search { query, insuranceType, limit, cursor }, GET …/desk/patients/{id} | staff, doctor, admin | W8: patients found by a name in Arabic or Latin letters however written (the stored `search_name`), phone digits, a date of birth or an insurance number (blind index only), `total` on the first page, 60 a minute per address; one patient's record with the next and last appointments; reads audited (`patient.list`, `patient.read`, and `appointment.list` for the record's appointments); a PATCH follows | BR-18 |
 | GET /staff, POST /staff (invite), PATCH /staff/{id} | admin | Staff accounts, roles, disable | |
 | GET, PATCH /settings | admin (GET also staff) | Booking rules, practice data | |
 | GET /audit-events | admin | Audit log | |

@@ -28,6 +28,33 @@ function selected(message: string, key: string): string {
   return new RegExp(`${key} \\{([^}]*)\\}`).exec(message)?.[1] ?? key;
 }
 
+/** "Showing 21–25 of 25" in the stub's Latin digits. */
+function showing(message: string, from: number, to: number, total: number): string {
+  return message
+    .replace('{from}', String(from))
+    .replace('{to}', String(to))
+    .replace('{total}', String(total));
+}
+
+/** Every URL the page asks for from now on. */
+function urlsAsked(page: Page): string[] {
+  const urls: string[] = [];
+  page.on('request', (request) => {
+    urls.push(request.url());
+  });
+  return urls;
+}
+
+/** A search of the team's lists as the API takes it: a POST with what was typed in its body. */
+async function searchAsked(page: Page, list: 'appointments' | 'patients', query: string) {
+  return page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname.endsWith(`/desk/${list}/search`) &&
+      (request.postDataJSON() as { query?: string }).query === query,
+  );
+}
+
 /** A staff account as the operator's command leaves it: a role, and maybe a second factor. */
 async function staffAccount(
   testInfo: TestInfo,
@@ -280,6 +307,85 @@ test.describe('the day of the practice (08 M05)', () => {
     await page.clock.fastForward('15:01');
     await expect(page).toHaveURL(
       `/${locale}/sign-in#next=${encodeURIComponent(`/${locale}/dashboard`)}`,
+    );
+  });
+});
+
+test.describe('the team’s lists (08 M05)', () => {
+  test('lists the week, found by a patient with tashkeel and narrowed by status', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.appointments })
+      .click();
+    await expect(page.getByRole('heading', { level: 1, name: d.appointments.title })).toBeVisible();
+    const table = page.getByRole('table');
+    // A header row, a heading for today and tomorrow, and the six appointments of the stub's week.
+    await expect(table.getByRole('row')).toHaveCount(9);
+    await expect(page.getByRole('navigation', { name: d.pager.label })).toContainText('6');
+    await expectAccessibleAtBothWidths(page, 'the appointments');
+
+    const urls = urlsAsked(page);
+    const search = page.getByLabel(d.appointments.search, { exact: true });
+    const asked = searchAsked(page, 'appointments', 'سَارَة');
+    await search.fill('سَارَة');
+    await asked;
+    await expect(table.getByRole('row')).toHaveCount(3);
+    await expect(table.getByRole('row', { name: /سارة مثال/ })).toBeVisible();
+    expect(urls.filter((url) => decodeURIComponent(url).includes('سَارَة'))).toEqual([]);
+    await search.fill('');
+    await page.getByRole('button', { name: new RegExp(d.appointments.allStatuses) }).click();
+    await page.getByRole('option', { name: selected(d.status, 'CANCELLED') }).click();
+    await expect(table.getByRole('row')).toHaveCount(3);
+    await expect(table.getByRole('row', { name: /Yusuf Example/ })).toBeVisible();
+  });
+
+  test('finds a patient with and without tashkeel, and opens the record', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page.getByRole('link', { name: d.shell.patients }).click();
+    await expect(page.getByRole('heading', { level: 1, name: d.patients.title })).toBeVisible();
+    const table = page.getByRole('table');
+    const pager = page.getByRole('navigation', { name: d.pager.label });
+    // The six patients of the week and nineteen without an appointment: a first page of twenty.
+    await expect(table.getByRole('row')).toHaveCount(21);
+    await expect(pager).toContainText(showing(d.pager.showing, 1, 20, 25));
+    await expectAccessibleAtBothWidths(page, 'the patients');
+    // The API counts on the first page only; the second keeps that count.
+    await pager.getByRole('button', { name: d.pager.next }).click();
+    await expect(table.getByRole('row')).toHaveCount(6);
+    await expect(pager).toContainText(showing(d.pager.showing, 21, 25, 25));
+    await expect(pager).toContainText(d.pager.page.replace('{page}', '2').replace('{pages}', '2'));
+    await pager.getByRole('button', { name: d.pager.previous }).click();
+    await expect(table.getByRole('row')).toHaveCount(21);
+
+    const urls = urlsAsked(page);
+    for (const query of ['سارة', 'سَارَة', 'ساره']) {
+      const asked = searchAsked(page, 'patients', query);
+      await page.getByLabel(d.patients.search, { exact: true }).fill(query);
+      await asked;
+      await expect(table.getByRole('row')).toHaveCount(2);
+      await expect(table).toContainText('سارة');
+    }
+    // What was typed went in the bodies of the searches, never in a URL (health-data-security).
+    expect(
+      urls.filter((url) =>
+        ['سارة', 'سَارَة', 'ساره'].some((query) => decodeURIComponent(url).includes(query)),
+      ),
+    ).toEqual([]);
+    await table.getByRole('button', { name: /سارة مثال/ }).click();
+    const record = page.getByRole('dialog').filter({ hasText: d.patients.kicker });
+    await expect(record).toContainText(d.patients.nothingUpcoming);
+    await expect(record).toContainText(d.patients.audited);
+    await expectAccessibleAtBothWidths(page, 'the record');
+    await record.getByRole('button', { name: new RegExp(d.today.details) }).click();
+    await expect(page.getByRole('dialog').filter({ hasText: d.details.kicker })).toContainText(
+      NOTE,
     );
   });
 });

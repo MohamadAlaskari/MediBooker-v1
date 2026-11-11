@@ -1,0 +1,257 @@
+import { InjectTransactionHost } from '@nestjs-cls/transactional';
+import { Injectable } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
+import type { RequestContext } from '../../common/context/request-context.js';
+import { isUuid } from '../../common/context/request-id.js';
+import { PlatformPrismaService } from '../../common/database/platform-prisma.service.js';
+import { DomainException } from '../../common/errors/domain.exception.js';
+import { cursorPageOf, decodeCursor, invalidCursor } from '../../common/http/cursor-page.js';
+import type { Actor } from '../../common/security/actor.js';
+import { PracticeAudit } from '../../common/tenancy/practice-audit.js';
+import { requirePracticeContext } from '../../common/tenancy/practice-context.js';
+import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
+import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
+import { Clock } from '../../common/time/clock.js';
+import { dbInstantOf, plainDateOf } from '../../common/time/convert.js';
+import { Prisma } from '../../generated/practice/client.js';
+import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.js';
+import { DESK_AUDIT, DeskRows, iso, LIST_AUDIT_MINUTES, ROW_FIELDS } from './desk-rows.js';
+import type {
+  DeskPatientPageDto,
+  DeskPatientRecordDto,
+  DeskPatientRowDto,
+  DeskPatientSearchDto,
+} from './desk.dto.js';
+import { ageOn, dayOf } from './domain/desk.rules.js';
+import {
+  ARABIC_DIGITS,
+  ASCII_DIGITS,
+  type PatientSearch,
+  patientSearchOf,
+} from './domain/patient-search.rules.js';
+
+/** What the record of a patient shows of what is to come and what was. */
+const RECORD_APPOINTMENTS = 5;
+
+/** The audit actions of the team's reads of patients (BR-18). */
+export const PATIENT_AUDIT = { list: 'patient.list', read: 'patient.read' } as const;
+
+/** Every condition, or TRUE for none. */
+function allOf(conditions: readonly Prisma.Sql[]): Prisma.Sql {
+  return conditions.length === 0 ? Prisma.sql`TRUE` : Prisma.join(conditions, ' AND ');
+}
+
+interface PatientListRow {
+  readonly id: string;
+  readonly user_id: string | null;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly date_of_birth: Date;
+  readonly contact_phone: string | null;
+  readonly insurance_type: InsuranceTypeName;
+  readonly insurance_provider: string | null;
+  readonly last_visit_at: Date | null;
+  readonly next_appointment_at: Date | null;
+}
+
+/**
+ * The patients of the practice for its team (M05, W8): found by name however written, by phone, date
+ * of birth or insurance number, a page at a time, and one with what is to come and what was. Every
+ * patient a list shows writes an audit event, once in five minutes per person, and every record read
+ * one of its own (BR-18).
+ */
+@Injectable()
+export class DeskPatients {
+  constructor(
+    @InjectTransactionHost('practice') private readonly txHost: PracticeTransactionHost,
+    private readonly platform: PlatformPrismaService,
+    private readonly cls: ClsService<RequestContext>,
+    private readonly clock: Clock,
+    private readonly keys: PracticeKeys,
+    private readonly audit: PracticeAudit,
+    private readonly rows: DeskRows,
+  ) {}
+
+  async page(
+    { userId }: Actor,
+    { query, insuranceType, limit, cursor }: DeskPatientSearchDto,
+    ip: string | undefined,
+  ): Promise<DeskPatientPageDto> {
+    const { practice } = requirePracticeContext(this.cls);
+    const settings = await this.rows.displaySettings();
+    const search = query === undefined ? undefined : patientSearchOf(query);
+    const where = allOf([
+      ...(search === undefined ? [] : [await this.conditionOf(search)]),
+      ...(insuranceType === undefined
+        ? []
+        : [Prisma.sql`p.insurance_type = ${insuranceType}::insurance_type`]),
+    ]);
+    const after = cursor === undefined ? Prisma.sql`TRUE` : await this.afterPosition(cursor);
+    const now = this.clock.now();
+    const db = this.txHost.tx;
+    const found = await db.$queryRaw<PatientListRow[]>`
+      SELECT p.id, p.user_id, p.first_name, p.last_name, p.date_of_birth, p.contact_phone,
+        p.insurance_type, p.insurance_provider,
+        (SELECT max(s.starts_at) FROM appointments a JOIN slots s ON s.id = a.slot_id
+          WHERE a.patient_id = p.id AND a.status IN ('CHECKED_IN', 'COMPLETED')) AS last_visit_at,
+        (SELECT min(s.starts_at) FROM appointments a JOIN slots s ON s.id = a.slot_id
+          WHERE a.patient_id = p.id AND a.status = 'BOOKED'
+            AND s.starts_at > ${dbInstantOf(now)}) AS next_appointment_at
+      FROM patients p
+      WHERE ${where} AND ${after}
+      ORDER BY p.last_name, p.first_name, p.id
+      LIMIT ${limit + 1}`;
+    // Only the first page counts: a count after a cursor past the end would tell whether a person
+    // is a patient here without showing one, and so without an audit row (security review).
+    const total =
+      cursor === undefined
+        ? Number(
+            (
+              await db.$queryRaw<{ total: bigint }[]>`
+                SELECT count(*) AS total FROM patients p WHERE ${where}`
+            )[0]?.total ?? 0,
+          )
+        : null;
+    const page = cursorPageOf(found, limit, ({ id }) => id);
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.audit.recordEachUnlessRecent({
+      userId,
+      action: PATIENT_AUDIT.list,
+      subjectIds: page.items.map(({ id }) => id),
+      ipHash,
+      minutes: LIST_AUDIT_MINUTES,
+    });
+    const today = dayOf(now, settings.timeZone);
+    return {
+      items: page.items.map((row): DeskPatientRowDto => {
+        const dateOfBirth = plainDateOf(row.date_of_birth);
+        return {
+          id: row.id,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          insuranceType: row.insurance_type,
+          dateOfBirth: dateOfBirth.toString(),
+          age: ageOn(dateOfBirth, today),
+          phone: row.contact_phone,
+          insuranceProvider: row.insurance_provider,
+          hasAccount: row.user_id !== null,
+          lastVisitAt: iso(row.last_visit_at),
+          nextAppointmentAt: iso(row.next_appointment_at),
+        };
+      }),
+      nextCursor: page.nextCursor,
+      total,
+      ...settings,
+    };
+  }
+
+  /** One patient with what is to come and what was; the read is audited (BR-18). */
+  async record(
+    { userId }: Actor,
+    patientId: string,
+    ip: string | undefined,
+  ): Promise<DeskPatientRecordDto> {
+    if (!isUuid(patientId)) throw new DomainException('NOT_FOUND');
+    const id = patientId.toLowerCase();
+    const { practice } = requirePracticeContext(this.cls);
+    const db = this.txHost.tx;
+    const patient = await db.patient.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        firstName: true,
+        lastName: true,
+        dateOfBirth: true,
+        contactPhone: true,
+        insuranceType: true,
+        insuranceProvider: true,
+        insuranceNumberEnd: true,
+      },
+    });
+    if (patient === null) throw new DomainException('NOT_FOUND');
+    const settings = await this.rows.displaySettings();
+    const now = dbInstantOf(this.clock.now());
+    const upcoming = await db.appointment.findMany({
+      where: { patientId: id, status: 'BOOKED', slot: { startsAt: { gte: now } } },
+      select: ROW_FIELDS,
+      orderBy: [{ slot: { startsAt: 'asc' } }, { id: 'asc' }],
+      take: RECORD_APPOINTMENTS,
+    });
+    const recent = await db.appointment.findMany({
+      where: { patientId: id, slot: { startsAt: { lt: now } } },
+      select: ROW_FIELDS,
+      orderBy: [{ slot: { startsAt: 'desc' } }, { id: 'desc' }],
+      take: RECORD_APPOINTMENTS,
+    });
+    const account =
+      patient.userId === null
+        ? null
+        : await this.platform.user.findUnique({
+            where: { id: patient.userId },
+            select: { email: true },
+          });
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.audit.record({ userId, action: PATIENT_AUDIT.read, subjectId: id, ipHash });
+    // The appointments the record shows, as a list shows them: "who saw appointment A" finds it.
+    await this.audit.recordEachUnlessRecent({
+      userId,
+      action: DESK_AUDIT.list,
+      subjectIds: [...upcoming, ...recent].map((appointment) => appointment.id),
+      ipHash,
+      minutes: LIST_AUDIT_MINUTES,
+    });
+    const dateOfBirth = plainDateOf(patient.dateOfBirth);
+    return {
+      patient: {
+        id: patient.id,
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        insuranceType: patient.insuranceType,
+        dateOfBirth: dateOfBirth.toString(),
+        age: ageOn(dateOfBirth, dayOf(this.clock.now(), settings.timeZone)),
+        insuranceProvider: patient.insuranceProvider,
+        phone: patient.contactPhone,
+        email: account?.email ?? null,
+      },
+      insuranceNumberEnd: patient.insuranceNumberEnd,
+      upcoming: await this.rows.viewsOf(upcoming, settings.timeZone),
+      recent: await this.rows.viewsOf(recent, settings.timeZone),
+      ...settings,
+    };
+  }
+
+  /**
+   * The patients `p` a search finds, for W8 and for the appointments of W5: every part of it that is
+   * there, or the whole of it as an insurance number, which only its blind index compares. A name is
+   * compared with the stored `search_name`, so a search folds no name of the database.
+   */
+  async conditionOf(search: PatientSearch): Promise<Prisma.Sql> {
+    const match = allOf([
+      ...search.words.map((word) => Prisma.sql`position(${word} in p.search_name) > 0`),
+      ...(search.phoneDigits === undefined
+        ? []
+        : [
+            Prisma.sql`regexp_replace(translate(coalesce(p.contact_phone, ''), ${ARABIC_DIGITS}, ${ASCII_DIGITS}), '[^0-9]', '', 'g') LIKE ${`%${search.phoneDigits}%`}`,
+          ]),
+      ...(search.dateOfBirth === undefined
+        ? []
+        : [Prisma.sql`p.date_of_birth = ${search.dateOfBirth}::date`]),
+    ]);
+    if (search.insuranceNumber === undefined) return Prisma.sql`(${match})`;
+    const { practice } = requirePracticeContext(this.cls);
+    const hash = await this.keys.keyedHash(practice.id, 'insurance-number', search.insuranceNumber);
+    return Prisma.sql`((${match}) OR p.insurance_number_index = ${hash})`;
+  }
+
+  /** After the patient a page stopped at, in the order of the list: last name, first name, id. */
+  private async afterPosition(cursor: string): Promise<Prisma.Sql> {
+    const id = decodeCursor(cursor, isUuid).toLowerCase();
+    const position = await this.txHost.tx.patient.findUnique({
+      where: { id },
+      select: { firstName: true, lastName: true },
+    });
+    if (position === null) throw invalidCursor();
+    return Prisma.sql`(p.last_name, p.first_name, p.id) > (${position.lastName}, ${position.firstName}, ${id}::uuid)`;
+  }
+}

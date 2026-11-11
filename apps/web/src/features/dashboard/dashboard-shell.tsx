@@ -1,7 +1,7 @@
 'use client';
 
 import { useGetMe, type MembershipDtoRole } from '@medibooker/api-client';
-import { CalendarPlus, LayoutGrid } from 'lucide-react';
+import { CalendarPlus, ClipboardList, LayoutGrid, Users } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
@@ -30,7 +30,12 @@ export function DashboardShell({
   const locale = useLocale();
   const pathname = usePathname();
   const me = useGetMe();
-  const links = [{ href: `/${locale}/dashboard`, label: t('today'), Icon: LayoutGrid }];
+  const home = `/${locale}/dashboard`;
+  const links = [
+    { href: home, label: t('today'), Icon: LayoutGrid },
+    { href: `${home}/appointments`, label: t('appointments'), Icon: ClipboardList },
+    { href: `${home}/patients`, label: t('patients'), Icon: Users },
+  ];
   return (
     <div className="min-h-screen bg-bg-canvas desktop:grid desktop:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="flex min-w-0 flex-wrap items-center gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3 desktop:sticky desktop:top-0 desktop:h-screen desktop:flex-col desktop:flex-nowrap desktop:items-stretch desktop:gap-6 desktop:border-e desktop:border-b-0 desktop:p-4">
@@ -41,7 +46,7 @@ export function DashboardShell({
         <nav aria-label={t('nav')} className="order-last w-full desktop:order-none">
           <ul className="flex flex-wrap gap-2 desktop:flex-col">
             {links.map(({ href, label, Icon }) => {
-              const current = pathname === href;
+              const current = href === home ? pathname === href : pathname.startsWith(href);
               return (
                 <li key={href}>
                   <a

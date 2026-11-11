@@ -7,6 +7,9 @@ import type { PracticeAudit } from '../../common/tenancy/practice-audit.js';
 import type { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { FixedClock } from '../../common/time/fixed-clock.js';
+import { Prisma } from '../../generated/practice/client.js';
+import type { DeskPatients } from './desk-patients.js';
+import { DeskRows } from './desk-rows.js';
 import { DESK_DAY_LIMIT, DeskService } from './desk.service.js';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
@@ -97,6 +100,14 @@ function setUp({
           Promise.resolve('slotId' in args.select ? changing : ROW),
         ),
       update: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(12),
+    },
+    service: {
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'service', name: { en: 'Check-up' }, durationMinutes: 30, active: true },
+        ]),
     },
     slot: {
       count: vi.fn().mockResolvedValue(4),
@@ -124,14 +135,19 @@ function setUp({
     recordEachUnlessRecent: vi.fn().mockResolvedValue(undefined),
     ipHashOf: vi.fn().mockResolvedValue('ip-hash'),
   };
+  const txHost = { tx: db } as unknown as PracticeTransactionHost;
+  const clock = new FixedClock(NOW);
+  const conditionOf = vi.fn().mockResolvedValue(Prisma.sql`p.search_name <> ''`);
   const service = new DeskService(
-    { tx: db } as unknown as PracticeTransactionHost,
+    txHost,
     platform as unknown as PlatformPrismaService,
     { run } as unknown as AccountTransactions,
     cls,
-    new FixedClock(NOW),
+    clock,
     { encrypt, decrypt } as unknown as PracticeKeys,
     audit as unknown as PracticeAudit,
+    new DeskRows(txHost, clock),
+    { conditionOf } as unknown as DeskPatients,
   );
   const inPractice = <T>(work: () => Promise<T>) =>
     cls.run(() => {
@@ -142,8 +158,86 @@ function setUp({
       });
       return work();
     });
-  return { service, db, platform, audit, encrypt, inPractice };
+  return { service, db, platform, audit, encrypt, conditionOf, inPractice };
 }
+
+/** The statement of a call of the mocked `$queryRaw`, with every value it binds. */
+function statementOf(call: readonly unknown[] | undefined): Prisma.Sql {
+  const [strings, ...values] = call ?? [];
+  return Prisma.sql(strings as readonly string[], ...(values as Prisma.Sql[]));
+}
+
+describe('DeskService.list', () => {
+  it('reads a week from today by default, narrowed as asked, with its total', async () => {
+    const { service, db, audit, conditionOf, inPractice } = setUp();
+    db.$queryRaw.mockResolvedValueOnce([{ id: ID }]).mockResolvedValueOnce([{ total: 12n }]);
+    const page = await inPractice(() =>
+      service.list(ACTOR, { limit: 20, providerId: PROVIDER, query: 'Sami' }, undefined),
+    );
+    expect(page).toMatchObject({
+      from: '2026-11-15',
+      to: '2026-11-21',
+      total: 12,
+      nextCursor: null,
+    });
+    expect(page.items).toHaveLength(1);
+    // The patients the search finds are a condition of the same statement, not a list of ids.
+    expect(conditionOf).toHaveBeenCalledWith(expect.objectContaining({ words: ['sami'] }));
+    const statement = statementOf(db.$queryRaw.mock.calls[0]);
+    expect(statement.sql).toContain("p.search_name <> ''");
+    // From midnight in Riyadh, which is 21:00 UTC the day before, for seven days.
+    expect(statement.values).toEqual(
+      expect.arrayContaining([
+        new Date('2026-11-14T21:00:00Z'),
+        new Date('2026-11-21T21:00:00Z'),
+        PROVIDER,
+        21,
+      ]),
+    );
+    expect(db.appointment.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: { in: [ID] } },
+    });
+    expect(audit.recordEachUnlessRecent).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'appointment.list', subjectIds: [ID] }),
+    );
+  });
+
+  it('counts only on the first page, so that no count comes without a row shown', async () => {
+    const { service, db, inPractice } = setUp();
+    db.$queryRaw.mockResolvedValueOnce([]);
+    const cursor = Buffer.from(ID).toString('base64url');
+    const page = await inPractice(() => service.list(ACTOR, { limit: 20, cursor }, undefined));
+    expect(page).toMatchObject({ items: [], total: null, nextCursor: null });
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(statementOf(db.$queryRaw.mock.calls[0]).values).toEqual(
+      expect.arrayContaining([DETAIL.slot.startsAt, ID]),
+    );
+  });
+
+  it('refuses a span of more than 92 days, or one that runs backwards', async () => {
+    const { service, inPractice } = setUp();
+    await expect(
+      inPractice(() =>
+        service.list(ACTOR, { limit: 20, from: '2026-01-01', to: '2026-04-03' }, undefined),
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(
+      inPractice(() =>
+        service.list(ACTOR, { limit: 20, from: '2026-01-02', to: '2026-01-01' }, undefined),
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+});
+
+describe('DeskService.catalog', () => {
+  it('names every doctor and lists every service', async () => {
+    const { service, inPractice } = setUp();
+    await expect(inPractice(() => service.catalog())).resolves.toEqual({
+      providers: [{ id: PROVIDER, name: 'Dr. Lina Example' }],
+      services: [{ id: 'service', name: { en: 'Check-up' }, durationMinutes: 30, active: true }],
+    });
+  });
+});
 
 describe('DeskService.day', () => {
   it('reads today in the practice, with counts, free times and an audit row per appointment', async () => {

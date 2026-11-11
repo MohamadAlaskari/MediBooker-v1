@@ -8,6 +8,8 @@ import {
   MyPracticeAppointmentsController,
 } from './appointments.controller.js';
 import { AppointmentsService } from './appointments.service.js';
+import { DeskPatients } from './desk-patients.js';
+import { DeskRows } from './desk-rows.js';
 import { DeskController } from './desk.controller.js';
 import { DeskService } from './desk.service.js';
 import { IdempotencyKeySweepJob } from './idempotency-key-sweep.job.js';
@@ -21,6 +23,13 @@ import { IdempotencyKeySweepJob } from './idempotency-key-sweep.job.js';
     MyAppointmentsController,
     DeskController,
   ],
-  providers: [AppointmentReader, AppointmentsService, DeskService, IdempotencyKeySweepJob],
+  providers: [
+    AppointmentReader,
+    AppointmentsService,
+    DeskRows,
+    DeskPatients,
+    DeskService,
+    IdempotencyKeySweepJob,
+  ],
 })
 export class AppointmentsModule {}

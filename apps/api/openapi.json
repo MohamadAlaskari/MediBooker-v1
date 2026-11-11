@@ -405,6 +405,67 @@
         ],
         "type": "object"
       },
+      "DeskAppointmentPageDto": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "hourCycle": {
+            "description": "The practice's hour cycle, for showing the times",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeskAppointmentRowDto"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Null on the last page",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numberingSystem": {
+            "description": "The practice's digits, for showing the times",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone, in which to show the times",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "today": {
+            "description": "Today on the practice's calendar",
+            "format": "date",
+            "type": "string"
+          },
+          "total": {
+            "description": "How many appointments the whole list holds; only on the first page, null after a cursor",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total",
+          "from",
+          "to",
+          "today",
+          "timeZone",
+          "numberingSystem",
+          "hourCycle"
+        ],
+        "type": "object"
+      },
       "DeskAppointmentRowDto": {
         "properties": {
           "actions": {
@@ -529,6 +590,81 @@
           "day",
           "started",
           "actions"
+        ],
+        "type": "object"
+      },
+      "DeskAppointmentSearchDto": {
+        "properties": {
+          "cursor": {
+            "description": "The nextCursor of the page before",
+            "type": "string"
+          },
+          "from": {
+            "description": "The first day, on the practice's calendar; left out, today",
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "patientId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "query": {
+            "description": "A patient by name, phone number, date of birth or insurance number",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "serviceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "BOOKED",
+              "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "description": "The last day, included; left out, six days after the first. At most 92 days",
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeskCatalogDto": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/DeskProviderDto"
+            },
+            "type": "array"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/DeskServiceDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "services"
         ],
         "type": "object"
       },
@@ -719,6 +855,250 @@
           "firstName",
           "lastName",
           "insuranceType"
+        ],
+        "type": "object"
+      },
+      "DeskPatientPageDto": {
+        "properties": {
+          "hourCycle": {
+            "description": "The practice's hour cycle, for showing the times",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeskPatientRowDto"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Null on the last page",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numberingSystem": {
+            "description": "The practice's digits, for showing the times",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone, in which to show the times",
+            "type": "string"
+          },
+          "total": {
+            "description": "How many patients the whole list holds; only on the first page, null after a cursor",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "total",
+          "timeZone",
+          "numberingSystem",
+          "hourCycle"
+        ],
+        "type": "object"
+      },
+      "DeskPatientRecordDto": {
+        "properties": {
+          "hourCycle": {
+            "description": "The practice's hour cycle, for showing the times",
+            "type": "string"
+          },
+          "insuranceNumberEnd": {
+            "description": "The last characters of the insurance number, never the number itself",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numberingSystem": {
+            "description": "The practice's digits, for showing the times",
+            "type": "string"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/DeskPatientDetailsDto"
+          },
+          "recent": {
+            "description": "The last appointments, latest first",
+            "items": {
+              "$ref": "#/components/schemas/DeskAppointmentRowDto"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone, in which to show the times",
+            "type": "string"
+          },
+          "upcoming": {
+            "description": "What is still to come, soonest first",
+            "items": {
+              "$ref": "#/components/schemas/DeskAppointmentRowDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "patient",
+          "insuranceNumberEnd",
+          "upcoming",
+          "recent",
+          "timeZone",
+          "numberingSystem",
+          "hourCycle"
+        ],
+        "type": "object"
+      },
+      "DeskPatientRowDto": {
+        "properties": {
+          "age": {
+            "description": "Whole years on today's date in the practice",
+            "type": "number"
+          },
+          "dateOfBirth": {
+            "format": "date",
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "hasAccount": {
+            "description": "The profile belongs to an account; false for one the practice keeps",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "insuranceProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "insuranceType": {
+            "enum": [
+              "PUBLIC",
+              "PRIVATE",
+              "SELF_PAY"
+            ],
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "lastVisitAt": {
+            "description": "The start of the last visit that took place (checked in or completed)",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextAppointmentAt": {
+            "description": "The start of the next booked appointment",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "insuranceType",
+          "dateOfBirth",
+          "age",
+          "phone",
+          "insuranceProvider",
+          "hasAccount",
+          "lastVisitAt",
+          "nextAppointmentAt"
+        ],
+        "type": "object"
+      },
+      "DeskPatientSearchDto": {
+        "properties": {
+          "cursor": {
+            "description": "The nextCursor of the page before",
+            "type": "string"
+          },
+          "insuranceType": {
+            "enum": [
+              "PUBLIC",
+              "PRIVATE",
+              "SELF_PAY"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "query": {
+            "description": "A name in Arabic or Latin letters however written, digits of a phone number, a date of birth or an insurance number",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeskProviderDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "DeskServiceDto": {
+        "properties": {
+          "active": {
+            "description": "Offered now; an inactive one still names old appointments",
+            "type": "boolean"
+          },
+          "durationMinutes": {
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The name of the service per locale",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "durationMinutes",
+          "active"
         ],
         "type": "object"
       },
@@ -3889,6 +4269,126 @@
         ]
       }
     },
+    "/api/v1/practices/{practiceId}/desk/appointments/search": {
+      "post": {
+        "operationId": "searchDeskAppointments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeskAppointmentSearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskAppointmentPageDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The appointments of some days, a page at a time; reads only, and every one shown is audited",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
     "/api/v1/practices/{practiceId}/desk/appointments/{appointmentId}": {
       "get": {
         "operationId": "getDeskAppointment",
@@ -4494,6 +4994,116 @@
         ]
       }
     },
+    "/api/v1/practices/{practiceId}/desk/catalog": {
+      "get": {
+        "operationId": "getDeskCatalog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskCatalogDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The doctors and services of the practice, for filters and booking",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
     "/api/v1/practices/{practiceId}/desk/day": {
       "get": {
         "operationId": "getDeskDay",
@@ -4610,6 +5220,245 @@
           }
         ],
         "summary": "A day of the practice: its appointments, counts and what is left free",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/desk/patients/search": {
+      "post": {
+        "operationId": "searchDeskPatients",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeskPatientSearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskPatientPageDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The patients of the practice, found as the team types; reads only, and every one shown is audited",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/desk/patients/{patientId}": {
+      "get": {
+        "operationId": "getDeskPatient",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskPatientRecordDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One patient with what is to come and what was; the read is audited",
         "tags": [
           "desk"
         ]

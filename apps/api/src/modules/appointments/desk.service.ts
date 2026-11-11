@@ -6,6 +6,7 @@ import { isUuid } from '../../common/context/request-id.js';
 import { PlatformPrismaService } from '../../common/database/platform-prisma.service.js';
 import { DomainException } from '../../common/errors/domain.exception.js';
 import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
+import { cursorPageOf, decodeCursor, invalidCursor } from '../../common/http/cursor-page.js';
 import type { Actor } from '../../common/security/actor.js';
 import { AccountTransactions } from '../../common/tenancy/account-transactions.js';
 import { PracticeAudit } from '../../common/tenancy/practice-audit.js';
@@ -14,12 +15,26 @@ import { PracticeKeys } from '../../common/tenancy/practice-keys.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf, plainDateOf } from '../../common/time/convert.js';
-import type { Prisma } from '../../generated/practice/client.js';
+import { Prisma } from '../../generated/practice/client.js';
 import { dayRange } from '../scheduling/domain/slots.rules.js';
 import { cancelReasonContextOf, noteContextOf } from './appointment-texts.js';
+import { DeskPatients } from './desk-patients.js';
+import {
+  dateOfInput,
+  DESK_AUDIT,
+  DeskRows,
+  type DisplaySettings,
+  displayNameOf,
+  iso,
+  LIST_AUDIT_MINUTES,
+  ROW_FIELDS,
+} from './desk-rows.js';
 import type {
   DeskAppointmentDto,
+  DeskAppointmentPageDto,
+  DeskAppointmentSearchDto,
   DeskAppointmentRowDto,
+  DeskCatalogDto,
   DeskDayDto,
   DeskDayQueryDto,
 } from './desk.dto.js';
@@ -27,49 +42,22 @@ import {
   ageOn,
   type AppointmentStatusName,
   dayOf,
-  dayRelationOf,
   type DeskAction,
-  deskActionsOf,
   deskChangeOf,
   type DeskTiming,
 } from './domain/desk.rules.js';
+import { patientSearchOf } from './domain/patient-search.rules.js';
+
+/** The appointments of W5 with their slot and patient, which its conditions name as `s` and `p`. */
+const LIST_SOURCE = Prisma.sql`appointments a
+  JOIN slots s ON s.id = a.slot_id
+  JOIN patients p ON p.id = a.patient_id`;
 
 /** More than a day of a practice holds; the list of the day stops there and says so. */
 export const DESK_DAY_LIMIT = 500;
 
-/**
- * A list read again by the same person within these minutes adds no audit rows for the appointments
- * it showed before: a page refreshes on focus and after every change (BR-18 keeps who saw what).
- */
-export const LIST_AUDIT_MINUTES = 5;
-
-/** The audit actions of the team's reads and changes (BR-12, BR-18). */
-export const DESK_AUDIT = {
-  list: 'appointment.list',
-  read: 'appointment.read',
-  CHECK_IN: 'appointment.check_in',
-  COMPLETE: 'appointment.complete',
-  NO_SHOW: 'appointment.no_show',
-  CANCEL: 'appointment.cancel_by_practice',
-} as const;
-
-const ROW_FIELDS = {
-  id: true,
-  serviceId: true,
-  status: true,
-  bookedById: true,
-  checkedInAt: true,
-  completedAt: true,
-  cancelledAt: true,
-  cancelReasonEncrypted: true,
-  patient: {
-    select: { id: true, userId: true, firstName: true, lastName: true, insuranceType: true },
-  },
-  service: { select: { name: true, durationMinutes: true } },
-  slot: { select: { providerId: true, startsAt: true, endsAt: true } },
-} as const;
-
-type Row = Prisma.AppointmentGetPayload<{ select: typeof ROW_FIELDS }>;
+/** The longest span of days one list of appointments covers (W5). */
+export const MAX_LIST_DAYS = 92;
 
 const DETAIL_FIELDS = {
   ...ROW_FIELDS,
@@ -87,55 +75,25 @@ const DETAIL_FIELDS = {
 
 type DetailRow = Prisma.AppointmentGetPayload<{ select: typeof DETAIL_FIELDS }>;
 
-/** The answer's shape as a plain object type, so that a detail can spread it. */
-type RowView = Pick<DeskAppointmentRowDto, keyof DeskAppointmentRowDto>;
-
-const DISPLAY_SETTINGS = { timeZone: true, numberingSystem: true, hourCycle: true } as const;
-
-type DisplaySettings = Prisma.PracticeSettingsGetPayload<{ select: typeof DISPLAY_SETTINGS }>;
-
 /** A change of the team; a cancel carries its reason, sealed before the transaction. */
 type Change =
   | { readonly action: Exclude<DeskAction, 'CANCEL'> }
   | { readonly action: 'CANCEL'; readonly sealedReason: string };
 
-function invalidDate(): DomainException {
+function tooLong(): DomainException {
   return new DomainException('VALIDATION_FAILED', {
     fieldErrors: [
-      { field: 'date', code: 'INVALID_VALUE', message: FIELD_ERROR_MESSAGES.INVALID_VALUE },
+      { field: 'to', code: 'INVALID_VALUE', message: FIELD_ERROR_MESSAGES.INVALID_VALUE },
     ],
   });
 }
 
-function dateOfInput(value: string): Temporal.PlainDate {
-  try {
-    return Temporal.PlainDate.from(value, { overflow: 'reject' });
-  } catch {
-    // 2026-02-31 has the right form and is no day: answered like any other.
-    throw invalidDate();
-  }
-}
-
-function displayNameOf(member: {
-  readonly title: string | null;
-  readonly firstName: string;
-  readonly lastName: string;
-}): string {
-  return [member.title, member.firstName, member.lastName]
-    .filter((part) => part !== null && part !== '')
-    .join(' ');
-}
-
-function iso(date: Date | null): string | null {
-  return date === null ? null : instantOf(date).toString();
-}
-
 /**
- * The practice's side of its appointments (M05): the day of the team (W1), one appointment with what
- * the patient wrote (W6), and the changes of BR-04 and BR-11. Every read writes an audit event per
- * appointment it shows (BR-18), every change one for itself (BR-12), in its transaction. A change
- * waits for the patient's row, as everything that changes a person's appointments does, and a retry
- * of a change that is there already answers alike.
+ * The practice's side of its appointments (M05): the day of the team (W1), the list of some days
+ * (W5), one appointment with what the patient wrote (W6), and the changes of BR-04 and BR-11. Every
+ * read writes an audit event per appointment it shows (BR-18), every change one for itself (BR-12),
+ * in its transaction. A change waits for the patient's row, as everything that changes a person's
+ * appointments does, and a retry of a change that is there already answers alike.
  */
 @Injectable()
 export class DeskService {
@@ -147,6 +105,8 @@ export class DeskService {
     private readonly clock: Clock,
     private readonly keys: PracticeKeys,
     private readonly audit: PracticeAudit,
+    private readonly rows: DeskRows,
+    private readonly patients: DeskPatients,
   ) {}
 
   async day(
@@ -155,10 +115,10 @@ export class DeskService {
     ip: string | undefined,
   ): Promise<DeskDayDto> {
     const { practice } = requirePracticeContext(this.cls);
-    const settings = await this.displaySettings();
+    const settings = await this.rows.displaySettings();
     const now = this.clock.now();
     const today = dayOf(now, settings.timeZone);
-    const day = date === undefined ? today : dateOfInput(date);
+    const day = date === undefined ? today : dateOfInput(date, 'date');
     const { start, end } = dayRange(day, settings.timeZone);
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
     const db = this.txHost.tx;
@@ -171,7 +131,7 @@ export class DeskService {
       orderBy: [{ slot: { startsAt: 'asc' } }, { id: 'asc' }],
       take: DESK_DAY_LIMIT + 1,
     });
-    const rows = found.slice(0, DESK_DAY_LIMIT);
+    const shown = found.slice(0, DESK_DAY_LIMIT);
     const byStatus = await db.appointment.groupBy({
       by: ['status'],
       where: ofDay,
@@ -192,11 +152,11 @@ export class DeskService {
       select: { startsAt: true },
       orderBy: { startsAt: 'asc' },
     });
-    const names = await this.namesOf(rows);
+    const names = await this.rows.namesOf(shown);
     await this.audit.recordEachUnlessRecent({
       userId,
       action: DESK_AUDIT.list,
-      subjectIds: rows.map(({ id }) => id),
+      subjectIds: shown.map(({ id }) => id),
       ipHash,
       minutes: LIST_AUDIT_MINUTES,
     });
@@ -214,8 +174,120 @@ export class DeskService {
       },
       openTimes,
       nextOpenAt: iso(next?.startsAt ?? null),
-      items: rows.map((row) => this.viewOf(row, names, now, settings.timeZone)),
+      items: shown.map((row) => this.rows.viewOf(row, names, now, settings.timeZone)),
       truncated: found.length > DESK_DAY_LIMIT,
+    };
+  }
+
+  /**
+   * W5: the appointments of some days in the order of time, narrowed as the team chooses. The
+   * patients a search finds are a condition of the same query, so however many there are, none is
+   * left out.
+   */
+  async list(
+    { userId }: Actor,
+    search: DeskAppointmentSearchDto,
+    ip: string | undefined,
+  ): Promise<DeskAppointmentPageDto> {
+    const { practice } = requirePracticeContext(this.cls);
+    const settings = await this.rows.displaySettings();
+    const today = dayOf(this.clock.now(), settings.timeZone);
+    const from = search.from === undefined ? today : dateOfInput(search.from, 'from');
+    const to = search.to === undefined ? from.add({ days: 6 }) : dateOfInput(search.to, 'to');
+    const span = from.until(to, { largestUnit: 'days' }).days;
+    if (span < 0 || span >= MAX_LIST_DAYS) throw tooLong();
+    const patient = search.query === undefined ? undefined : patientSearchOf(search.query);
+    const where = Prisma.join(
+      [
+        Prisma.sql`s.starts_at >= ${dbInstantOf(dayRange(from, settings.timeZone).start)}`,
+        Prisma.sql`s.starts_at < ${dbInstantOf(dayRange(to, settings.timeZone).end)}`,
+        ...(search.providerId === undefined
+          ? []
+          : [Prisma.sql`s.provider_id = ${search.providerId.toLowerCase()}::uuid`]),
+        ...(search.serviceId === undefined
+          ? []
+          : [Prisma.sql`a.service_id = ${search.serviceId.toLowerCase()}::uuid`]),
+        ...(search.patientId === undefined
+          ? []
+          : [Prisma.sql`a.patient_id = ${search.patientId.toLowerCase()}::uuid`]),
+        ...(search.status === undefined
+          ? []
+          : [Prisma.sql`a.status = ${search.status}::appointment_status`]),
+        ...(patient === undefined ? [] : [await this.patients.conditionOf(patient)]),
+      ],
+      ' AND ',
+    );
+    const db = this.txHost.tx;
+    const after =
+      search.cursor === undefined ? Prisma.sql`TRUE` : await this.afterPosition(search.cursor);
+    const ids = await db.$queryRaw<{ id: string }[]>`
+      SELECT a.id FROM ${LIST_SOURCE}
+      WHERE ${where} AND ${after}
+      ORDER BY s.starts_at, a.id
+      LIMIT ${search.limit + 1}`;
+    const rows = new Map(
+      (
+        await db.appointment.findMany({
+          where: { id: { in: ids.map(({ id }) => id) } },
+          select: ROW_FIELDS,
+        })
+      ).map((row) => [row.id, row]),
+    );
+    const page = cursorPageOf(
+      ids.flatMap(({ id }) => rows.get(id) ?? []),
+      search.limit,
+      ({ id }) => id,
+    );
+    // Only the first page counts: a count after a cursor past the end would tell how many
+    // appointments match without showing one, and so without an audit row (security review).
+    const total =
+      search.cursor === undefined
+        ? Number(
+            (
+              await db.$queryRaw<{ total: bigint }[]>`
+                SELECT count(*) AS total FROM ${LIST_SOURCE} WHERE ${where}`
+            )[0]?.total ?? 0,
+          )
+        : null;
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.audit.recordEachUnlessRecent({
+      userId,
+      action: DESK_AUDIT.list,
+      subjectIds: page.items.map(({ id }) => id),
+      ipHash,
+      minutes: LIST_AUDIT_MINUTES,
+    });
+    return {
+      items: await this.rows.viewsOf(page.items, settings.timeZone),
+      nextCursor: page.nextCursor,
+      total,
+      from: from.toString(),
+      to: to.toString(),
+      today: today.toString(),
+      ...settings,
+    };
+  }
+
+  /** What the team chooses from in its filters and, with W7, when booking: doctors and services. */
+  async catalog(): Promise<DeskCatalogDto> {
+    const db = this.txHost.tx;
+    const providers = await db.staffMember.findMany({
+      where: { isProvider: true },
+      select: { id: true, title: true, firstName: true, lastName: true },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+    });
+    const services = await db.service.findMany({
+      select: { id: true, name: true, durationMinutes: true, active: true },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    });
+    return {
+      providers: providers.map((member) => ({ id: member.id, name: displayNameOf(member) })),
+      services: services.map((service) => ({
+        id: service.id,
+        name: service.name as Readonly<Record<string, string>>,
+        durationMinutes: service.durationMinutes,
+        active: service.active,
+      })),
     };
   }
 
@@ -232,9 +304,10 @@ export class DeskService {
       select: DETAIL_FIELDS,
     });
     if (row === null) throw new DomainException('NOT_FOUND');
-    const settings = await this.displaySettings();
+    const settings = await this.rows.displaySettings();
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
-    const view = this.viewOf(row, await this.namesOf([row]), this.clock.now(), settings.timeZone);
+    const names = await this.rows.namesOf([row]);
+    const view = this.rows.viewOf(row, names, this.clock.now(), settings.timeZone);
     const details = await this.detailsOf(practice.id, row, settings);
     await this.audit.record({ userId, action: DESK_AUDIT.read, subjectId: id, ipHash });
     return { ...view, ...details };
@@ -268,6 +341,20 @@ export class DeskService {
     return appointmentId.toLowerCase();
   }
 
+  /**
+   * After the appointment a page stopped at, with the id deciding between equal starts. The cursor
+   * names only the id, and the start is read from its row.
+   */
+  private async afterPosition(cursor: string): Promise<Prisma.Sql> {
+    const id = decodeCursor(cursor, isUuid).toLowerCase();
+    const position = await this.txHost.tx.appointment.findUnique({
+      where: { id },
+      select: { slot: { select: { startsAt: true } } },
+    });
+    if (position === null) throw invalidCursor();
+    return Prisma.sql`(s.starts_at, a.id) > (${position.slot.startsAt}::timestamptz, ${id}::uuid)`;
+  }
+
   private async apply(
     { userId }: Actor,
     id: string,
@@ -276,7 +363,7 @@ export class DeskService {
   ): Promise<DeskAppointmentRowDto> {
     const { practice } = requirePracticeContext(this.cls);
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
-    const settings = await this.displaySettings();
+    const settings = await this.rows.displaySettings();
     return this.transactions.run(userId, async () => {
       const db = this.txHost.tx;
       // The patient of an appointment never changes: their row is the lock to take first.
@@ -318,7 +405,8 @@ export class DeskService {
       });
       if (outcome.kind === 'apply') await this.write(id, row.slotId, change, userId, now);
       const written = await db.appointment.findUniqueOrThrow({ where: { id }, select: ROW_FIELDS });
-      return this.viewOf(written, await this.namesOf([written]), now, settings.timeZone);
+      const names = await this.rows.namesOf([written]);
+      return this.rows.viewOf(written, names, now, settings.timeZone);
     });
   }
 
@@ -368,58 +456,6 @@ export class DeskService {
         return;
       }
     }
-  }
-
-  private displaySettings(): Promise<DisplaySettings> {
-    return this.txHost.tx.practiceSettings.findUniqueOrThrow({
-      where: { id: 1 },
-      select: DISPLAY_SETTINGS,
-    });
-  }
-
-  /** Every doctor of the rows, named for the team with or without a public profile, read once. */
-  private async namesOf(rows: readonly Row[]): Promise<ReadonlyMap<string, string>> {
-    if (rows.length === 0) return new Map();
-    const members = await this.txHost.tx.staffMember.findMany({
-      where: { id: { in: [...new Set(rows.map(({ slot }) => slot.providerId))] } },
-      select: { id: true, title: true, firstName: true, lastName: true },
-    });
-    return new Map(members.map((member) => [member.id, displayNameOf(member)]));
-  }
-
-  private viewOf(
-    row: Row,
-    names: ReadonlyMap<string, string>,
-    now: Temporal.Instant,
-    timeZone: string,
-  ): RowView {
-    const startsAt = instantOf(row.slot.startsAt);
-    const timing: DeskTiming = { now, startsAt, timeZone };
-    return {
-      id: row.id,
-      patient: {
-        id: row.patient.id,
-        firstName: row.patient.firstName,
-        lastName: row.patient.lastName,
-        insuranceType: row.patient.insuranceType,
-      },
-      serviceId: row.serviceId,
-      serviceName: row.service.name as Readonly<Record<string, string>>,
-      durationMinutes: row.service.durationMinutes,
-      providerId: row.slot.providerId,
-      providerName: names.get(row.slot.providerId) ?? '',
-      startsAt: startsAt.toString(),
-      endsAt: instantOf(row.slot.endsAt).toString(),
-      status: row.status,
-      bookedOnline: row.patient.userId !== null && row.bookedById === row.patient.userId,
-      checkedInAt: iso(row.checkedInAt),
-      completedAt: iso(row.completedAt),
-      cancelledAt: iso(row.cancelledAt),
-      cancelledByPractice: row.status === 'CANCELLED' && row.cancelReasonEncrypted !== null,
-      day: dayRelationOf(timing),
-      started: Temporal.Instant.compare(now, startsAt) >= 0,
-      actions: deskActionsOf(row.status, timing),
-    };
   }
 
   private async detailsOf(

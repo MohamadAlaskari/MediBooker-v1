@@ -11,12 +11,19 @@ import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
 import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
+import { DeskPatients } from './desk-patients.js';
 import {
   CancelAsPracticeDto,
   DeskAppointmentDto,
+  DeskAppointmentPageDto,
   DeskAppointmentRowDto,
+  DeskAppointmentSearchDto,
+  DeskCatalogDto,
   DeskDayDto,
   DeskDayQueryDto,
+  DeskPatientPageDto,
+  DeskPatientRecordDto,
+  DeskPatientSearchDto,
 } from './desk.dto.js';
 import { DeskService } from './desk.service.js';
 
@@ -25,6 +32,12 @@ import { DeskService } from './desk.service.js';
  * practice can share one address behind its router.
  */
 const DESK_CHANGE_LIMIT = { default: { limit: 120, ttl: 60_000 } };
+
+/**
+ * Per route, address and minute: stricter for a search than the default (health-data-security),
+ * with room for a reception whose team shares one address and asks once a typed word settles.
+ */
+const DESK_SEARCH_LIMIT = { default: { limit: 60, ttl: 60_000 } };
 
 /**
  * The practice's side of its appointments (M05), for every role of its team with both factors
@@ -37,7 +50,65 @@ const DESK_CHANGE_LIMIT = { default: { limit: 120, ttl: 60_000 } };
 @ApiParam({ name: 'practiceId', type: String, format: 'uuid' })
 @Controller('practices/:practiceId/desk')
 export class DeskController {
-  constructor(private readonly desk: DeskService) {}
+  constructor(
+    private readonly desk: DeskService,
+    private readonly patients: DeskPatients,
+  ) {}
+
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({ summary: 'The doctors and services of the practice, for filters and booking' })
+  @ApiOkResponse({ type: DeskCatalogDto })
+  @Get('catalog')
+  async getDeskCatalog(): Promise<DeskCatalogDto> {
+    return this.desk.catalog();
+  }
+
+  @Throttle(DESK_SEARCH_LIMIT)
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary:
+      'The appointments of some days, a page at a time; reads only, and every one shown is audited',
+  })
+  @ApiOkResponse({ type: DeskAppointmentPageDto })
+  @HttpCode(200)
+  @Post('appointments/search')
+  async searchDeskAppointments(
+    @CurrentUser() actor: Actor,
+    @Body() search: DeskAppointmentSearchDto,
+    @Ip() ip: string,
+  ): Promise<DeskAppointmentPageDto> {
+    return this.desk.list(actor, search, ip);
+  }
+
+  @Throttle(DESK_SEARCH_LIMIT)
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary:
+      'The patients of the practice, found as the team types; reads only, and every one shown is audited',
+  })
+  @ApiOkResponse({ type: DeskPatientPageDto })
+  @HttpCode(200)
+  @Post('patients/search')
+  async searchDeskPatients(
+    @CurrentUser() actor: Actor,
+    @Body() search: DeskPatientSearchDto,
+    @Ip() ip: string,
+  ): Promise<DeskPatientPageDto> {
+    return this.patients.page(actor, search, ip);
+  }
+
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({ summary: 'One patient with what is to come and what was; the read is audited' })
+  @ApiParam({ name: 'patientId', format: 'uuid' })
+  @ApiOkResponse({ type: DeskPatientRecordDto })
+  @Get('patients/:patientId')
+  async getDeskPatient(
+    @CurrentUser() actor: Actor,
+    @Param('patientId') patientId: string,
+    @Ip() ip: string,
+  ): Promise<DeskPatientRecordDto> {
+    return this.patients.record(actor, patientId, ip);
+  }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
   @ApiOperation({

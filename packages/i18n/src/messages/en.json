@@ -448,7 +448,9 @@
     "shell": {
       "nav": "Practice dashboard",
       "today": "Today",
-      "role": "{role, select, ADMIN {Administrator} DOCTOR {Doctor} STAFF {Reception} other {Team}}"
+      "role": "{role, select, ADMIN {Administrator} DOCTOR {Doctor} STAFF {Reception} other {Team}}",
+      "appointments": "Appointments",
+      "patients": "Patients"
     },
     "today": {
       "greeting": "{part, select, morning {Good morning} afternoon {Good afternoon} other {Good evening}}",
@@ -532,6 +534,58 @@
       "body": "To protect the patients' data, you will be signed out in one minute without activity.",
       "stay": "Stay signed in",
       "signOut": "Sign out now"
+    },
+    "pager": {
+      "label": "Pages",
+      "showing": "Showing {from}–{to} of {total}",
+      "page": "Page {page} of {pages}",
+      "previous": "Previous page",
+      "next": "Next page"
+    },
+    "appointments": {
+      "title": "Appointments",
+      "range": "{from} – {to}",
+      "filters": "Filter the appointments",
+      "search": "Search patient, phone or date of birth",
+      "previousWeek": "Previous week",
+      "nextWeek": "Next week",
+      "thisWeek": "This week",
+      "doctor": "Doctor",
+      "allDoctors": "All doctors",
+      "status": "Status",
+      "allStatuses": "All statuses",
+      "service": "Service",
+      "allServices": "All services",
+      "today": "Today · {date}",
+      "loading": "Loading the appointments",
+      "empty": "No appointments match."
+    },
+    "patients": {
+      "title": "Patients",
+      "count": "Patients: {count}",
+      "filters": "Filter the patients",
+      "search": "Search by name, phone, date of birth or insurance number",
+      "insurance": "Insurance",
+      "allInsurance": "All insurance types",
+      "patient": "Patient",
+      "phone": "Phone",
+      "lastVisit": "Last visit",
+      "nextAppointment": "Next appointment",
+      "actions": "Actions",
+      "none": "—",
+      "born": "{date} · {age, plural, one {# year} other {# years}}",
+      "open": "Open {name}",
+      "practiceKept": "Kept by the practice",
+      "loading": "Loading the patients",
+      "empty": "No patients match.",
+      "kicker": "Patient",
+      "upcoming": "Upcoming appointments",
+      "recent": "Recent appointments",
+      "nothingUpcoming": "No upcoming appointments.",
+      "nothingRecent": "No appointments yet.",
+      "insuranceNumber": "Insurance number ending in {end}",
+      "audited": "Opening a patient is recorded in the practice's log.",
+      "loadingRecord": "Loading the patient"
     }
   }
 }

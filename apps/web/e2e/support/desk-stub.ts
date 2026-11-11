@@ -12,17 +12,21 @@ import type {
 } from '@medibooker/api-client';
 import { bodyOf, problem, respond } from './answers.ts';
 
-const TODAY = '2026-11-08';
+export const TODAY = '2026-11-08';
 const TOMORROW = '2026-11-09';
 /** 10:00 on the stub's today in Riyadh. */
-const NOW = '2026-11-08T07:00:00Z';
-const SETTINGS = { timeZone: 'Asia/Riyadh', numberingSystem: 'latn', hourCycle: 'h23' } as const;
+export const NOW = '2026-11-08T07:00:00Z';
+export const SETTINGS = {
+  timeZone: 'Asia/Riyadh',
+  numberingSystem: 'latn',
+  hourCycle: 'h23',
+} as const;
 const MAX_REASON_LENGTH = 500;
 
 type Status = DeskAppointmentRowDto['status'];
 type Action = 'CHECK_IN' | 'COMPLETE' | 'NO_SHOW' | 'CANCEL';
 
-interface Appointment {
+export interface Appointment {
   readonly id: string;
   readonly date: string;
   readonly startsAt: string;
@@ -44,6 +48,13 @@ interface Appointment {
 
 const CHECK_UP = { en: 'Check-up', ar: 'فحص عام' };
 const BLOOD_TEST = { en: 'Blood test', ar: 'تحليل دم' };
+export const CHECK_UP_ID = '60000000-0000-4000-8000-000000000001';
+export const BLOOD_TEST_ID = '60000000-0000-4000-8000-000000000002';
+export const PROVIDER_ID = '70000000-0000-4000-8000-000000000001';
+export const SERVICES = [
+  { id: CHECK_UP_ID, name: CHECK_UP, durationMinutes: 30, active: true },
+  { id: BLOOD_TEST_ID, name: BLOOD_TEST, durationMinutes: 15, active: true },
+];
 
 /** A fresh day per account: what one test changes, another does not see. */
 function seed(): Map<string, Appointment> {
@@ -111,7 +122,7 @@ function seed(): Map<string, Appointment> {
 
 const days = new Map<string, Map<string, Appointment>>();
 
-function dayOf(owner: string): Map<string, Appointment> {
+export function dayOf(owner: string): Map<string, Appointment> {
   const existing = days.get(owner);
   if (existing !== undefined) return existing;
   const fresh = seed();
@@ -132,7 +143,7 @@ function actionsOf({ status, date, startsAt }: Appointment): Action[] {
   ];
 }
 
-function rowOf(appointment: Appointment): DeskAppointmentRowDto {
+export function rowOf(appointment: Appointment): DeskAppointmentRowDto {
   const { date } = appointment;
   return {
     id: appointment.id,
@@ -142,10 +153,10 @@ function rowOf(appointment: Appointment): DeskAppointmentRowDto {
       lastName: appointment.lastName,
       insuranceType: appointment.insuranceType,
     },
-    serviceId: '60000000-0000-4000-8000-000000000001',
+    serviceId: appointment.serviceName === BLOOD_TEST ? BLOOD_TEST_ID : CHECK_UP_ID,
     serviceName: appointment.serviceName,
     durationMinutes: appointment.durationMinutes,
-    providerId: '70000000-0000-4000-8000-000000000001',
+    providerId: PROVIDER_ID,
     providerName: appointment.providerName,
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
@@ -161,7 +172,7 @@ function rowOf(appointment: Appointment): DeskAppointmentRowDto {
   };
 }
 
-function detailsOf(appointment: Appointment): DeskAppointmentDto {
+export function detailsOf(appointment: Appointment): DeskAppointmentDto {
   const row = rowOf(appointment);
   return {
     ...row,

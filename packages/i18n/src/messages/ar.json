@@ -448,7 +448,9 @@
     "shell": {
       "nav": "لوحة العيادة",
       "today": "اليوم",
-      "role": "{role, select, ADMIN {مدير العيادة} DOCTOR {طبيب} STAFF {الاستقبال} other {فريق العيادة}}"
+      "role": "{role, select, ADMIN {مدير العيادة} DOCTOR {طبيب} STAFF {الاستقبال} other {فريق العيادة}}",
+      "appointments": "المواعيد",
+      "patients": "المرضى"
     },
     "today": {
       "greeting": "{part, select, morning {صباح الخير} afternoon {مساء الخير} other {مساء الخير}}",
@@ -532,6 +534,58 @@
       "body": "لحماية بيانات المرضى، سيتم تسجيل خروجك بعد دقيقة واحدة دون نشاط.",
       "stay": "البقاء مسجّلًا",
       "signOut": "تسجيل الخروج الآن"
+    },
+    "pager": {
+      "label": "الصفحات",
+      "showing": "عرض {from}–{to} من {total}",
+      "page": "الصفحة {page} من {pages}",
+      "previous": "الصفحة السابقة",
+      "next": "الصفحة التالية"
+    },
+    "appointments": {
+      "title": "المواعيد",
+      "range": "{from} – {to}",
+      "filters": "تصفية المواعيد",
+      "search": "ابحث عن مريض أو هاتف أو تاريخ ميلاد",
+      "previousWeek": "الأسبوع السابق",
+      "nextWeek": "الأسبوع التالي",
+      "thisWeek": "هذا الأسبوع",
+      "doctor": "الطبيب",
+      "allDoctors": "كل الأطباء",
+      "status": "الحالة",
+      "allStatuses": "كل الحالات",
+      "service": "الخدمة",
+      "allServices": "كل الخدمات",
+      "today": "اليوم · {date}",
+      "loading": "جارٍ تحميل المواعيد",
+      "empty": "لا توجد مواعيد مطابقة."
+    },
+    "patients": {
+      "title": "المرضى",
+      "count": "عدد المرضى: {count}",
+      "filters": "تصفية المرضى",
+      "search": "ابحث بالاسم أو الهاتف أو تاريخ الميلاد أو رقم التأمين",
+      "insurance": "التأمين",
+      "allInsurance": "كل أنواع التأمين",
+      "patient": "المريض",
+      "phone": "الهاتف",
+      "lastVisit": "آخر زيارة",
+      "nextAppointment": "الموعد القادم",
+      "actions": "الإجراءات",
+      "none": "—",
+      "born": "{date} · {age, plural, zero {أقل من سنة} one {سنة واحدة} two {سنتان} few {# سنوات} many {# سنة} other {# سنة}}",
+      "open": "فتح ملف {name}",
+      "practiceKept": "تحتفظ به العيادة",
+      "loading": "جارٍ تحميل المرضى",
+      "empty": "لا يوجد مرضى مطابقون.",
+      "kicker": "المريض",
+      "upcoming": "المواعيد القادمة",
+      "recent": "المواعيد السابقة",
+      "nothingUpcoming": "لا توجد مواعيد قادمة.",
+      "nothingRecent": "لا توجد مواعيد بعد.",
+      "insuranceNumber": "رقم التأمين ينتهي بـ {end}",
+      "audited": "يُسجَّل فتح ملف المريض في سجل العيادة.",
+      "loadingRecord": "جارٍ تحميل ملف المريض"
     }
   }
 }

@@ -28,6 +28,16 @@ describe('initialsOf', () => {
     expect(initialsOf('سارة', 'أحمد', 'ar')).toBe('س‌أ');
     expect(initialsOf('سارة', ' ', 'ar')).toBe('س');
   });
+
+  it('shows bare letters, and the letter after the article of a family name', () => {
+    // Most Arabic family names start with ال: every avatar would show an alef.
+    expect(initialsOf('سَارَة', 'التَّجْرِيبِيَّة', 'ar')).toBe('س‌ت');
+    expect(initialsOf('مُصْطَفَى', 'ٱلْـهَاشِمِيّ', 'ar')).toBe('م‌ه');
+    expect(initialsOf('فيصل', 'آل سعود', 'ar')).toBe('ف‌س');
+    // A first name keeps its letters, and ال alone is a name, not an article.
+    expect(initialsOf('الياس', 'ال', 'ar')).toBe('ا‌ا');
+    expect(initialsOf('Sara', 'Al-Ahmad', 'en')).toBe('S‌A');
+  });
 });
 
 describe('statusVariantOf', () => {

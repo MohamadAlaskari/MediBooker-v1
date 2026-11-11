@@ -88,13 +88,14 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | A05 for patients The pages for signing up, confirming, signing in and out, and a new password; the account profile of D16 | Committed (`8d12915`, `b0e2f11`) and done; staff pages with A04 |
 | B01 Patient profiles, insurance per practice, the membership index and its relay | Committed (`ddf90dd`) |
 | B02 Booking an appointment with row locks and idempotency keys | Committed (`b9b2795`) |
-| B03 for patients Cancel, reschedule and my appointments, also across practices | Committed (`447475e`); the staff half with M05 (one commit) |
+| B03 for patients Cancel, reschedule and my appointments, also across practices | Committed (`447475e`); the staff half with M05 (`aadecdd`) |
 | B04 Booking on the web: from a free time to an appointment, my appointments, cancel and reschedule | Committed (`628fd8e`) |
 | F09 File storage: the port `ObjectStorage`, Azure Blob Storage, Azurite in development ([ADR 0015](../adr/0015-object-storage.md)) | Committed (`95e5b8e`) |
 | I01 One installation per practice: its page at the root of its domain ([ADR 0016](../adr/0016-one-installation-per-practice.md)) | Committed (`f1af019`) |
 | I02 The practice's brand: its name and colours on every page, "Powered by MediBooker", e-mails in its name | Committed (`7f2c8ac`) |
 | A04 for the dashboard Staff roles, two-step sign-in with an authenticator app and recovery codes, the operator's role command, the dashboard's start | Committed (`d1aeeee`); invitations with M03, the rest later |
-| M05, the team's day The day of the practice with its figures, an appointment with the patient's note, check-in, completion, no-show and a cancel with a reason, the dashboard's frame and its sign-out after 15 minutes | Committed (one commit); calendar, appointment list, patients and booking for a patient next |
+| M05, the team's day The day of the practice with its figures, an appointment with the patient's note, check-in, completion, no-show and a cancel with a reason, the dashboard's frame and its sign-out after 15 minutes | Committed (`aadecdd`) |
+| M05, the team's lists The appointments of a week with filters, the patients with a search in Arabic and Latin letters however written, one patient's record | Committed (one commit); booking for a patient and the calendar next |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

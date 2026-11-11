@@ -20,10 +20,20 @@ import type {
 import type {
   CancelAsPracticeDto,
   DeskAppointmentDto,
+  DeskAppointmentPageDto,
   DeskAppointmentRowDto,
-  DeskDayDto
+  DeskAppointmentSearchDto,
+  DeskCatalogDto,
+  DeskDayDto,
+  DeskPatientPageDto,
+  DeskPatientRecordDto,
+  DeskPatientSearchDto
 } from '../../model';
 
+
+export const getSearchDeskAppointmentsResponseMock = (overrideResponse: Partial<Extract<DeskAppointmentPageDto, object>> = {}): DeskAppointmentPageDto => ({from: faker.date.past().toISOString().slice(0, 10), hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({actions: faker.helpers.arrayElements(['CHECK_IN','COMPLETE','NO_SHOW','CANCEL'] as const), bookedOnline: faker.datatype.boolean(), cancelledAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), cancelledByPractice: faker.datatype.boolean(), checkedInAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), completedAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), day: faker.helpers.arrayElement(['PAST','TODAY','FUTURE'] as const), durationMinutes: faker.number.float({fractionDigits: 2}), endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', id: faker.string.uuid(), patient: {firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}})}, providerId: faker.string.uuid(), providerName: faker.string.alpha({length: {min: 10, max: 20}}), serviceId: faker.string.uuid(), serviceName: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const)})), nextCursor: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), to: faker.date.past().toISOString().slice(0, 10), today: faker.date.past().toISOString().slice(0, 10), total: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), null]), ...overrideResponse})
 
 export const getGetDeskAppointmentResponseMock = (overrideResponse: Partial<Extract<DeskAppointmentDto, object>> = {}): DeskAppointmentDto => ({actions: faker.helpers.arrayElements(['CHECK_IN','COMPLETE','NO_SHOW','CANCEL'] as const), bookedAt: faker.date.past().toISOString().slice(0, 19) + 'Z', bookedOnline: faker.datatype.boolean(), cancelReason: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), cancelledAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), cancelledByPractice: faker.datatype.boolean(), checkedInAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), completedAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), day: faker.helpers.arrayElement(['PAST','TODAY','FUTURE'] as const), durationMinutes: faker.number.float({fractionDigits: 2}), endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), patient: {age: faker.number.float({fractionDigits: 2}), dateOfBirth: faker.date.past().toISOString().slice(0, 10), email: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null])}, patientNote: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), providerId: faker.string.uuid(), providerName: faker.string.alpha({length: {min: 10, max: 20}}), serviceId: faker.string.uuid(), serviceName: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
@@ -45,10 +55,34 @@ export const getMarkAppointmentNoShowResponseMock = (overrideResponse: Partial<E
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const), ...overrideResponse})
 
+export const getGetDeskCatalogResponseMock = (overrideResponse: Partial<Extract<DeskCatalogDto, object>> = {}): DeskCatalogDto => ({providers: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), services: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({active: faker.datatype.boolean(), durationMinutes: faker.number.float({fractionDigits: 2}), id: faker.string.uuid(), name: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }})), ...overrideResponse})
+
 export const getGetDeskDayResponseMock = (overrideResponse: Partial<Extract<DeskDayDto, object>> = {}): DeskDayDto => ({counts: {...{booked: faker.number.float({fractionDigits: 2}), cancelled: faker.number.float({fractionDigits: 2}), checkedIn: faker.number.float({fractionDigits: 2}), completed: faker.number.float({fractionDigits: 2}), noShow: faker.number.float({fractionDigits: 2})},}, date: faker.date.past().toISOString().slice(0, 10), hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({actions: faker.helpers.arrayElements(['CHECK_IN','COMPLETE','NO_SHOW','CANCEL'] as const), bookedOnline: faker.datatype.boolean(), cancelledAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), cancelledByPractice: faker.datatype.boolean(), checkedInAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), completedAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), day: faker.helpers.arrayElement(['PAST','TODAY','FUTURE'] as const), durationMinutes: faker.number.float({fractionDigits: 2}), endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', id: faker.string.uuid(), patient: {firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}})}, providerId: faker.string.uuid(), providerName: faker.string.alpha({length: {min: 10, max: 20}}), serviceId: faker.string.uuid(), serviceName: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const)})), nextOpenAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), now: faker.date.past().toISOString().slice(0, 19) + 'Z', numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), openTimes: faker.number.float({fractionDigits: 2}), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), today: faker.date.past().toISOString().slice(0, 10), truncated: faker.datatype.boolean(), ...overrideResponse})
 
+export const getSearchDeskPatientsResponseMock = (overrideResponse: Partial<Extract<DeskPatientPageDto, object>> = {}): DeskPatientPageDto => ({hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), items: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({age: faker.number.float({fractionDigits: 2}), dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), hasAccount: faker.datatype.boolean(), id: faker.string.uuid(), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), lastVisitAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), nextAppointmentAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null])})), nextCursor: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), total: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), null]), ...overrideResponse})
+
+export const getGetDeskPatientResponseMock = (overrideResponse: Partial<Extract<DeskPatientRecordDto, object>> = {}): DeskPatientRecordDto => ({hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), patient: {age: faker.number.float({fractionDigits: 2}), dateOfBirth: faker.date.past().toISOString().slice(0, 10), email: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null])}, recent: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({actions: faker.helpers.arrayElements(['CHECK_IN','COMPLETE','NO_SHOW','CANCEL'] as const), bookedOnline: faker.datatype.boolean(), cancelledAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), cancelledByPractice: faker.datatype.boolean(), checkedInAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), completedAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), day: faker.helpers.arrayElement(['PAST','TODAY','FUTURE'] as const), durationMinutes: faker.number.float({fractionDigits: 2}), endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', id: faker.string.uuid(), patient: {firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}})}, providerId: faker.string.uuid(), providerName: faker.string.alpha({length: {min: 10, max: 20}}), serviceId: faker.string.uuid(), serviceName: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const)})), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), upcoming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({actions: faker.helpers.arrayElements(['CHECK_IN','COMPLETE','NO_SHOW','CANCEL'] as const), bookedOnline: faker.datatype.boolean(), cancelledAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), cancelledByPractice: faker.datatype.boolean(), checkedInAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), completedAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), day: faker.helpers.arrayElement(['PAST','TODAY','FUTURE'] as const), durationMinutes: faker.number.float({fractionDigits: 2}), endsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', id: faker.string.uuid(), patient: {firstName: faker.string.alpha({length: {min: 10, max: 20}}), id: faker.string.uuid(), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}})}, providerId: faker.string.uuid(), providerName: faker.string.alpha({length: {min: 10, max: 20}}), serviceId: faker.string.uuid(), serviceName: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const)})), ...overrideResponse})
+
+
+export const getSearchDeskAppointmentsMockHandler = (overrideResponse?: DeskAppointmentPageDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }, DeskAppointmentSearchDto>>[0]) => Promise<DeskAppointmentPageDto> | DeskAppointmentPageDto), options?: RequestHandlerOptions) => {
+  return http.post<{ practiceId: string }, DeskAppointmentSearchDto>('*/api/v1/practices/:practiceId/desk/appointments/search', async (info: Parameters<HttpResponseResolver<{ practiceId: string }, DeskAppointmentSearchDto>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getSearchDeskAppointmentsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
 
 export const getGetDeskAppointmentMockHandler = (overrideResponse?: DeskAppointmentDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string; appointmentId: string }>>[0]) => Promise<DeskAppointmentDto> | DeskAppointmentDto), options?: RequestHandlerOptions) => {
   return http.get<{ practiceId: string; appointmentId: string }>('*/api/v1/practices/:practiceId/desk/appointments/:appointmentId', async (info: Parameters<HttpResponseResolver<{ practiceId: string; appointmentId: string }>>[0]) => {
@@ -110,6 +144,18 @@ export const getMarkAppointmentNoShowMockHandler = (overrideResponse?: DeskAppoi
   }, options)
 }
 
+export const getGetDeskCatalogMockHandler = (overrideResponse?: DeskCatalogDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<DeskCatalogDto> | DeskCatalogDto), options?: RequestHandlerOptions) => {
+  return http.get<{ practiceId: string }>('*/api/v1/practices/:practiceId/desk/catalog', async (info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetDeskCatalogResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getGetDeskDayMockHandler = (overrideResponse?: DeskDayDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<DeskDayDto> | DeskDayDto), options?: RequestHandlerOptions) => {
   return http.get<{ practiceId: string }>('*/api/v1/practices/:practiceId/desk/day', async (info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => {
 
@@ -121,11 +167,39 @@ export const getGetDeskDayMockHandler = (overrideResponse?: DeskDayDto | ((info:
       })
   }, options)
 }
+
+export const getSearchDeskPatientsMockHandler = (overrideResponse?: DeskPatientPageDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }, DeskPatientSearchDto>>[0]) => Promise<DeskPatientPageDto> | DeskPatientPageDto), options?: RequestHandlerOptions) => {
+  return http.post<{ practiceId: string }, DeskPatientSearchDto>('*/api/v1/practices/:practiceId/desk/patients/search', async (info: Parameters<HttpResponseResolver<{ practiceId: string }, DeskPatientSearchDto>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getSearchDeskPatientsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getGetDeskPatientMockHandler = (overrideResponse?: DeskPatientRecordDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string; patientId: string }>>[0]) => Promise<DeskPatientRecordDto> | DeskPatientRecordDto), options?: RequestHandlerOptions) => {
+  return http.get<{ practiceId: string; patientId: string }>('*/api/v1/practices/:practiceId/desk/patients/:patientId', async (info: Parameters<HttpResponseResolver<{ practiceId: string; patientId: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetDeskPatientResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
 export const getDeskMock = () => [
+  getSearchDeskAppointmentsMockHandler(),
   getGetDeskAppointmentMockHandler(),
   getCancelAppointmentAsPracticeMockHandler(),
   getCheckInAppointmentMockHandler(),
   getCompleteAppointmentMockHandler(),
   getMarkAppointmentNoShowMockHandler(),
-  getGetDeskDayMockHandler()
+  getGetDeskCatalogMockHandler(),
+  getGetDeskDayMockHandler(),
+  getSearchDeskPatientsMockHandler(),
+  getGetDeskPatientMockHandler()
 ]

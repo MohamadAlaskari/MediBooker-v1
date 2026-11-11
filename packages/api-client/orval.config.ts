@@ -21,6 +21,11 @@ export default defineConfig({
         // apiFetch throws ApiError on any failure, so a call resolves with the body alone.
         fetch: { includeHttpResponseReturnType: false },
         mutator: { path: 'src/http/fetcher.ts', name: 'apiFetch' },
+        // A search is a POST only to keep what is typed out of URLs (M05): it reads, so a query.
+        operations: {
+          searchDeskAppointments: { query: { useQuery: true, useMutation: false } },
+          searchDeskPatients: { query: { useQuery: true, useMutation: false } },
+        },
       },
     },
   },

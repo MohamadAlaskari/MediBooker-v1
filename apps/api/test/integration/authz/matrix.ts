@@ -39,6 +39,10 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   completeAppointment: { account: 403 },
   markAppointmentNoShow: { account: 403 },
   cancelAppointmentAsPractice: { account: 403 },
+  getDeskCatalog: { account: 403 },
+  searchDeskAppointments: { account: 403 },
+  searchDeskPatients: { account: 403 },
+  getDeskPatient: { account: 403 },
 };
 
 /** The operationIds that answer without sign-in. */
