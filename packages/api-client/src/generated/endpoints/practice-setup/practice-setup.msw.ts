@@ -24,6 +24,7 @@ import type {
   ServiceInputDto,
   ServiceListDto,
   ServicePatchDto,
+  ServiceProvidersInputDto,
   SpecialDayDto,
   SpecialDayInputDto,
   SpecialDayListDto
@@ -34,7 +35,7 @@ export const getGetOpeningHoursResponseMock = (overrideResponse: Partial<Extract
 
 export const getReplaceOpeningHoursResponseMock = (overrideResponse: Partial<Extract<OpeningHoursDto, object>> = {}): OpeningHoursDto => ({hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), intervals: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({closesAt: faker.helpers.fromRegExp("^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$"), opensAt: faker.helpers.fromRegExp("^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$"), weekday: faker.number.float({min: 1, max: 7, fractionDigits: 2})})), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), weekStart: faker.number.float({fractionDigits: 2}), weekendDays: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.number.float({fractionDigits: 2}))), ...overrideResponse})
 
-export const getListServicesResponseMock = (overrideResponse: Partial<Extract<ServiceListDto, object>> = {}): ServiceListDto => ({hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), insuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), locales: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), services: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({active: faker.datatype.boolean(), allowedInsuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), bufferMinutes: faker.number.float({min: 0, max: 120, fractionDigits: 2}), description: {
+export const getListServicesResponseMock = (overrideResponse: Partial<Extract<ServiceListDto, object>> = {}): ServiceListDto => ({doctors: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({hasWorkingHours: faker.datatype.boolean(), id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), hourCycle: faker.string.alpha({length: {min: 10, max: 20}}), insuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), locales: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), services: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({active: faker.datatype.boolean(), allowedInsuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), bufferMinutes: faker.number.float({min: 0, max: 120, fractionDigits: 2}), description: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, durationMinutes: faker.number.float({min: 5, max: 480, fractionDigits: 2}), id: faker.string.uuid(), isBookableOnline: faker.datatype.boolean(), name: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
@@ -47,6 +48,12 @@ export const getCreateServiceResponseMock = (overrideResponse: Partial<Extract<S
       }, providers: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), referralRequired: faker.datatype.boolean(), ...overrideResponse})
 
 export const getUpdateServiceResponseMock = (overrideResponse: Partial<Extract<ServiceDto, object>> = {}): ServiceDto => ({active: faker.datatype.boolean(), allowedInsuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), bufferMinutes: faker.number.float({min: 0, max: 120, fractionDigits: 2}), description: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, durationMinutes: faker.number.float({min: 5, max: 480, fractionDigits: 2}), id: faker.string.uuid(), isBookableOnline: faker.datatype.boolean(), name: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, providers: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), referralRequired: faker.datatype.boolean(), ...overrideResponse})
+
+export const getSetServiceProvidersResponseMock = (overrideResponse: Partial<Extract<ServiceDto, object>> = {}): ServiceDto => ({active: faker.datatype.boolean(), allowedInsuranceTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), bufferMinutes: faker.number.float({min: 0, max: 120, fractionDigits: 2}), description: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, durationMinutes: faker.number.float({min: 5, max: 480, fractionDigits: 2}), id: faker.string.uuid(), isBookableOnline: faker.datatype.boolean(), name: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
@@ -121,6 +128,18 @@ export const getUpdateServiceMockHandler = (overrideResponse?: ServiceDto | ((in
   }, options)
 }
 
+export const getSetServiceProvidersMockHandler = (overrideResponse?: ServiceDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string; serviceId: string }, ServiceProvidersInputDto>>[0]) => Promise<ServiceDto> | ServiceDto), options?: RequestHandlerOptions) => {
+  return http.put<{ practiceId: string; serviceId: string }, ServiceProvidersInputDto>('*/api/v1/practices/:practiceId/services/:serviceId/providers', async (info: Parameters<HttpResponseResolver<{ practiceId: string; serviceId: string }, ServiceProvidersInputDto>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getSetServiceProvidersResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getListSpecialDaysMockHandler = (overrideResponse?: SpecialDayListDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<SpecialDayListDto> | SpecialDayListDto), options?: RequestHandlerOptions) => {
   return http.get<{ practiceId: string }>('*/api/v1/practices/:practiceId/special-days', async (info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => {
 
@@ -160,6 +179,7 @@ export const getPracticeSetupMock = () => [
   getListServicesMockHandler(),
   getCreateServiceMockHandler(),
   getUpdateServiceMockHandler(),
+  getSetServiceProvidersMockHandler(),
   getListSpecialDaysMockHandler(),
   getCreateSpecialDayMockHandler(),
   getDeleteSpecialDayMockHandler()

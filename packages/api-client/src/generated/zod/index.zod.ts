@@ -5,4 +5,5 @@ export * from './me/me.zod';
 export * from './patients/patients.zod';
 export * from './practice-setup/practice-setup.zod';
 export * from './public-practice/public-practice.zod';
+export * from './scheduling/scheduling.zod';
 export * from './staff/staff.zod';

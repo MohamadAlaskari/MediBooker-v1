@@ -11,6 +11,7 @@ import { freeStarts, handleBooking, isOffered, publicPracticeFor } from './booki
 import { handleDeskBooking } from './desk-booking-stub.ts';
 import { handleDeskLists } from './desk-lists-stub.ts';
 import { handleDesk } from './desk-stub.ts';
+import { handleSchedule } from './schedule-stub.ts';
 import { handleSetup } from './setup-stub.ts';
 import { PRACTICES } from './practices.ts';
 
@@ -87,6 +88,7 @@ const server = createServer((request, response) => {
   if (handleDeskLists(pathname, request, response, () => deskAccessOf(request))) return;
   if (handleDesk(pathname, searchParams, request, response, () => deskAccessOf(request))) return;
   if (handleSetup(pathname, request, response, () => deskAccessOf(request))) return;
+  if (handleSchedule(pathname, request, response, () => deskAccessOf(request))) return;
   if (handleAccounts(pathname, searchParams, request, response)) return;
   // Everything public only reads.
   if (request.method !== 'GET') {

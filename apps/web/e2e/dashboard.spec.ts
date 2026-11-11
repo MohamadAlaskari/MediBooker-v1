@@ -58,7 +58,11 @@ async function searchAsked(page: Page, list: 'appointments' | 'patients', query:
 /** A staff account as the operator's command leaves it: a role, and maybe a second factor. */
 async function staffAccount(
   testInfo: TestInfo,
-  { role, secondFactor }: { readonly role?: Role; readonly secondFactor?: boolean },
+  {
+    role,
+    secondFactor,
+    provider,
+  }: { readonly role?: Role; readonly secondFactor?: boolean; readonly provider?: string },
 ): Promise<string> {
   const { project, repeatEachIndex, retry, testId } = testInfo;
   const email = `${project.name}-${testId}-${String(repeatEachIndex)}-${String(retry)}@example.test`;
@@ -67,7 +71,8 @@ async function staffAccount(
     method: 'POST',
     body: JSON.stringify({ email, password: PASSWORD, locale: localeOf(testInfo) }),
   });
-  if (role !== undefined) await fetch(`${STUB}/__staff?${query}&role=${role}`);
+  const link = provider === undefined ? '' : `&provider=${provider}`;
+  if (role !== undefined) await fetch(`${STUB}/__staff?${query}&role=${role}${link}`);
   if (secondFactor === true) await fetch(`${STUB}/__second-factor?${query}`);
   return email;
 }
@@ -84,12 +89,21 @@ async function signInFromDashboard(page: Page, locale: Locale, email: string): P
 }
 
 /** A member of the team, signed in with both factors, on the day of the practice. */
-async function onTheDay(page: Page, testInfo: TestInfo, role: Role = 'STAFF'): Promise<Locale> {
+async function onTheDay(
+  page: Page,
+  testInfo: TestInfo,
+  role: Role = 'STAFF',
+  provider?: string,
+): Promise<Locale> {
   const locale = localeOf(testInfo);
   await signInFromDashboard(
     page,
     locale,
-    await staffAccount(testInfo, { role, secondFactor: true }),
+    await staffAccount(testInfo, {
+      role,
+      secondFactor: true,
+      ...(provider === undefined ? {} : { provider }),
+    }),
   );
   await page.getByLabel(texts(locale).signIn.codeLabel, { exact: true }).fill(STUB_CODE);
   await page.getByRole('button', { name: texts(locale).signIn.verify }).click();
@@ -667,5 +681,97 @@ test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
     await again.getByRole('button', { name: d.specialForm.cancel }).click();
     await special.getByRole('button', { name: new RegExp(d.settings.remove) }).click();
     await expect(special).toContainText(d.settings.noSpecial);
+  });
+});
+
+/** The stub's doctor (desk-stub.ts). */
+const STUB_DOCTOR_ID = '70000000-0000-4000-8000-000000000001';
+
+test.describe('the doctors’ schedules (08 M04, W14, W2)', () => {
+  test('lets the reception plan a doctor’s week, its exceptions and its free times', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.calendar })
+      .click();
+    await page.getByRole('link', { name: d.calendar.workingHours }).click();
+    await expect(page.getByRole('heading', { level: 1, name: d.workingHours.title })).toBeVisible();
+    await expect(page.getByText('Dr. Lina Example')).toBeVisible();
+    await expectAccessibleAtBothWidths(page, 'the working hours');
+
+    // Friday on, then hours on Sunday that overlap its morning: the API names them.
+    await page.getByText(weekdayName(locale, 5), { exact: true }).click();
+    const sunday = page.getByRole('group', { name: weekdayName(locale, 7) });
+    await sunday.getByRole('button', { name: d.workingHours.addHours }).click();
+    await sunday.getByLabel(d.workingHours.from).last().fill('11:00');
+    await sunday.getByLabel(d.workingHours.to).last().fill('14:00');
+    await page.getByRole('button', { name: d.workingHours.save }).click();
+    await expect(sunday.getByRole('alert')).toHaveText(d.workingHours.overlaps);
+    await sunday.getByRole('button', { name: d.workingHours.removeHours }).last().click();
+    await page.getByRole('button', { name: d.workingHours.save }).click();
+    await expect(page.getByRole('status').first()).toContainText('Dr. Lina Example');
+
+    // An exception of a whole day, and away again.
+    await page.getByRole('button', { name: d.workingHours.addAbsence }).click();
+    const form = page.getByRole('dialog', { name: d.absenceForm.title });
+    await form.getByLabel(d.absenceForm.from, { exact: true }).fill('2026-11-19');
+    await form.getByLabel(d.absenceForm.to, { exact: true }).fill('2026-11-19');
+    await expectAccessibleAtBothWidths(page, 'the exception form');
+    await form.getByRole('button', { name: d.absenceForm.save }).click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('status').first()).toHaveText(d.workingHours.absenceAdded);
+    const exceptions = page.getByRole('region', { name: d.workingHours.absencesTitle });
+    await exceptions.getByRole('button', { name: new RegExp(d.workingHours.remove) }).click();
+    await expect(exceptions).toContainText(d.workingHours.noAbsences);
+
+    await page.getByRole('button', { name: d.workingHours.generate }).click();
+    await expect(page.getByRole('status').first()).toContainText('12');
+  });
+
+  test('blocks a free time in the calendar and frees it again', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.calendar })
+      .click();
+    const grid = page.getByRole('table');
+    const free = grid
+      .getByRole('button', { name: d.calendar.availableFor.replace('{minutes}', '30') })
+      .last();
+    await free.click();
+    const block = page.getByRole('dialog', { name: d.calendar.blockTitle });
+    await expectAccessibleAtBothWidths(page, 'blocking a time');
+    await block.getByRole('button', { name: d.calendar.block, exact: true }).click();
+    await expect(block).toBeHidden();
+    const blocked = grid.getByRole('button', { name: new RegExp(d.calendar.blocked) }).last();
+    await expect(blocked).toBeVisible();
+    await blocked.click();
+    const unblock = page.getByRole('dialog', { name: d.calendar.unblockTitle });
+    await unblock.getByRole('button', { name: d.calendar.unblock }).click();
+    await expect(unblock).toBeHidden();
+    await expect(grid.getByRole('button', { name: new RegExp(d.calendar.blocked) })).toHaveCount(0);
+  });
+
+  test('lets a doctor plan only itself, and only once its account names it', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'DOCTOR', STUB_DOCTOR_ID);
+    const d = desk(locale);
+    await page.goto(`/${locale}/dashboard/calendar/working-hours`);
+    await expect(page.getByText('Dr. Lina Example')).toBeVisible();
+    await expect(page.getByRole('button', { name: d.workingHours.save })).toBeVisible();
+    // The practice's free times are the reception's to make.
+    await expect(page.getByRole('button', { name: d.workingHours.generate })).toHaveCount(0);
+  });
+
+  test('tells a doctor whose account names no doctor yet', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'DOCTOR');
+    const d = desk(locale);
+    await page.goto(`/${locale}/dashboard/calendar/working-hours`);
+    await expect(page.getByText(d.workingHours.notLinked)).toBeVisible();
   });
 });

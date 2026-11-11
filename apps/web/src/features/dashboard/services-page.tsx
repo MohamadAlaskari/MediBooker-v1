@@ -4,6 +4,7 @@ import {
   isApiError,
   useCreateService,
   useListServices,
+  useSetServiceProviders,
   useUpdateService,
   type ServiceDto,
   type ServiceListDto,
@@ -44,6 +45,8 @@ interface FormState {
   readonly online: boolean;
   readonly referral: boolean;
   readonly insurance: readonly InsuranceType[];
+  /** The doctors who offer it, through their working hours (M04). */
+  readonly doctors: readonly string[];
 }
 
 function stateOf(service: ServiceDto | undefined, taken: readonly InsuranceType[]): FormState {
@@ -56,6 +59,7 @@ function stateOf(service: ServiceDto | undefined, taken: readonly InsuranceType[
       online: true,
       referral: false,
       insurance: taken,
+      doctors: [],
     };
   }
   const allowed = service.allowedInsuranceTypes;
@@ -67,6 +71,7 @@ function stateOf(service: ServiceDto | undefined, taken: readonly InsuranceType[
     online: service.isBookableOnline,
     referral: service.referralRequired,
     insurance: allowed.length === 0 ? taken : taken.filter((type) => allowed.includes(type)),
+    doctors: service.providers.map(({ id }) => id),
   };
 }
 
@@ -100,8 +105,29 @@ function ServiceForm({
   const create = useCreateService({ mutation: settled });
   const update = useUpdateService({ mutation: settled });
   const archive = useUpdateService({ mutation: settled });
-  const pending = create.isPending || update.isPending || archive.isPending;
-  const error = create.error ?? update.error ?? archive.error;
+  const providers = useSetServiceProviders({ mutation: settled });
+  const pending = create.isPending || update.isPending || archive.isPending || providers.isPending;
+  const error = create.error ?? update.error ?? archive.error ?? providers.error;
+
+  /** Then the doctors, when they changed: a service joins or leaves their working hours. */
+  const thenDoctors = (saved: ServiceDto, news: string): void => {
+    const before = (service?.providers ?? [])
+      .map(({ id }) => id)
+      .toSorted()
+      .join();
+    if ([...state.doctors].toSorted().join() === before) {
+      onSaved(news);
+      return;
+    }
+    providers.mutate(
+      { practiceId, serviceId: saved.id, data: { providerIds: [...state.doctors] } },
+      {
+        onSuccess: () => {
+          onSaved(news);
+        },
+      },
+    );
+  };
   const nameOf = (texts: Readonly<Record<string, string>>): string =>
     isolate(textIn(texts, locale).trim());
 
@@ -154,7 +180,7 @@ function ServiceForm({
         { practiceId, data },
         {
           onSuccess: (created) => {
-            onSaved(news('added', { service: nameOf(created.name) }));
+            thenDoctors(created, news('added', { service: nameOf(created.name) }));
           },
           onError: refused,
         },
@@ -164,7 +190,7 @@ function ServiceForm({
         { practiceId, serviceId: service.id, data },
         {
           onSuccess: (saved) => {
-            onSaved(news('saved', { service: nameOf(saved.name) }));
+            thenDoctors(saved, news('saved', { service: nameOf(saved.name) }));
           },
           onError: refused,
         },
@@ -275,6 +301,35 @@ function ServiceForm({
           </p>
         </div>
       </div>
+      <fieldset className="flex flex-col gap-1">
+        <legend className={LABEL}>{t('doctors')}</legend>
+        <p className="text-body-small text-text-secondary">{t('doctorsHint')}</p>
+        <div className="flex flex-wrap gap-x-6">
+          {list.doctors.map((doctor) => {
+            const offers = state.doctors.includes(doctor.id);
+            return (
+              <Checkbox
+                key={doctor.id}
+                isSelected={offers}
+                // Without working hours a doctor offers nothing; one that does can be taken out.
+                isDisabled={!doctor.hasWorkingHours && !offers}
+                onChange={(selected) => {
+                  setState({
+                    ...state,
+                    doctors: selected
+                      ? [...state.doctors, doctor.id]
+                      : state.doctors.filter((id) => id !== doctor.id),
+                  });
+                }}
+              >
+                <bdi>
+                  {doctor.hasWorkingHours ? doctor.name : t('noHours', { name: doctor.name })}
+                </bdi>
+              </Checkbox>
+            );
+          })}
+        </div>
+      </fieldset>
       <fieldset className="flex flex-col gap-1">
         <legend className={LABEL}>{t('insurance')}</legend>
         <p className="text-body-small text-text-secondary">{t('insuranceHint')}</p>

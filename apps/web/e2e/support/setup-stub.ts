@@ -27,10 +27,13 @@ import {
 } from './desk-stub.ts';
 
 const LOCALES = ['ar', 'en'];
+/** A second doctor of the stub practice, without working hours: it can offer no service yet. */
+const OTHER_DOCTOR_ID = '70000000-0000-4000-8000-000000000002';
 const INSURANCE_TYPES = ['PUBLIC', 'PRIVATE', 'SELF_PAY'] as const;
 /** Riyadh: the week starts on Sunday, and Friday and Saturday are the weekend. */
 const WEEK = { weekStart: 7, weekendDays: [5, 6] };
-const PATH = /^\/api\/v1\/practices\/[^/]+\/(services|opening-hours|special-days)(?:\/([^/]+))?$/;
+const PATH =
+  /^\/api\/v1\/practices\/[^/]+\/(services|opening-hours|special-days)(?:\/([^/]+)(\/providers)?)?$/;
 
 interface Setup {
   services: ServiceDto[];
@@ -102,6 +105,10 @@ async function answerServices(
       services: setup.services,
       locales: LOCALES,
       insuranceTypes: INSURANCE_TYPES,
+      doctors: [
+        { id: PROVIDER_ID, name: 'Dr. Lina Example', hasWorkingHours: true },
+        { id: OTHER_DOCTOR_ID, name: 'Dr. Omar Example', hasWorkingHours: false },
+      ],
       ...SETTINGS,
     });
     return;
@@ -155,6 +162,46 @@ async function answerServices(
       ? {}
       : { allowedInsuranceTypes: [...new Set(change.allowedInsuranceTypes)] }),
     ...(change.active === undefined ? {} : { active: change.active }),
+  };
+  setup.services[index] = service;
+  respond(response, 200, service);
+}
+
+/** W13: the doctors who offer a service; a doctor without working hours can offer nothing. */
+async function answerProviders(
+  setup: Setup,
+  id: string | undefined,
+  role: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  if (request.method !== 'PUT') {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  if (role !== 'ADMIN') {
+    problem(response, 'FORBIDDEN');
+    return;
+  }
+  const index = setup.services.findIndex((service) => service.id === id);
+  const old = setup.services[index];
+  if (old === undefined) {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  const { providerIds } = await bodyOf<{ providerIds: string[] }>(request);
+  const unknown = providerIds.flatMap((providerId, at) =>
+    providerId === PROVIDER_ID
+      ? []
+      : [{ field: `providerIds[${String(at)}]`, code: 'INVALID_VALUE' as const }],
+  );
+  if (unknown.length > 0) {
+    problem(response, 'VALIDATION_FAILED', { errors: unknown });
+    return;
+  }
+  const service: ServiceDto = {
+    ...old,
+    providers: providerIds.length === 0 ? [] : [{ id: PROVIDER_ID, name: 'Dr. Lina Example' }],
   };
   setup.services[index] = service;
   respond(response, 200, service);
@@ -255,14 +302,16 @@ export function handleSetup(
 ): boolean {
   const match = PATH.exec(pathname);
   if (match === null) return false;
-  const [, resource, id] = match;
+  const [, resource, id, providers] = match;
   const who = access();
   if ('refusal' in who) {
     problem(response, who.refusal);
     return true;
   }
   const setup = setupOf(who.email);
-  if (resource === 'services') void answerServices(setup, id, who.role, request, response);
+  if (resource === 'services' && providers !== undefined) {
+    void answerProviders(setup, id, who.role, request, response);
+  } else if (resource === 'services') void answerServices(setup, id, who.role, request, response);
   else if (resource === 'opening-hours' && id === undefined) {
     void answerWeek(setup, who.role, request, response);
   } else if (resource === 'special-days') {

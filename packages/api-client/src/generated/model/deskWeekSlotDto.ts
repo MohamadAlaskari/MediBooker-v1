@@ -11,6 +11,8 @@ export interface DeskWeekSlotDto {
   /** The appointment that holds the time; a cancelled one holds none */
   appointment: DeskWeekAppointmentDto | null;
   endsAt: string;
+  /** For blocking or freeing the time (M04) */
+  id: string;
   startsAt: string;
   /** OPEN: free, also again after a cancel; BOOKED: held; BLOCKED: closed by the team */
   status: DeskWeekSlotDtoStatus;

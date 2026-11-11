@@ -299,7 +299,7 @@ describe('staff and their second factor on real databases (08 A04)', () => {
       const code = codeAt(secret);
       const signedIn = await login(who.email, { code }).expect(200);
       // A session with both factors: the staff route lets it in.
-      await membership(tokenOf(signedIn)).expect(200, { role: 'STAFF' });
+      await membership(tokenOf(signedIn)).expect(200, { role: 'STAFF', providerId: null });
       const replayed = await login(who.email, { code }).expect(400);
       expect(codeOf(replayed.body)).toBe('MFA_CODE_INVALID');
       const user = await platform().user.findUniqueOrThrow({ where: { id: who.userId } });
@@ -377,7 +377,7 @@ describe('staff and their second factor on real databases (08 A04)', () => {
       expect(codeOf(withPasswordOnly.body)).toBe('MFA_REQUIRED');
       const { tokens } = await withSecondFactor(who);
       const response = await membership(tokens.accessToken).expect(200);
-      expect(response.body).toEqual({ role: 'ADMIN' });
+      expect(response.body).toEqual({ role: 'ADMIN', providerId: null });
       await as(
         request(server()).get(`${API}/practices/${practice.practiceId}/probe/admin-only`),
         tokens.accessToken,
@@ -405,7 +405,7 @@ describe('staff and their second factor on real databases (08 A04)', () => {
       const who = await person();
       await roles().setRole(who.email, 'STAFF', OPERATOR);
       const { tokens } = await withSecondFactor(who);
-      await membership(tokens.accessToken).expect(200, { role: 'STAFF' });
+      await membership(tokens.accessToken).expect(200, { role: 'STAFF', providerId: null });
       await membership(tokens.accessToken, other.practiceId).expect(404);
       await membership(tokens.accessToken, '00000000-0000-4000-8000-000000000000').expect(404);
       await membership(tokens.accessToken, 'not-a-uuid').expect(404);
@@ -420,7 +420,7 @@ describe('staff and their second factor on real databases (08 A04)', () => {
       const who = await person();
       await roles().setRole(who.email, 'DOCTOR', OPERATOR);
       const { tokens } = await withSecondFactor(who);
-      await membership(tokens.accessToken).expect(200, { role: 'DOCTOR' });
+      await membership(tokens.accessToken).expect(200, { role: 'DOCTOR', providerId: null });
       // Disabled in the practice database only: the index row is still active, and does not count.
       await asOwner(practice, (owner) =>
         owner.query("UPDATE memberships SET status = 'DISABLED' WHERE user_id = $1", [who.userId]),

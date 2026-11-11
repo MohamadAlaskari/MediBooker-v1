@@ -29,11 +29,17 @@ import type {
   ServiceInputDto,
   ServiceListDto,
   ServicePatchDto,
+  ServiceProvidersInputDto,
+  SetupDoctorDto,
   SetupProviderDto,
 } from './practice-setup.dto.js';
 
 /** The audit actions of the service catalogue. */
-export const SERVICE_AUDIT = { create: 'service.create', update: 'service.update' } as const;
+export const SERVICE_AUDIT = {
+  create: 'service.create',
+  update: 'service.update',
+  providers: 'service.providers',
+} as const;
 
 const SERVICE_FIELDS = {
   id: true,
@@ -96,7 +102,9 @@ export class ServiceCatalog {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
     const providers = await this.providersOf(settings.timeZone);
+    const doctors = await this.doctorsOf(settings.timeZone);
     return {
+      doctors,
       services: services.map((service) => this.viewOf(service, providers)),
       locales: settings.supportedLocales,
       insuranceTypes: settings.insuranceTypes.filter(isInsuranceType),
@@ -227,6 +235,104 @@ export class ServiceCatalog {
       });
     });
     return this.one(serviceId, settings.timeZone);
+  }
+
+  /**
+   * The doctors who offer a service (W13): it joins the working hours of each one named and leaves
+   * those of every other doctor, from today on. A doctor without working hours can offer nothing.
+   */
+  async setProviders(
+    { userId }: Actor,
+    serviceId: string,
+    input: ServiceProvidersInputDto,
+    ip: string | undefined,
+  ): Promise<ServiceDto> {
+    const { practice } = requirePracticeContext(this.cls);
+    if (!isUuid(serviceId)) throw new DomainException('NOT_FOUND');
+    const db = this.txHost.tx;
+    const service = await db.service.findUnique({ where: { id: serviceId }, select: { id: true } });
+    if (service === null) throw new DomainException('NOT_FOUND');
+    const settings = await db.practiceSettings.findUniqueOrThrow({
+      where: { id: 1 },
+      select: { timeZone: true },
+    });
+    const current = this.currentRulesWhere(settings.timeZone);
+    const providerIds = [...new Set(input.providerIds)];
+    const planned = await db.availabilityRule.findMany({
+      where: { ...current, providerId: { in: providerIds }, provider: { isProvider: true } },
+      select: { providerId: true },
+    });
+    const withHours = new Set(planned.map(({ providerId }) => providerId));
+    const problems = input.providerIds.flatMap((id, index) =>
+      withHours.has(id)
+        ? []
+        : [{ field: `providerIds[${String(index)}]`, code: 'INVALID_VALUE' } as const],
+    );
+    if (problems.length > 0) throw validationFailed(problems);
+    const ipHash = await this.audit.ipHashOf(practice.id, ip);
+    await this.txHost.withTransaction(async () => {
+      const tx = this.txHost.tx;
+      // The doctors' rows in one order, as a change of a week locks its doctor: no rule ends
+      // between this read and the write below (security review of M04).
+      await tx.$queryRaw`
+        SELECT id FROM staff_members WHERE is_provider ORDER BY id FOR NO KEY UPDATE`;
+      const rules = await tx.availabilityRule.findMany({
+        where: current,
+        select: { id: true, providerId: true },
+      });
+      const named = new Set(providerIds);
+      await tx.availabilityRuleService.createMany({
+        data: rules
+          .filter(({ providerId }) => named.has(providerId))
+          .map(({ id }) => ({ ruleId: id, serviceId })),
+        skipDuplicates: true,
+      });
+      await tx.availabilityRuleService.deleteMany({
+        where: {
+          serviceId,
+          ruleId: {
+            in: rules.filter(({ providerId }) => !named.has(providerId)).map(({ id }) => id),
+          },
+        },
+      });
+      await this.audit.record({
+        userId,
+        action: SERVICE_AUDIT.providers,
+        subjectId: serviceId,
+        ipHash,
+      });
+    });
+    return this.one(serviceId, settings.timeZone);
+  }
+
+  /** Rules that hold today or later. */
+  private currentRulesWhere(timeZone: string) {
+    const today = this.clock.now().toZonedDateTimeISO(timeZone).toPlainDate();
+    return { OR: [{ validTo: null }, { validTo: { gte: dbDateOf(today) } }] };
+  }
+
+  /** Every doctor of the practice, and whether it has working hours from today on. */
+  private async doctorsOf(timeZone: string): Promise<readonly SetupDoctorDto[]> {
+    const doctors = await this.txHost.tx.staffMember.findMany({
+      where: { isProvider: true },
+      select: {
+        id: true,
+        title: true,
+        firstName: true,
+        lastName: true,
+        availabilityRules: {
+          where: this.currentRulesWhere(timeZone),
+          select: { id: true },
+          take: 1,
+        },
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+    });
+    return doctors.map((doctor) => ({
+      id: doctor.id,
+      name: displayNameOf(doctor),
+      hasWorkingHours: doctor.availabilityRules.length > 0,
+    }));
   }
 
   private async one(id: string, timeZone: string): Promise<ServiceDto> {

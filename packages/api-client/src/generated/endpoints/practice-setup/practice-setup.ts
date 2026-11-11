@@ -31,6 +31,7 @@ import type {
   ServiceInputDto,
   ServiceListDto,
   ServicePatchDto,
+  ServiceProvidersInputDto,
   SpecialDayDto,
   SpecialDayInputDto,
   SpecialDayListDto
@@ -524,6 +525,96 @@ export const useUpdateService = <TError = ErrorType<ProblemDetailsDto>,
         TContext
       > => {
       return useMutation(getUpdateServiceMutationOptions(options), queryClient);
+    }
+    export const getSetServiceProvidersUrl = (practiceId: string,
+    serviceId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/services/${serviceId}/providers`
+}
+
+/**
+ * @summary The doctors who offer a service, through their working hours; admins only
+ */
+export const setServiceProviders = async (practiceId: string,
+    serviceId: string,
+    serviceProvidersInputDto: ServiceProvidersInputDto, options?: Parameters<typeof apiFetch>[1]): Promise<ServiceDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ServiceDto>(getSetServiceProvidersUrl(practiceId,serviceId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(serviceProvidersInputDto)
+  }
+);}
+
+
+
+
+
+export const getSetServiceProvidersMutationKey = () => ['setServiceProviders'] as const;
+
+export const getSetServiceProvidersMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setServiceProviders>>, TError,SetServiceProvidersMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setServiceProviders>>, TError,SetServiceProvidersMutationVariables, TContext> => {
+
+const mutationKey = getSetServiceProvidersMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setServiceProviders>>, SetServiceProvidersMutationVariables> = (props) => {
+          const {practiceId,serviceId,data} = props ?? {};
+
+          return  setServiceProviders(practiceId,serviceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetServiceProvidersMutationResult = NonNullable<Awaited<ReturnType<typeof setServiceProviders>>>
+    export type SetServiceProvidersMutationBody = ServiceProvidersInputDto
+    export type SetServiceProvidersMutationError = ErrorType<ProblemDetailsDto>
+    export type SetServiceProvidersMutationVariables = {practiceId: string;serviceId: string;data: ServiceProvidersInputDto}
+
+    /**
+ * @summary The doctors who offer a service, through their working hours; admins only
+ */
+export const useSetServiceProviders = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setServiceProviders>>, TError,SetServiceProvidersMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setServiceProviders>>,
+        TError,
+        SetServiceProvidersMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetServiceProvidersMutationOptions(options), queryClient);
     }
     export const getListSpecialDaysUrl = (practiceId: string,) => {
 

@@ -9,6 +9,8 @@ import type { PracticeListing, ResolvedPractice } from './practice-route.js';
 export interface StaffMembership {
   readonly membershipId: string;
   readonly role: StaffRole;
+  /** The doctor this account is (M04): a doctor changes only its own hours. */
+  readonly providerId: string | null;
 }
 
 /**

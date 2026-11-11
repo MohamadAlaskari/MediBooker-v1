@@ -1,6 +1,7 @@
 import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { Inject, Injectable } from '@nestjs/common';
 import { PlatformPrismaService } from '../../common/database/platform-prisma.service.js';
+import { isPrismaKnownRequestError } from '../../common/database/prisma-errors.js';
 import { IntegrationRelay } from '../../common/tenancy/integration-relay.js';
 import type { AccessChange } from '../../common/tenancy/practice-access-index.js';
 import { PracticeAudit } from '../../common/tenancy/practice-audit.js';
@@ -9,6 +10,11 @@ import type { PracticeTransactionHost } from '../../common/tenancy/practice-tran
 import { ENV } from '../../config/env.module.js';
 import type { Env } from '../../config/env.schema.js';
 import type { StaffRole } from '../../generated/practice/enums.js';
+
+/** The doctor named for the link is none of the practice's doctors: nothing changes. */
+class NoSuchDoctorError extends Error {
+  override readonly name = 'NoSuchDoctorError';
+}
 
 export const STAFF_ROLES: readonly StaffRole[] = ['STAFF', 'DOCTOR', 'ADMIN'];
 
@@ -22,7 +28,14 @@ export type StaffRoleOutcome =
     }
   | { readonly result: 'REMOVED' }
   | {
-      readonly result: 'NO_PRACTICE' | 'ACCOUNT_NOT_FOUND' | 'EMAIL_NOT_VERIFIED' | 'NOT_A_MEMBER';
+      readonly result:
+        | 'NO_PRACTICE'
+        | 'ACCOUNT_NOT_FOUND'
+        | 'EMAIL_NOT_VERIFIED'
+        | 'NOT_A_MEMBER'
+        | 'NO_SUCH_DOCTOR'
+        | 'LINK_NEEDS_DOCTOR_ROLE'
+        | 'DOCTOR_ALREADY_LINKED';
     };
 
 /**
@@ -47,6 +60,8 @@ export class StaffRoles {
     email: string,
     role: StaffRole | null,
     operator: string,
+    /** The doctor this account is (M04); left out, the link stays as it was. */
+    providerId?: string,
   ): Promise<StaffRoleOutcome> {
     const practiceId = await this.installationPracticeId();
     if (practiceId === undefined) return { result: 'NO_PRACTICE' };
@@ -56,18 +71,29 @@ export class StaffRoles {
     });
     if (user === null) return { result: 'ACCOUNT_NOT_FOUND' };
     if (role !== null && user.emailVerifiedAt === null) return { result: 'EMAIL_NOT_VERIFIED' };
+    // Only a doctor's account names the doctor it is (M04).
+    if (providerId !== undefined && role !== 'DOCTOR') return { result: 'LINK_NEEDS_DOCTOR_ROLE' };
     const change: AccessChange = { userId: user.id, capacity: 'STAFF', active: role !== null };
-    const changed = await this.runner.runInPractice(
-      practiceId,
-      async () => {
-        const version = await this.practiceTx.withTransaction(() =>
-          this.write(user.id, role, operator, change),
-        );
-        if (version !== undefined) await this.relay.applyNow(practiceId, version, change);
-        return version !== undefined;
-      },
-      { purpose: 'job' },
-    );
+    let changed: boolean;
+    try {
+      changed = await this.runner.runInPractice(
+        practiceId,
+        async () => {
+          const version = await this.practiceTx.withTransaction(() =>
+            this.write(user.id, role, operator, change, providerId),
+          );
+          if (version !== undefined) await this.relay.applyNow(practiceId, version, change);
+          return version !== undefined;
+        },
+        { purpose: 'job' },
+      );
+    } catch (error) {
+      if (error instanceof NoSuchDoctorError) return { result: 'NO_SUCH_DOCTOR' };
+      if (isPrismaKnownRequestError(error) && error.code === 'P2002') {
+        return { result: 'DOCTOR_ALREADY_LINKED' };
+      }
+      throw error;
+    }
     if (role !== null) return { result: 'SET', role, mfaEnabled: user.totpEnabledAt !== null };
     return changed ? { result: 'REMOVED' } : { result: 'NOT_A_MEMBER' };
   }
@@ -78,19 +104,35 @@ export class StaffRoles {
     role: StaffRole | null,
     operator: string,
     change: AccessChange,
+    providerId: string | undefined,
   ): Promise<bigint | undefined> {
     const db = this.practiceTx.tx;
+    if (providerId !== undefined) {
+      const doctor = await db.staffMember.findFirst({
+        where: { id: providerId, isProvider: true },
+        select: { id: true },
+      });
+      if (doctor === null) throw new NoSuchDoctorError();
+    }
     if (role === null) {
+      // An ended membership names no doctor: another account can be that doctor.
       const { count } = await db.membership.updateMany({
         where: { userId, status: 'ACTIVE' },
-        data: { status: 'DISABLED' },
+        data: { status: 'DISABLED', staffMemberId: null },
       });
       if (count === 0) return undefined;
     } else {
+      // Only a doctor's account names a doctor; another role drops a link it had.
+      const link =
+        role !== 'DOCTOR'
+          ? { staffMemberId: null }
+          : providerId === undefined
+            ? {}
+            : { staffMemberId: providerId };
       await db.membership.upsert({
         where: { userId },
-        create: { userId, role },
-        update: { role, status: 'ACTIVE' },
+        create: { userId, role, ...link },
+        update: { role, status: 'ACTIVE', ...link },
       });
     }
     const { id } = await db.membership.findUniqueOrThrow({
@@ -102,6 +144,14 @@ export class StaffRoles {
       action: role === null ? 'staff.role.remove' : 'staff.role.set',
       subjectId: id,
     });
+    // Linking an account to a doctor is a change of access: the doctor is named in its own row.
+    if (providerId !== undefined && role !== null) {
+      await this.audit.recordOperator({
+        operator,
+        action: 'staff.provider.link',
+        subjectId: providerId,
+      });
+    }
     return this.relay.recordAccessChange(change);
   }
 

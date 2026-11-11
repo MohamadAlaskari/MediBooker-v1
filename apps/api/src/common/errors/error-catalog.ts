@@ -24,6 +24,7 @@ export const ERROR_CATALOG = {
   PATIENT_MAY_EXIST: { status: 409, title: 'A patient like this may exist already' },
   MFA_ALREADY_ENABLED: { status: 409, title: 'The second factor is already set up' },
   SLOT_NOT_AVAILABLE: { status: 409, title: 'Slot not available' },
+  SLOT_HAS_APPOINTMENT: { status: 409, title: 'An appointment holds this time' },
   APPOINTMENT_OVERLAP: { status: 409, title: 'Appointment overlaps another one' },
   BOOKING_LIMIT_REACHED: { status: 409, title: 'Booking limit reached' },
   OUTSIDE_BOOKING_WINDOW: { status: 409, title: 'Outside the booking window' },

@@ -9,6 +9,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   Min,
@@ -106,6 +107,12 @@ export class ServiceDto {
   readonly providers!: readonly SetupProviderDto[];
 }
 
+/** A doctor of the practice, and whether it has working hours a service can be offered in. */
+export class SetupDoctorDto extends SetupProviderDto {
+  @ApiProperty({ description: 'Working hours from today on; without, it offers no service' })
+  readonly hasWorkingHours!: boolean;
+}
+
 /** Every service of the practice, also the archived ones, and what a form needs. */
 export class ServiceListDto extends SetupDisplayDto {
   @ApiProperty({ type: [ServiceDto] })
@@ -124,6 +131,18 @@ export class ServiceListDto extends SetupDisplayDto {
     description: 'The types the practice takes',
   })
   readonly insuranceTypes!: readonly InsuranceTypeName[];
+
+  @ApiProperty({ type: [SetupDoctorDto], description: "The practice's doctors, for W13" })
+  readonly doctors!: readonly SetupDoctorDto[];
+}
+
+/** The doctors who offer a service: the service is added to their working hours or taken out. */
+export class ServiceProvidersInputDto {
+  @ApiProperty({ type: [String], maxItems: 100, description: 'Doctors with working hours' })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  readonly providerIds!: readonly string[];
 }
 
 /** A new service (W13). */

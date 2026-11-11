@@ -7,6 +7,8 @@ import { createContext, useContext } from 'react';
 export interface Desk {
   readonly practiceId: string;
   readonly role: MembershipDtoRole;
+  /** The doctor this account is (M04): a doctor plans only its own hours. */
+  readonly providerId: string | null;
 }
 
 export const DeskContext = createContext<Desk | undefined>(undefined);

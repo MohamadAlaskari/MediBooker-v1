@@ -1,6 +1,166 @@
 {
   "components": {
     "schemas": {
+      "AbsenceCreatedDto": {
+        "properties": {
+          "allDay": {
+            "description": "Whole days of the practice, from midnight to midnight",
+            "type": "boolean"
+          },
+          "bookedInside": {
+            "description": "Booked appointments of the doctor in this time",
+            "type": "number"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "VACATION",
+              "HOLIDAY",
+              "TRAINING",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt",
+          "reason",
+          "allDay",
+          "bookedInside"
+        ],
+        "type": "object"
+      },
+      "AbsenceDto": {
+        "properties": {
+          "allDay": {
+            "description": "Whole days of the practice, from midnight to midnight",
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "VACATION",
+              "HOLIDAY",
+              "TRAINING",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt",
+          "reason",
+          "allDay"
+        ],
+        "type": "object"
+      },
+      "AbsenceInputDto": {
+        "properties": {
+          "endDate": {
+            "description": "Inclusive",
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "endTime": {
+            "description": "Only for one day",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "VACATION",
+              "HOLIDAY",
+              "TRAINING",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "startTime": {
+            "description": "Only for one day",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startDate",
+          "endDate",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "AbsenceListDto": {
+        "properties": {
+          "absences": {
+            "items": {
+              "$ref": "#/components/schemas/AbsenceDto"
+            },
+            "type": "array"
+          },
+          "hourCycle": {
+            "description": "The practice's hour cycle",
+            "type": "string"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone",
+            "type": "string"
+          },
+          "today": {
+            "description": "Today on the practice's calendar",
+            "format": "date",
+            "type": "string"
+          },
+          "weekStart": {
+            "description": "ISO weekday the week starts on",
+            "example": 7,
+            "type": "number"
+          }
+        },
+        "required": [
+          "timeZone",
+          "numberingSystem",
+          "hourCycle",
+          "weekStart",
+          "today",
+          "absences"
+        ],
+        "type": "object"
+      },
       "AccountDto": {
         "properties": {
           "email": {
@@ -194,6 +354,27 @@
         "required": [
           "serviceId",
           "startsAt"
+        ],
+        "type": "object"
+      },
+      "BookingTimesDto": {
+        "properties": {
+          "freeTimes": {
+            "description": "Free times from now on that a service can be booked in",
+            "type": "number"
+          },
+          "openUntil": {
+            "description": "The last day with a free time, on the practice calendar; null: none",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "openUntil",
+          "freeTimes"
         ],
         "type": "object"
       },
@@ -1398,6 +1579,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "id": {
+            "description": "For blocking or freeing the time (M04)",
+            "format": "uuid",
+            "type": "string"
+          },
           "startsAt": {
             "format": "date-time",
             "type": "string"
@@ -1413,6 +1599,7 @@
           }
         },
         "required": [
+          "id",
           "startsAt",
           "endsAt",
           "status",
@@ -1450,6 +1637,7 @@
           "PATIENT_MAY_EXIST",
           "MFA_ALREADY_ENABLED",
           "SLOT_NOT_AVAILABLE",
+          "SLOT_HAS_APPOINTMENT",
           "APPOINTMENT_OVERLAP",
           "BOOKING_LIMIT_REACHED",
           "OUTSIDE_BOOKING_WINDOW",
@@ -1606,6 +1794,14 @@
       },
       "MembershipDto": {
         "properties": {
+          "providerId": {
+            "description": "The doctor this account is: a doctor changes only its own working hours (M04)",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "role": {
             "description": "STAFF is the reception; what a role may do is in the domain skill",
             "enum": [
@@ -1617,7 +1813,8 @@
           }
         },
         "required": [
-          "role"
+          "role",
+          "providerId"
         ],
         "type": "object"
       },
@@ -2585,6 +2782,42 @@
         ],
         "type": "object"
       },
+      "ScheduleSlotDto": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "BOOKED",
+              "BLOCKED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "providerId",
+          "startsAt",
+          "endsAt",
+          "status"
+        ],
+        "type": "object"
+      },
       "ServiceDto": {
         "properties": {
           "active": {
@@ -2726,6 +2959,13 @@
       },
       "ServiceListDto": {
         "properties": {
+          "doctors": {
+            "description": "The practice's doctors, for W13",
+            "items": {
+              "$ref": "#/components/schemas/SetupDoctorDto"
+            },
+            "type": "array"
+          },
           "hourCycle": {
             "description": "The practice's hour cycle",
             "type": "string"
@@ -2774,7 +3014,8 @@
           "hourCycle",
           "services",
           "locales",
-          "insuranceTypes"
+          "insuranceTypes",
+          "doctors"
         ],
         "type": "object"
       },
@@ -2828,6 +3069,22 @@
         },
         "type": "object"
       },
+      "ServiceProvidersInputDto": {
+        "properties": {
+          "providerIds": {
+            "description": "Doctors with working hours",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          }
+        },
+        "required": [
+          "providerIds"
+        ],
+        "type": "object"
+      },
       "SessionDto": {
         "properties": {
           "account": {
@@ -2847,6 +3104,28 @@
         ],
         "type": "object"
       },
+      "SetupDoctorDto": {
+        "properties": {
+          "hasWorkingHours": {
+            "description": "Working hours from today on; without, it offers no service",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "example": "Dr. Lina Mansour",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "hasWorkingHours"
+        ],
+        "type": "object"
+      },
       "SetupProviderDto": {
         "properties": {
           "id": {
@@ -2861,6 +3140,37 @@
         "required": [
           "id",
           "name"
+        ],
+        "type": "object"
+      },
+      "SlotChangeDto": {
+        "properties": {
+          "status": {
+            "enum": [
+              "OPEN",
+              "BLOCKED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "SlotGenerationDto": {
+        "properties": {
+          "created": {
+            "type": "number"
+          },
+          "removed": {
+            "description": "Free times that no rule wants any more",
+            "type": "number"
+          }
+        },
+        "required": [
+          "created",
+          "removed"
         ],
         "type": "object"
       },
@@ -3188,6 +3498,130 @@
           "lastName",
           "dateOfBirth",
           "insuranceType"
+        ],
+        "type": "object"
+      },
+      "WorkingHoursDto": {
+        "properties": {
+          "booking": {
+            "$ref": "#/components/schemas/BookingTimesDto"
+          },
+          "hourCycle": {
+            "description": "The practice's hour cycle",
+            "type": "string"
+          },
+          "intervals": {
+            "description": "By weekday and time",
+            "items": {
+              "$ref": "#/components/schemas/WorkingIntervalDto"
+            },
+            "type": "array"
+          },
+          "numberingSystem": {
+            "description": "The practice's digits",
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "serviceIds": {
+            "description": "The services patients can book in these hours (BR-08)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "slotMinutes": {
+            "description": "Minutes between start times; null: no working hours yet",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone",
+            "type": "string"
+          },
+          "today": {
+            "description": "Today on the practice's calendar",
+            "format": "date",
+            "type": "string"
+          },
+          "weekStart": {
+            "description": "ISO weekday the week starts on",
+            "example": 7,
+            "type": "number"
+          }
+        },
+        "required": [
+          "timeZone",
+          "numberingSystem",
+          "hourCycle",
+          "weekStart",
+          "today",
+          "providerId",
+          "slotMinutes",
+          "intervals",
+          "serviceIds",
+          "booking"
+        ],
+        "type": "object"
+      },
+      "WorkingHoursInputDto": {
+        "properties": {
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/WorkingIntervalDto"
+            },
+            "maxItems": 42,
+            "type": "array"
+          },
+          "serviceIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "slotMinutes": {
+            "example": 15,
+            "maximum": 240,
+            "minimum": 5,
+            "type": "number"
+          }
+        },
+        "required": [
+          "slotMinutes",
+          "intervals",
+          "serviceIds"
+        ],
+        "type": "object"
+      },
+      "WorkingIntervalDto": {
+        "properties": {
+          "endsAt": {
+            "description": "24:00 is midnight",
+            "example": "12:00",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "startsAt": {
+            "example": "08:00",
+            "pattern": "^(?:(?:[01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+            "type": "string"
+          },
+          "weekday": {
+            "description": "ISO weekday: 1 Monday to 7 Sunday",
+            "maximum": 7,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "weekday",
+          "startsAt",
+          "endsAt"
         ],
         "type": "object"
       }
@@ -7893,6 +8327,619 @@
         ]
       }
     },
+    "/api/v1/practices/{practiceId}/providers/{providerId}/absences": {
+      "get": {
+        "operationId": "listAbsences",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceListDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A doctor's absences that are not over",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "post": {
+        "operationId": "createAbsence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsenceInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceCreatedDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add an absence: its free times go, and its booked appointments are counted",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/providers/{providerId}/absences/{absenceId}": {
+      "delete": {
+        "operationId": "deleteAbsence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "absenceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove an absence: its free times come back",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/providers/{providerId}/working-hours": {
+      "get": {
+        "operationId": "getWorkingHours",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A doctor's week from today, with its free times",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "put": {
+        "operationId": "replaceWorkingHours",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkingHoursInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingHoursDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace a doctor's week from today; the free times follow at once",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
     "/api/v1/practices/{practiceId}/services": {
       "get": {
         "operationId": "listServices",
@@ -8247,6 +9294,374 @@
         "summary": "Change or archive a service; admins only",
         "tags": [
           "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/services/{serviceId}/providers": {
+      "put": {
+        "operationId": "setServiceProviders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceProvidersInputDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The doctors who offer a service, through their working hours; admins only",
+        "tags": [
+          "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/slots/generate": {
+      "post": {
+        "operationId": "generateSlots",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotGenerationDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Make every doctor's free times anew from the rules; idempotent",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/slots/{slotId}": {
+      "patch": {
+        "operationId": "updateSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slotId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotChangeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSlotDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Block a free time or free a blocked one; a booked one is SLOT_HAS_APPOINTMENT",
+        "tags": [
+          "scheduling"
         ]
       }
     },

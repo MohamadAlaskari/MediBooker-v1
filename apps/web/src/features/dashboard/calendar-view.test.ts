@@ -9,6 +9,7 @@ const format = practiceFormat('en', SETTINGS);
 /** A free slot of 30 minutes; Riyadh is three hours ahead of UTC. */
 function free(startsAt: string): DeskWeekSlotDto {
   return {
+    id: `80000000-0000-4000-8000-${startsAt.replaceAll(/\D/gu, '').slice(0, 12)}`,
     startsAt,
     endsAt: new Date(Date.parse(startsAt) + 30 * 60_000).toISOString().replace('.000', ''),
     status: 'OPEN',

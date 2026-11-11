@@ -613,6 +613,9 @@ export class DeskWeekAppointmentDto {
 
 /** A time of the doctor's week, and the appointment that holds it. */
 export class DeskWeekSlotDto {
+  @ApiProperty({ format: 'uuid', description: 'For blocking or freeing the time (M04)' })
+  readonly id!: string;
+
   @ApiProperty({ format: 'date-time' })
   readonly startsAt!: string;
 

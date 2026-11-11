@@ -15,6 +15,7 @@ export const GetMyMembershipParams = zod.object({
 })
 
 export const GetMyMembershipResponse = zod.object({
+  "providerId": zod.uuid().nullable().describe('The doctor this account is: a doctor changes only its own working hours (M04)'),
   "role": zod.enum(['STAFF', 'DOCTOR', 'ADMIN']).describe('STAFF is the reception; what a role may do is in the domain skill')
 })
 

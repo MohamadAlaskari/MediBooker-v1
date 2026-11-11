@@ -33,6 +33,7 @@ import {
   ServiceInputDto,
   ServiceListDto,
   ServicePatchDto,
+  ServiceProvidersInputDto,
   SpecialDayDto,
   SpecialDayInputDto,
   SpecialDayListDto,
@@ -100,6 +101,23 @@ export class PracticeSetupController {
     @Ip() ip: string,
   ): Promise<ServiceDto> {
     return this.services.update(actor, serviceId, input, ip);
+  }
+
+  @Throttle(SETUP_CHANGE_LIMIT)
+  @PracticeScoped('id', { staff: SERVICE_EDITORS })
+  @ApiOperation({
+    summary: 'The doctors who offer a service, through their working hours; admins only',
+  })
+  @ApiParam({ name: 'serviceId', format: 'uuid' })
+  @ApiOkResponse({ type: ServiceDto })
+  @Put('services/:serviceId/providers')
+  async setServiceProviders(
+    @CurrentUser() actor: Actor,
+    @Param('serviceId') serviceId: string,
+    @Body() input: ServiceProvidersInputDto,
+    @Ip() ip: string,
+  ): Promise<ServiceDto> {
+    return this.services.setProviders(actor, serviceId, input, ip);
   }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })

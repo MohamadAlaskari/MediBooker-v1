@@ -305,7 +305,12 @@ const APPOINTMENT_PATH =
 
 /** Who may reach the desk, as the API's practice context answers: an email and role, or why not. */
 export type DeskAccess =
-  | { readonly email: string; readonly role: 'STAFF' | 'DOCTOR' | 'ADMIN' }
+  | {
+      readonly email: string;
+      readonly role: 'STAFF' | 'DOCTOR' | 'ADMIN';
+      /** The doctor this account is (M04). */
+      readonly providerId: string | null;
+    }
   | { readonly refusal: ErrorCode };
 
 /** Takes the requests of the desk, and answers whether it did. */

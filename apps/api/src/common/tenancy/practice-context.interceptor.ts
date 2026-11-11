@@ -190,11 +190,15 @@ export class PracticeContextInterceptor implements NestInterceptor {
   ): Promise<StaffMembership> {
     const membership = await lease.client.membership.findFirst({
       where: { userId: this.actor().userId, status: 'ACTIVE' },
-      select: { id: true, role: true },
+      select: { id: true, role: true, staffMemberId: true },
     });
     if (membership === null) throw new NotFoundException();
     if (!roles.includes(membership.role)) throw new ForbiddenException();
-    return { membershipId: membership.id, role: membership.role };
+    return {
+      membershipId: membership.id,
+      role: membership.role,
+      providerId: membership.staffMemberId,
+    };
   }
 
   /** The practice database decides: without a profile there, the index row was stale. */

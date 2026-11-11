@@ -364,6 +364,7 @@ export class DeskService {
         NOT: { status: 'OPEN', ruleId: null },
       },
       select: {
+        id: true,
         startsAt: true,
         endsAt: true,
         status: true,
@@ -401,6 +402,7 @@ export class DeskService {
       slots: slots.map((slot) => {
         const holder = slot.appointments[0];
         return {
+          id: slot.id,
           startsAt: instantOf(slot.startsAt).toString(),
           endsAt: instantOf(slot.endsAt).toString(),
           status: slot.status,

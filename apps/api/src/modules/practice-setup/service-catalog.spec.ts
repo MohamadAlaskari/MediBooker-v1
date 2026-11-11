@@ -36,10 +36,12 @@ function setUp({
   updated = 1,
 }: { readonly maxSortOrder?: number | null; readonly updated?: number } = {}) {
   const db = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
     practiceSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue(SETTINGS) },
     service: {
       findMany: vi.fn().mockResolvedValue([ROW]),
       findUniqueOrThrow: vi.fn().mockResolvedValue(ROW),
+      findUnique: vi.fn().mockResolvedValue({ id: SERVICE_ID }),
       aggregate: vi.fn().mockResolvedValue({ _max: { sortOrder: maxSortOrder } }),
       create: vi.fn().mockResolvedValue({ id: SERVICE_ID }),
       updateMany: vi.fn().mockResolvedValue({ count: updated }),
@@ -48,6 +50,26 @@ function setUp({
       findMany: vi
         .fn()
         .mockResolvedValue([doctor('p2', 'Omar'), doctor('p1', 'Lina'), doctor('p2', 'Omar')]),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    availabilityRule: {
+      findMany: vi.fn().mockResolvedValue([
+        { id: 'r1', providerId: 'p1' },
+        { id: 'r2', providerId: 'p2' },
+      ]),
+    },
+    staffMember: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          title: 'Dr.',
+          firstName: 'Lina',
+          lastName: 'Example',
+          availabilityRules: [{ id: 'r1' }],
+        },
+        { id: 'p3', title: null, firstName: 'Sami', lastName: 'Neu', availabilityRules: [] },
+      ]),
     },
   };
   const audit = {
@@ -69,7 +91,7 @@ function setUp({
       cls.set('practice', {
         practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
         lease: {} as never,
-        staff: { membershipId: 'membership', role: 'ADMIN' },
+        staff: { membershipId: 'membership', role: 'ADMIN', providerId: null },
       });
       return work();
     });
@@ -86,6 +108,10 @@ describe('ServiceCatalog.list', () => {
       timeZone: 'Asia/Riyadh',
       numberingSystem: 'latn',
       hourCycle: 'h23',
+      doctors: [
+        { id: 'p1', name: 'Dr. Lina Example', hasWorkingHours: true },
+        { id: 'p3', name: 'Sami Neu', hasWorkingHours: false },
+      ],
     });
     expect(list.services[0]).toMatchObject({
       allowedInsuranceTypes: ['SELF_PAY'],
@@ -269,5 +295,49 @@ describe('ServiceCatalog.update', () => {
       ],
     });
     expect(db.service.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('ServiceCatalog.setProviders', () => {
+  it('adds the service to the named doctors’ rules and takes it out of the others’', async () => {
+    const { catalog, db, audit, inPractice } = setUp();
+    db.availabilityRule.findMany
+      .mockResolvedValueOnce([{ providerId: 'p1' }])
+      .mockResolvedValueOnce([
+        { id: 'r1', providerId: 'p1' },
+        { id: 'r2', providerId: 'p2' },
+      ]);
+    await inPractice(() =>
+      catalog.setProviders(ACTOR, SERVICE_ID, { providerIds: ['p1', 'p1'] }, undefined),
+    );
+    // The doctors' rows first, so that no week changes between the read and the write.
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(db.availabilityRuleService.createMany).toHaveBeenCalledWith({
+      data: [{ ruleId: 'r1', serviceId: SERVICE_ID }],
+      skipDuplicates: true,
+    });
+    expect(db.availabilityRuleService.deleteMany).toHaveBeenCalledWith({
+      where: { serviceId: SERVICE_ID, ruleId: { in: ['r2'] } },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'service.providers', subjectId: SERVICE_ID }),
+    );
+  });
+
+  it('refuses a doctor without working hours, and an unknown service', async () => {
+    const { catalog, db, inPractice } = setUp();
+    db.availabilityRule.findMany.mockResolvedValueOnce([]);
+    await expect(
+      inPractice(() => catalog.setProviders(ACTOR, SERVICE_ID, { providerIds: ['p3'] }, undefined)),
+    ).rejects.toMatchObject({
+      fieldErrors: [{ field: 'providerIds[0]', code: 'INVALID_VALUE' }],
+    });
+    await expect(
+      inPractice(() => catalog.setProviders(ACTOR, 'not-a-uuid', { providerIds: [] }, undefined)),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    db.service.findUnique.mockResolvedValueOnce(null);
+    await expect(
+      inPractice(() => catalog.setProviders(ACTOR, SERVICE_ID, { providerIds: [] }, undefined)),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

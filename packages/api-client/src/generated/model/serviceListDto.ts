@@ -6,8 +6,11 @@
  */
 import type { ServiceDto } from './serviceDto';
 import type { ServiceListDtoInsuranceTypesItem } from './serviceListDtoInsuranceTypesItem';
+import type { SetupDoctorDto } from './setupDoctorDto';
 
 export interface ServiceListDto {
+  /** The practice's doctors, for W13 */
+  doctors: SetupDoctorDto[];
   /** The practice's hour cycle */
   hourCycle: string;
   /** The types the practice takes */

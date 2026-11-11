@@ -5,4 +5,5 @@ export * from './me/me';
 export * from './patients/patients';
 export * from './practice-setup/practice-setup';
 export * from './public-practice/public-practice';
+export * from './scheduling/scheduling';
 export * from './staff/staff';

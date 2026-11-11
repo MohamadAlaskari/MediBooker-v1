@@ -638,6 +638,7 @@ export const GetDeskWeekResponse = zod.object({
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])
 }),zod.null()]).describe('The appointment that holds the time; a cancelled one holds none'),
   "endsAt": zod.iso.datetime({"offset":true}),
+  "id": zod.uuid().describe('For blocking or freeing the time (M04)'),
   "startsAt": zod.iso.datetime({"offset":true}),
   "status": zod.enum(['OPEN', 'BOOKED', 'BLOCKED']).describe('OPEN: free, also again after a cancel; BOOKED: held; BLOCKED: closed by the team')
 })),

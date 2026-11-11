@@ -32,6 +32,6 @@ export class MembershipController {
   getMyMembership(): MembershipDto {
     const { staff } = requirePracticeContext(this.cls);
     if (staff === undefined) throw new Error('membership route without a staff membership');
-    return { role: staff.role };
+    return { role: staff.role, providerId: staff.providerId };
   }
 }

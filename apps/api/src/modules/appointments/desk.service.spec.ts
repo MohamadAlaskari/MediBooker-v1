@@ -160,7 +160,7 @@ function setUp({
       cls.set('practice', {
         practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
         lease: {} as never,
-        staff: { membershipId: 'membership', role: 'STAFF' },
+        staff: { membershipId: 'membership', role: 'STAFF', providerId: null },
       });
       return work();
     });

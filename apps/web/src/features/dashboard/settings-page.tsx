@@ -12,7 +12,6 @@ import {
   type SpecialDayListDto,
 } from '@medibooker/api-client';
 import { getDirection, isolate, isLocale } from '@medibooker/i18n';
-import { useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -25,10 +24,10 @@ import { cn } from '@/lib/utils';
 import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
 import { useDesk } from './desk-context';
+import { CONTROL, counter, TimeInput, useInvalidatePractice } from './setup-parts';
 import {
   draftOf,
   intervalsOfDraft,
-  isPracticeQueryOf,
   languageName,
   nextRangeOf,
   problemOf,
@@ -45,61 +44,7 @@ const LABEL_MAX = 80;
 const HORIZON_DAYS = 730;
 const DAY_MS = 86_400_000;
 const CARD = 'flex flex-col gap-4 rounded-lg border border-border-subtle bg-bg-surface p-5';
-const CONTROL =
-  'min-h-touch-target rounded-md border border-border-strong bg-bg-surface px-3 text-body-default text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus aria-[invalid=true]:border-border-danger';
-
 type Problem = RangeProblem | 'overlaps';
-
-function useInvalidatePractice(): () => Promise<void> {
-  const { practiceId } = useDesk();
-  const queryClient = useQueryClient();
-  return () =>
-    queryClient.invalidateQueries({
-      predicate: ({ queryKey }) => isPracticeQueryOf(practiceId, queryKey),
-    });
-}
-
-/** Keys for the ranges the week starts with; those added later count on in a ref. */
-function counter(prefix: string): () => string {
-  let count = 0;
-  return () => {
-    count += 1;
-    return `${prefix}-${String(count)}`;
-  };
-}
-
-/** A time of the practice's wall clock, as the browser's own time field takes it. */
-function TimeInput({
-  label,
-  value,
-  onChange,
-  invalid = false,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly invalid?: boolean;
-}): ReactNode {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-body-small text-text-secondary">
-        {label}
-      </label>
-      <input
-        id={id}
-        type="time"
-        step={300}
-        value={value}
-        aria-invalid={invalid || undefined}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-        className={CONTROL}
-      />
-    </div>
-  );
-}
 
 /** The hours of one line of the week: "08:00–12:00, 16:00–20:00", or closed. */
 function hoursText(

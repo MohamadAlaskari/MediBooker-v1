@@ -63,9 +63,9 @@ export function DashboardGate({
     query: { enabled: practiceId !== undefined, retry: false },
   });
   if (practiceId !== undefined && membership.data !== undefined) {
-    const { role } = membership.data;
+    const { role, providerId } = membership.data;
     return (
-      <DeskContext.Provider value={{ practiceId, role }}>
+      <DeskContext.Provider value={{ practiceId, role, providerId }}>
         <DashboardShell brand={brand} role={role}>
           {children}
         </DashboardShell>

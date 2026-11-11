@@ -57,6 +57,15 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   listSpecialDays: { account: 403 },
   createSpecialDay: { account: 403 },
   deleteSpecialDay: { account: 403 },
+  // The doctors' schedules (M04): MFA_REQUIRED before anything else too.
+  getWorkingHours: { account: 403 },
+  replaceWorkingHours: { account: 403 },
+  listAbsences: { account: 403 },
+  createAbsence: { account: 403 },
+  deleteAbsence: { account: 403 },
+  generateSlots: { account: 403 },
+  updateSlot: { account: 403 },
+  setServiceProviders: { account: 403 },
 };
 
 /** The operationIds that answer without sign-in. */

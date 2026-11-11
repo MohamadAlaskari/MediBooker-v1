@@ -19,6 +19,8 @@ interface Account {
   mfa: 'off' | 'pending' | 'on';
   /** The role in the installation's practice, which the operator's command gives. */
   role?: 'STAFF' | 'DOCTOR' | 'ADMIN';
+  /** The doctor this account is (M04): a doctor plans only its own hours. */
+  providerId?: string;
 }
 
 /** The only code of the stub's authenticator app, and its only recovery code, as typed. */
@@ -338,7 +340,7 @@ export function deskAccessOf(request: IncomingMessage): DeskAccess {
   if (account === undefined) return { refusal: 'UNAUTHENTICATED' };
   if (!withSecondFactor.has(access)) return { refusal: 'MFA_REQUIRED' };
   if (account.role === undefined) return { refusal: 'NOT_FOUND' };
-  return { email: account.email, role: account.role };
+  return { email: account.email, role: account.role, providerId: account.providerId ?? null };
 }
 
 /** Takes the requests about accounts, and answers whether it did. */
@@ -362,6 +364,8 @@ export function handleAccounts(
     const role = searchParams.get('role');
     if (account !== undefined && (role === 'STAFF' || role === 'DOCTOR' || role === 'ADMIN')) {
       account.role = role;
+      const provider = searchParams.get('provider');
+      if (provider !== null) account.providerId = provider;
     }
     respond(response, 204);
     return true;
@@ -383,7 +387,7 @@ export function handleAccounts(
     else if (account === undefined) problem(response, 'UNAUTHENTICATED');
     else if (!withSecondFactor.has(access)) problem(response, 'MFA_REQUIRED');
     else if (account.role === undefined) problem(response, 'NOT_FOUND');
-    else respond(response, 200, { role: account.role });
+    else respond(response, 200, { role: account.role, providerId: account.providerId ?? null });
     return true;
   }
   if (pathname === '/__end-access') {

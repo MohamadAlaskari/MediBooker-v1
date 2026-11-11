@@ -12,6 +12,7 @@ import type {
   DeskPatientRowDto,
   PublicAvailabilityDto,
   PublicFreeTimesDto,
+  ScheduleSlotDto,
 } from '@medibooker/api-client';
 import { bodyOf, type FieldProblem, problem, respond } from './answers.ts';
 import { patientsOf } from './desk-lists-stub.ts';
@@ -50,13 +51,58 @@ function dayInRiyadh(instant: string): string {
 }
 
 /** The starts nobody has booked: a booking takes its start away, as the API's slot does. */
+/** A time's id, as the API gives one: the same time keeps its id. */
+export function slotIdOf(startsAt: string): string {
+  const minutes = Math.floor(Date.parse(startsAt) / MINUTE_MS);
+  return `80000000-0000-4000-8000-${minutes.toString(16).padStart(12, '0')}`;
+}
+
+/** The times each staff account blocked (M04), so that tests in parallel do not meet. */
+const blocked = new Map<string, Set<string>>();
+
+function blockedOf(owner: string): Set<string> {
+  const known = blocked.get(owner);
+  if (known !== undefined) return known;
+  const fresh = new Set<string>();
+  blocked.set(owner, fresh);
+  return fresh;
+}
+
 function freeStartsOf(owner: string): string[] {
   const taken = new Set(
     [...dayOf(owner).values()]
       .filter(({ status }) => status !== 'CANCELLED')
       .map(({ startsAt }) => startsAt),
   );
-  return STARTS.filter((startsAt) => !taken.has(startsAt));
+  const off = blockedOf(owner);
+  return STARTS.filter((startsAt) => !taken.has(startsAt) && !off.has(slotIdOf(startsAt)));
+}
+
+/**
+ * Blocks or frees a time of the stub doctor (BR-07): a time an appointment holds is
+ * SLOT_HAS_APPOINTMENT, an unknown one NOT_FOUND.
+ */
+export function changeSlot(
+  owner: string,
+  slotId: string,
+  status: 'OPEN' | 'BLOCKED',
+): ScheduleSlotDto | 'NOT_FOUND' | 'SLOT_HAS_APPOINTMENT' {
+  const held = [...dayOf(owner).values()].some(
+    (appointment) =>
+      appointment.status !== 'CANCELLED' && slotIdOf(appointment.startsAt) === slotId,
+  );
+  if (held) return 'SLOT_HAS_APPOINTMENT';
+  const startsAt = STARTS.find((start) => slotIdOf(start) === slotId);
+  if (startsAt === undefined) return 'NOT_FOUND';
+  if (status === 'BLOCKED') blockedOf(owner).add(slotId);
+  else blockedOf(owner).delete(slotId);
+  return {
+    id: slotId,
+    providerId: PROVIDER_ID,
+    startsAt,
+    endsAt: new Date(Date.parse(startsAt) + 30 * MINUTE_MS).toISOString().replace('.000', ''),
+    status,
+  };
 }
 
 function availabilityAnswer(owner: string): PublicAvailabilityDto {
@@ -88,12 +134,14 @@ function weekAnswer(owner: string, from: string): DeskWeekDto {
   const held: DeskWeekSlotDto[] = [...dayOf(owner).values()].map((appointment) =>
     appointment.status === 'CANCELLED'
       ? {
+          id: slotIdOf(appointment.startsAt),
           startsAt: appointment.startsAt,
           endsAt: appointment.endsAt,
           status: 'OPEN',
           appointment: null,
         }
       : {
+          id: slotIdOf(appointment.startsAt),
           startsAt: appointment.startsAt,
           endsAt: appointment.endsAt,
           status: 'BOOKED',
@@ -105,12 +153,21 @@ function weekAnswer(owner: string, from: string): DeskWeekDto {
           },
         },
   );
-  const free: DeskWeekSlotDto[] = freeStartsOf(owner).map((startsAt) => ({
-    startsAt,
-    endsAt: new Date(Date.parse(startsAt) + 30 * MINUTE_MS).toISOString().replace('.000', ''),
-    status: 'OPEN',
-    appointment: null,
-  }));
+  const off = blockedOf(owner);
+  const taken = new Set(
+    [...dayOf(owner).values()]
+      .filter(({ status }) => status !== 'CANCELLED')
+      .map(({ startsAt }) => startsAt),
+  );
+  const free: DeskWeekSlotDto[] = STARTS.filter((startsAt) => !taken.has(startsAt)).map(
+    (startsAt) => ({
+      id: slotIdOf(startsAt),
+      startsAt,
+      endsAt: new Date(Date.parse(startsAt) + 30 * MINUTE_MS).toISOString().replace('.000', ''),
+      status: off.has(slotIdOf(startsAt)) ? 'BLOCKED' : 'OPEN',
+      appointment: null,
+    }),
+  );
   // Training on the stub's Tuesday morning, 08:00 to 11:00 in Riyadh.
   const absences =
     from <= '2026-11-10' && to >= '2026-11-10'

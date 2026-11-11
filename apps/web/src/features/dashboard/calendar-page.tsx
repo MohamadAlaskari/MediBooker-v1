@@ -3,16 +3,18 @@
 import {
   useGetDeskCatalog,
   useGetDeskWeek,
+  useUpdateSlot,
   type DeskWeekAppointmentDto,
   type DeskWeekSlotDto,
 } from '@medibooker/api-client';
 import { isolate } from '@medibooker/i18n';
 import { keepPreviousData } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Label } from 'react-aria-components';
-import { Button } from '@/components/ui/button';
+import { Button, LinkButton } from '@/components/ui/button';
+import { DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { practiceFormat, type PracticeFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -22,6 +24,7 @@ import { AppointmentSheet } from './appointment-sheet';
 import { calendarGrid, minutesOf, type CalendarCell } from './calendar-view';
 import { useDesk } from './desk-context';
 import { nextDay, statusVariantOf, type StatusVariant } from './desk-view';
+import { useInvalidatePractice } from './setup-parts';
 
 const LABEL = 'text-label-default text-text-primary';
 const FOCUS_RING =
@@ -77,17 +80,105 @@ function Held({
   );
 }
 
+/** A free or blocked time of a doctor the person plans: a press asks to block or free it (BR-07). */
+function SlotChange({
+  slot,
+  format,
+  onDone,
+}: {
+  readonly slot: DeskWeekSlotDto;
+  readonly format: PracticeFormat;
+  readonly onDone: (news: string) => void;
+}): ReactNode {
+  const t = useTranslations('dashboard.calendar');
+  const { practiceId } = useDesk();
+  const invalidate = useInvalidatePractice();
+  const update = useUpdateSlot({ mutation: { onSettled: invalidate } });
+  const [isOpen, setOpen] = useState(false);
+  const blocked = slot.status === 'BLOCKED';
+  const time = format.instantTime(slot.startsAt);
+  const day = format.dayLong(format.instantDate(slot.startsAt));
+  return (
+    <DialogTrigger
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        setOpen(open);
+        if (!open) update.reset();
+      }}
+    >
+      <Button
+        variant="ghost"
+        className={cn(
+          CELL,
+          'h-auto items-start whitespace-normal text-start text-body-small',
+          blocked
+            ? 'bg-bg-muted text-text-secondary'
+            : 'border border-dashed border-border-strong text-text-secondary',
+        )}
+      >
+        {blocked ? t('blocked') : t('availableFor', { minutes: format.number(minutesOf(slot)) })}
+        {/* Its name is what it shows, and the time that the row says: label in name (WCAG 2.5.3). */}
+        <span className="sr-only">{time}</span>
+      </Button>
+      <DialogContent
+        title={blocked ? t('unblockTitle') : t('blockTitle')}
+        description={blocked ? t('unblockBody', { time, day }) : t('blockBody', { time, day })}
+        isDismissable={!update.isPending}
+      >
+        {(close) => (
+          <div className="flex flex-col gap-4">
+            <FormError error={update.error} />
+            <Button
+              variant={blocked ? 'default' : 'danger'}
+              isPending={update.isPending}
+              onPress={() => {
+                update.mutate(
+                  {
+                    practiceId,
+                    slotId: slot.id,
+                    data: { status: blocked ? 'OPEN' : 'BLOCKED' },
+                  },
+                  {
+                    onSuccess: () => {
+                      close();
+                      onDone(
+                        blocked
+                          ? t('unblockedNews', { time, day })
+                          : t('blockedNews', { time, day }),
+                      );
+                    },
+                  },
+                );
+              }}
+            >
+              {blocked ? t('unblock') : t('block')}
+            </Button>
+            <Button variant="outline" isDisabled={update.isPending} onPress={close}>
+              {t('cancel')}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </DialogTrigger>
+  );
+}
+
 function Cell({
   cell,
   past,
   format,
   onOpen,
+  canPlan,
+  onNews,
 }: {
   readonly cell: CalendarCell;
   /** Its time has gone: a free one is shown, but no longer as something to offer. */
   readonly past: (slot: DeskWeekSlotDto) => boolean;
   readonly format: PracticeFormat;
   readonly onOpen: (id: string) => void;
+  /** The person plans this doctor: the reception, the admin, or the doctor itself (M04). */
+  readonly canPlan: boolean;
+  readonly onNews: (news: string) => void;
 }): ReactNode {
   const t = useTranslations('dashboard.calendar');
   if (cell.kind === 'empty') return null;
@@ -108,6 +199,9 @@ function Cell({
         onOpen={onOpen}
       />
     );
+  }
+  if (canPlan && !past(slot) && (slot.status === 'BLOCKED' || slot.status === 'OPEN')) {
+    return <SlotChange slot={slot} format={format} onDone={onNews} />;
   }
   if (slot.status === 'BLOCKED') {
     return (
@@ -155,7 +249,7 @@ function Legend(): ReactNode {
 export function CalendarPage(): ReactNode {
   const t = useTranslations('dashboard.calendar');
   const locale = useLocale();
-  const { practiceId } = useDesk();
+  const { practiceId, role, providerId: own } = useDesk();
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [from, setFrom] = useState<string | undefined>(undefined);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
@@ -198,6 +292,10 @@ export function CalendarPage(): ReactNode {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <LinkButton variant="outline" href={`/${locale}/dashboard/calendar/working-hours`}>
+            <CalendarClock aria-hidden data-icon="inline-start" />
+            {t('workingHours')}
+          </LinkButton>
           <Button
             variant="outline"
             size="icon"
@@ -323,7 +421,14 @@ export function CalendarPage(): ReactNode {
                     </th>
                     {row.cells.map((cell, index) => (
                       <td key={grid.days[index] ?? index} className="align-top">
-                        <Cell cell={cell} past={past} format={format} onOpen={setOpenId} />
+                        <Cell
+                          cell={cell}
+                          past={past}
+                          format={format}
+                          onOpen={setOpenId}
+                          canPlan={role !== 'DOCTOR' || own === providerId}
+                          onNews={setNews}
+                        />
                       </td>
                     ))}
                   </tr>

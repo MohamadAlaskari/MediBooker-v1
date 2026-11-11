@@ -258,6 +258,7 @@ model StaffMember {
   availabilityRules      AvailabilityRule[]
   availabilityExceptions AvailabilityException[]
   slots                  Slot[]
+  membership             Membership?
 
   @@map("staff_members")
 }
@@ -567,7 +568,9 @@ model Membership {
   /// class: personal
   id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// class: personal (the account in the platform database)
-  userId    String           @unique @map("user_id") @db.Uuid
+  userId        String           @unique @map("user_id") @db.Uuid
+  /// class: personal (the doctor this account is: a doctor changes only its own hours, M04)
+  staffMemberId String?          @unique @map("staff_member_id") @db.Uuid
   /// class: personal
   role      StaffRole
   /// class: personal
@@ -576,6 +579,8 @@ model Membership {
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: personal
   updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  staffMember StaffMember? @relation(fields: [staffMemberId], references: [id], onDelete: SetNull)
 
   @@map("memberships")
 }
