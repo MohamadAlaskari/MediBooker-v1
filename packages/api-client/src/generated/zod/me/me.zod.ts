@@ -163,6 +163,37 @@ export const UpdateProfileResponse = zod.object({
 })
 
 /**
+ * @summary The sign-ins of the own account that still work, newest first (A04)
+ */
+export const getSessionsResponseDeviceMax = 60;
+
+
+
+export const GetSessionsResponseItem = zod.object({
+  "current": zod.boolean().describe('The sign-in of this request'),
+  "device": zod.string().max(getSessionsResponseDeviceMax).nullable().describe('Browser or app and system, for example "Chrome · Windows"; null when unknown'),
+  "id": zod.uuid().describe('The sign-in and every token refreshed from it'),
+  "lastActiveAt": zod.iso.datetime({"offset":true}).describe('The last refresh: when it was last used'),
+  "secondFactor": zod.boolean().describe('Signed in with the code of an authenticator app too'),
+  "signedInAt": zod.iso.datetime({"offset":true})
+})
+export const GetSessionsResponse = zod.array(GetSessionsResponseItem)
+
+/**
+ * @summary End every sign-in of the own account but this one
+ */
+export const EndOtherSessionsResponse = zod.void()
+
+/**
+ * @summary End one sign-in of the own account, for example on a lost phone
+ */
+export const EndSessionParams = zod.object({
+  "sessionId": zod.string()
+})
+
+export const EndSessionResponse = zod.void()
+
+/**
  * @summary Delete an own account that was never confirmed: a mistyped address
  */
 export const DeleteUnconfirmedAccountResponse = zod.void()

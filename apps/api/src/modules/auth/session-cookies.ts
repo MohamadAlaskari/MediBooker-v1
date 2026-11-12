@@ -66,6 +66,33 @@ export function clearSessionCookies(response: ServerResponse): void {
   ]);
 }
 
+/**
+ * The browser of a sign-in (A04, E10): a random key, only in this cookie, of which the platform keeps
+ * a keyed hash per account. It reaches the auth routes only, and lives as long as a browser lets a
+ * cookie. The `__Secure-` prefix keeps a page over plain HTTP from planting a key of its own, which
+ * a sign-in would then make known (the security review of A04 part 2b).
+ */
+export const DEVICE_COOKIE = '__Secure-mb_device';
+const DEVICE_COOKIE_DAYS = 400;
+const DEVICE_KEY = /^[A-Za-z0-9_-]{43}$/;
+
+export function setDeviceCookie(response: ServerResponse, key: string): void {
+  response.appendHeader(
+    'Set-Cookie',
+    serialized(DEVICE_COOKIE, key, {
+      path: AUTH_PATH,
+      maxAgeSeconds: DEVICE_COOKIE_DAYS * 86_400,
+      httpOnly: true,
+    }),
+  );
+}
+
+/** The device key of a request, if it sends one of the form this API gives. */
+export function deviceKeyOf(header: string | string[] | undefined): string | undefined {
+  const key = cookiesOf(header).get(DEVICE_COOKIE);
+  return key !== undefined && DEVICE_KEY.test(key) ? key : undefined;
+}
+
 /** The cookies of a request. A name that occurs twice keeps its first value, as browsers send. */
 export function cookiesOf(header: string | string[] | undefined): ReadonlyMap<string, string> {
   const cookies = new Map<string, string>();

@@ -30,6 +30,7 @@ import type {
   MyPracticeListDto,
   ProblemDetailsDto,
   ProfileDto,
+  SignInDto,
   TotpEnabledDto,
   TotpSetupDto,
   UpdateAccountDto,
@@ -792,6 +793,252 @@ export const useUpdateProfile = <TError = ErrorType<ProblemDetailsDto>,
         TContext
       > => {
       return useMutation(getUpdateProfileMutationOptions(options), queryClient);
+    }
+    export const getGetSessionsUrl = () => {
+
+
+
+
+  return `/api/v1/me/sessions`
+}
+
+/**
+ * @summary The sign-ins of the own account that still work, newest first (A04)
+ */
+export const getSessions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignInDto[]> => {
+
+  return apiFetch<SignInDto[]>(getGetSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionsQueryKey = () => {
+    return [
+    `/api/v1/me/sessions`
+    ] as const;
+    }
+
+
+export const getGetSessionsQueryOptions = <TData = Awaited<ReturnType<typeof getSessions>>, TError = ErrorType<ProblemDetailsDto>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSessions>>> = ({ signal }) => getSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof getSessions>>>
+export type GetSessionsQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useGetSessions<TData = Awaited<ReturnType<typeof getSessions>>, TError = ErrorType<ProblemDetailsDto>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSessions<TData = Awaited<ReturnType<typeof getSessions>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSessions<TData = Awaited<ReturnType<typeof getSessions>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The sign-ins of the own account that still work, newest first (A04)
+ */
+
+export function useGetSessions<TData = Awaited<ReturnType<typeof getSessions>>, TError = ErrorType<ProblemDetailsDto>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getEndOtherSessionsUrl = () => {
+
+
+
+
+  return `/api/v1/me/sessions/revoke-others`
+}
+
+/**
+ * @summary End every sign-in of the own account but this one
+ */
+export const endOtherSessions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getEndOtherSessionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndOtherSessionsMutationKey = () => ['endOtherSessions'] as const;
+
+export const getEndOtherSessionsMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endOtherSessions>>, TError,void, TContext> => {
+
+const mutationKey = getEndOtherSessionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endOtherSessions>>, void> = () => {
+
+
+          return  endOtherSessions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndOtherSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof endOtherSessions>>>
+
+    export type EndOtherSessionsMutationError = ErrorType<ProblemDetailsDto>
+
+
+    /**
+ * @summary End every sign-in of the own account but this one
+ */
+export const useEndOtherSessions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endOtherSessions>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endOtherSessions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getEndOtherSessionsMutationOptions(options), queryClient);
+    }
+    export const getEndSessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/me/sessions/${sessionId}`
+}
+
+/**
+ * @summary End one sign-in of the own account, for example on a lost phone
+ */
+export const endSession = async (sessionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getEndSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndSessionMutationKey = () => ['endSession'] as const;
+
+export const getEndSessionMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext> => {
+
+const mutationKey = getEndSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endSession>>, EndSessionMutationVariables> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  endSession(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndSessionMutationResult = NonNullable<Awaited<ReturnType<typeof endSession>>>
+
+    export type EndSessionMutationError = ErrorType<ProblemDetailsDto>
+    export type EndSessionMutationVariables = {sessionId: string}
+
+    /**
+ * @summary End one sign-in of the own account, for example on a lost phone
+ */
+export const useEndSession = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSession>>, TError,EndSessionMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endSession>>,
+        TError,
+        EndSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndSessionMutationOptions(options), queryClient);
     }
     export const getDeleteUnconfirmedAccountUrl = () => {
 

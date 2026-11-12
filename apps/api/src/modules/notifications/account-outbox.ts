@@ -11,7 +11,12 @@ import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import { ENV } from '../../config/env.module.js';
 import type { Env } from '../../config/env.schema.js';
-import { renderAccountEmail } from './account-email.js';
+import type { AccountNotificationTemplate } from '../../generated/platform/enums.js';
+import {
+  isSecurityTemplate,
+  renderAccountEmail,
+  type AccountEmailDetails,
+} from './account-email.js';
 import { InstallationPractice } from './installation-practice.js';
 import { LEASE_MINUTES, nextAttemptAfter } from './domain/outbox.rules.js';
 import { EmailSender } from './email-sender.js';
@@ -97,13 +102,32 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
     return { succeeded, failed };
   }
 
+  /**
+   * What a security e-mail tells (A04): when, as the practice writes a time, and E10's device. The
+   * time is the sign-in's, or the queuing of the e-mail, which happened in the same transaction.
+   */
+  private async detailsOf(row: {
+    readonly template: AccountNotificationTemplate;
+    readonly createdAt: Date;
+    readonly session: { readonly device: string | null; readonly createdAt: Date } | null;
+  }): Promise<AccountEmailDetails | undefined> {
+    if (!isSecurityTemplate(row.template)) return undefined;
+    return {
+      at: instantOf(row.session?.createdAt ?? row.createdAt),
+      device: row.template === 'NEW_SIGN_IN' ? (row.session?.device ?? null) : undefined,
+      ...(await this.practice.writing()),
+    };
+  }
+
   private async send(id: string, attempts: number): Promise<boolean> {
     const row = await this.platform.accountNotification.findUnique({
       where: { id },
       select: {
         template: true,
+        createdAt: true,
         user: { select: { email: true, locale: true } },
         accountToken: { select: { id: true, expiresAt: true, usedAt: true } },
+        session: { select: { device: true, createdAt: true } },
       },
     });
     // An account can go in the meantime, and its e-mails with it: nothing to send, or to record.
@@ -126,6 +150,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
         await this.secrets.accountTokenOf(token.id),
         // In the practice's name (ADR 0016); the product's where an installation names none.
         (await this.practice.nameIn(row.user.locale)) ?? 'MediBooker',
+        await this.detailsOf(row),
       );
       await this.sender.send({ to: row.user.email, ...email });
       await this.platform.accountNotification.updateMany({

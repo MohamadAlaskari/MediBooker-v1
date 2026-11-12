@@ -22,6 +22,8 @@ As built for the dashboard (A04, 2026-11-10): an account with a second factor se
 ## Consequences
 
 Positive: full control over flows, Arabic/English UX and data residency; no per-user licence costs; one less service to operate.
+As built for session control (A04 part 2b, 2026-11-12): a browser keeps a random device key (`__Secure-mb_device`), of which the platform keeps a per-account HMAC with the auth secret; a browser the account knows counts its own failed sign-ins (OWASP device cookies), every other client counts on the account, decaying by one per hour, and after 100 of them since the last success only a new password lets such clients in (NIST SP 800-63B §5.2.2); a sign-in family ends 90 days after its sign-in, however often it is refreshed; every sign-in but the account's first from a browser it does not know, or from the app until A06 gives it a device key, sends E10 to a confirmed address; E10, the "password changed" e-mail (E11) and "an authenticator app was set up" (E12) carry a one-week "this was not me" link (`POST /auth/sessions/revoke-all`) that ends every session, stops the password and sends a reset link, while the second factor stays; `/me/sessions` lists and ends the account's own sign-ins.
+
 Negative: the team owns security-critical code — it needs thorough tests (token rotation and reuse, lockout, MFA) and the mandatory security review before every merge that touches auth.
 Follow-ups: choose the breached-password source (local list or k-anonymity range API); key rotation procedure; phone sign-in when the SMS provider exists; passkeys (WebAuthn) as a later option.
 

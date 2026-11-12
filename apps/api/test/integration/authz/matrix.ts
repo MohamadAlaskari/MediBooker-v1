@@ -13,6 +13,10 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   getMe: { account: 200 },
   updateMe: { account: 200 },
   deleteUnconfirmedAccount: { account: 204 },
+  // The own sign-ins (A04): an unknown one is NOT_FOUND, and ending the others always works.
+  getSessions: { account: 200 },
+  endSession: { account: 404 },
+  endOtherSessions: { account: 204 },
   // Only the team sets up the app for now: an account without a STAFF index row.
   startTotp: { account: 403 },
   // Without a start there is no secret to confirm: MFA_CODE_INVALID.
@@ -80,6 +84,8 @@ export const PUBLIC_OPERATIONS: readonly string[] = [
   'logout',
   'forgotPassword',
   'resetPassword',
+  // The token of a security e-mail is the proof (E10, A04).
+  'secureAccount',
   'listPublicPractices',
   'getPublicPractice',
   'getPublicAvailability',

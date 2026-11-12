@@ -24,6 +24,7 @@ import type {
   MyAppointmentsDto,
   MyPracticeListDto,
   ProfileDto,
+  SignInDto,
   TotpEnabledDto,
   TotpSetupDto,
   UpdateAccountDto,
@@ -50,6 +51,8 @@ export const getListMyPracticesResponseMock = (overrideResponse: Partial<Extract
 export const getGetProfileResponseMock = (overrideResponse: Partial<Extract<ProfileDto, object>> = {}): ProfileDto => ({dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
 export const getUpdateProfileResponseMock = (overrideResponse: Partial<Extract<ProfileDto, object>> = {}): ProfileDto => ({dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), insuranceNumberEnd: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
+
+export const getGetSessionsResponseMock = (): SignInDto[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({current: faker.datatype.boolean(), device: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 60}}), null]), id: faker.string.uuid(), lastActiveAt: faker.date.past().toISOString().slice(0, 19) + 'Z', secondFactor: faker.datatype.boolean(), signedInAt: faker.date.past().toISOString().slice(0, 19) + 'Z'})))
 
 
 export const getGetMeMockHandler = (overrideResponse?: AccountDto | ((info: Parameters<HttpResponseResolver>[0]) => Promise<AccountDto> | AccountDto), options?: RequestHandlerOptions) => {
@@ -148,6 +151,38 @@ export const getUpdateProfileMockHandler = (overrideResponse?: ProfileDto | ((in
   }, options)
 }
 
+export const getGetSessionsMockHandler = (overrideResponse?: SignInDto[] | ((info: Parameters<HttpResponseResolver>[0]) => Promise<SignInDto[]> | SignInDto[]), options?: RequestHandlerOptions) => {
+  return http.get('*/api/v1/me/sessions', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetSessionsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getEndOtherSessionsMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post('*/api/v1/me/sessions/revoke-others', async (info: Parameters<HttpResponseResolver>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getEndSessionMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ sessionId: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete<{ sessionId: string }>('*/api/v1/me/sessions/:sessionId', async (info: Parameters<HttpResponseResolver<{ sessionId: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
 export const getDeleteUnconfirmedAccountMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
   return http.delete('*/api/v1/me/unconfirmed', async (info: Parameters<HttpResponseResolver>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
@@ -166,5 +201,8 @@ export const getMeMock = () => [
   getListMyPracticesMockHandler(),
   getGetProfileMockHandler(),
   getUpdateProfileMockHandler(),
+  getGetSessionsMockHandler(),
+  getEndOtherSessionsMockHandler(),
+  getEndSessionMockHandler(),
   getDeleteUnconfirmedAccountMockHandler()
 ]

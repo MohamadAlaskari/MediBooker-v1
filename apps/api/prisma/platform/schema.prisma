@@ -184,6 +184,8 @@ enum InsuranceType {
 enum AccountTokenPurpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  /// The "this was not me" link of the security e-mails (A04): ends every session, asks for a new password
+  SECURE_ACCOUNT
 
   @@map("account_token_purpose")
 }
@@ -192,6 +194,12 @@ enum AccountTokenPurpose {
 enum AccountNotificationTemplate {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  /// E10: a sign-in from a browser the account has not used before
+  NEW_SIGN_IN
+  /// A new password was chosen (BR-21)
+  PASSWORD_CHANGED
+  /// An authenticator app was set up for the account (BR-21, the review of A04 part 2b)
+  SECOND_FACTOR_ENABLED
 
   @@map("account_notification_template")
 }
@@ -218,10 +226,18 @@ model User {
   emailVerifiedAt     DateTime? @map("email_verified_at") @db.Timestamptz(3)
   /// class: personal (the language of e-mails to this person)
   locale              String
-  /// class: personal (failed sign-ins in a row; the reason for lockedUntil)
+  /// class: personal (failed sign-ins in a row of clients the account does not know; the reason for
+  /// lockedUntil; a browser it knows counts its own, KnownDevice)
   failedLoginCount    Int       @default(0) @map("failed_login_count") @db.SmallInt
   /// class: personal
   lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
+  /// class: personal (the last failed sign-in; the count decays from it, A04)
+  failedLoginAt       DateTime? @map("failed_login_at") @db.Timestamptz(3)
+  /// class: personal (failed sign-ins of unknown clients since the last success or new password,
+  /// without decay: at 100 only a new password lets them in, A04)
+  failedSinceSuccess  Int       @default(0) @map("failed_since_success") @db.SmallInt
+  /// class: personal (the first sign-in: every later one from an unknown browser gets E10, A04)
+  firstSignedInAt     DateTime? @map("first_signed_in_at") @db.Timestamptz(3)
   /// class: secret (the TOTP secret, encrypted with the field keys and bound to this row, A04)
   totpSecretEncrypted String?   @map("totp_secret_encrypted")
   /// class: personal (null while the second factor is not confirmed)
@@ -244,6 +260,7 @@ model User {
   profile       AccountProfile?
   access        PracticeAccess[]
   recoveryCodes MfaRecoveryCode[]
+  devices       KnownDevice[]
 
   @@map("users")
 }
@@ -338,29 +355,65 @@ model AccountProfile {
 /// family (ADR 0004). The id is the `sid` of the access tokens issued with it.
 model Session {
   /// class: personal
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// class: personal
-  userId    String    @map("user_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
   /// class: personal (one sign-in and everything rotated from it)
-  familyId  String    @map("family_id") @db.Uuid
+  familyId        String    @map("family_id") @db.Uuid
   /// class: secret (SHA-256 of the refresh token, which is stored nowhere)
-  tokenHash String    @unique @map("token_hash")
+  tokenHash       String    @unique @map("token_hash")
   /// class: personal (how the person signed in)
-  amr       String[]
+  amr             String[]
   /// class: personal
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: personal
-  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
   /// class: personal (this token was replaced by a newer one of its family)
-  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
+  rotatedAt       DateTime? @map("rotated_at") @db.Timestamptz(3)
   /// class: personal
-  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(3)
+  /// class: personal (the sign-in of the family: it ends at an absolute time from it, A04; null in
+  /// rows from before, which count from their own creation)
+  familyStartedAt DateTime? @map("family_started_at") @db.Timestamptz(3)
+  /// class: personal (browser or app and system, for example "Chrome · Windows"; no version, no
+  /// address; at most 60 characters by a CHECK)
+  device          String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications AccountNotification[]
 
   @@index([userId])
   @@index([familyId])
   @@map("sessions")
+}
+
+/// A browser an account signed in with (A04, E10): a keyed hash of its device cookie. A sign-in from
+/// another one gets the "new sign-in" e-mail; securing the account forgets them all. Each counts its
+/// own failed sign-ins, so a stranger's guesses never make the owner's browser wait (OWASP device
+/// cookies, the review of A04 part 2b).
+model KnownDevice {
+  /// class: personal
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// class: personal
+  userId      String    @map("user_id") @db.Uuid
+  /// class: secret (HMAC with the auth secret of the account and its device cookie, which is stored
+  /// nowhere)
+  deviceHash  String    @map("device_hash")
+  /// class: personal
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  /// class: personal
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  /// class: personal (failed sign-ins in a row from this browser; the reason for lockedUntil)
+  failedCount Int       @default(0) @map("failed_count") @db.SmallInt
+  /// class: personal (the last failed sign-in from this browser; the count decays from it)
+  failedAt    DateTime? @map("failed_at") @db.Timestamptz(3)
+  /// class: personal (until then a sign-in from this browser does not count)
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceHash])
+  @@map("known_devices")
 }
 
 /// A single-use token of an account, valid for 30 minutes (ADR 0004). The token itself is derived
@@ -430,12 +483,16 @@ model AccountNotification {
   sentAt         DateTime?                   @map("sent_at") @db.Timestamptz(3)
   /// class: public
   createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// class: personal (E10: the sign-in it tells of, for its device and time)
+  sessionId      String?                     @map("session_id") @db.Uuid
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountToken AccountToken? @relation(fields: [accountTokenId], references: [id], onDelete: Cascade)
+  session      Session?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([accountTokenId])
+  @@index([sessionId])
   @@index([nextAttemptAt], map: "account_notifications_due_idx", where: raw("(status = 'PENDING'::account_notification_status)"))
   @@map("account_notifications")
 }

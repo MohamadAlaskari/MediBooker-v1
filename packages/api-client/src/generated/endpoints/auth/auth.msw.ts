@@ -25,6 +25,7 @@ import type {
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
+  SecureAccountDto,
   SessionDto
 } from '../../model';
 
@@ -98,6 +99,16 @@ export const getRegisterMockHandler = (overrideResponse?: void | ((info: Paramet
   }, options)
 }
 
+export const getSecureAccountMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, SecureAccountDto>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, SecureAccountDto>('*/api/v1/auth/sessions/revoke-all', async (info: Parameters<HttpResponseResolver<PathParams, SecureAccountDto>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
 export const getVerifyEmailMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, ConfirmEmailDto>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
   return http.post<PathParams, ConfirmEmailDto>('*/api/v1/auth/verify-email', async (info: Parameters<HttpResponseResolver<PathParams, ConfirmEmailDto>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
@@ -124,6 +135,7 @@ export const getAuthMock = () => [
   getResetPasswordMockHandler(),
   getRefreshMockHandler(),
   getRegisterMockHandler(),
+  getSecureAccountMockHandler(),
   getVerifyEmailMockHandler(),
   getResendVerificationMockHandler()
 ]

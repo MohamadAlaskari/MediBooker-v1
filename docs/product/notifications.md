@@ -1,7 +1,7 @@
 # MediBooker v2 — Notifications (e-mail, push and SMS)
 
 Status: draft v0.4 · 2026-11-01 · Languages: Arabic (default, RTL) and English
-Figma: page "Email Templates" (E01–E10) and page "Patient App (Mobile)" (28 Allow notifications, 29 Notification settings, 30/31 push previews, 32 SMS – Messages); portal settings PW12; clinic channel settings in W21 Settings – Notifications.
+Figma: page "Email Templates" (E01–E10; E11 and E12 use the layout of E10) and page "Patient App (Mobile)" (28 Allow notifications, 29 Notification settings, 30/31 push previews, 32 SMS – Messages); portal settings PW12; clinic channel settings in W21 Settings – Notifications.
 Rules: BR-13, BR-20, BR-21 in the `medibooker-domain` skill. Decision record: [ADR 0001](../adr/0001-notification-channels-and-content.md).
 
 ## 1. Principles
@@ -46,7 +46,9 @@ Width 600 px. Header: clinic logo and name. Footer: clinic address and phone, wh
 | E07 | A note or file is shared (`record.shared_item_added`) | Patient + managers | New in your health record | جديد في ملفك الطبي | Open health record → record | Record |
 | E08 | An adult is invited to a family account | Invited person | Sara Ahmed invited you to Al Noor Medical Center | دعتك سارة أحمد إلى مركز النور الطبي | Review invitation → accept screen (after sign-in) | Account |
 | E09 | Admin invites a staff member | New staff member | Join the Al Noor Medical Center team | انضم إلى فريق مركز النور الطبي | Set up your account → password + 2FA setup | Account |
-| E10 | Sign-in from a new device | User | New sign-in to your account | تسجيل دخول جديد إلى حسابك | This was not me – secure my account → sign out everywhere + reset | Security |
+| E10 | Sign-in from a browser the account does not know, or from the app (not the account's first sign-in) | User | New sign-in to your account | تسجيل دخول جديد إلى حسابك | This was not me – secure my account → sign out everywhere + reset | Security |
+| E11 | A new password was chosen (BR-21) | User | Your password was changed | تم تغيير كلمة المرور | This was not me – secure my account → sign out everywhere + reset | Security |
+| E12 | An authenticator app was set up (BR-21) | User | An authenticator app was set up for your account | تم إعداد تطبيق المصادقة لحسابك | This was not me – secure my account → sign out everywhere + reset; the practice removes the app | Security |
 
 \* The booking confirmation is a service message: always sent by e-mail.
 

@@ -9,13 +9,70 @@ export interface RenderedEmail {
   readonly html: string;
 }
 
-/** The namespace of each template's texts, and the page its link leads to. */
-const TEMPLATES: Readonly<
-  Record<AccountNotificationTemplate, { readonly texts: 'verify' | 'reset'; readonly page: string }>
-> = {
-  EMAIL_VERIFICATION: { texts: 'verify', page: 'verify-email' },
-  PASSWORD_RESET: { texts: 'reset', page: 'reset-password' },
+interface TemplateTexts {
+  /** The namespace of its texts. */
+  readonly texts: 'verify' | 'reset' | 'newSignIn' | 'passwordChanged' | 'secondFactorEnabled';
+  /** The page its link leads to. */
+  readonly page: string;
+  /** How long its link works: the 30 minutes of ADR 0004 §8, or the week of a security link. */
+  readonly validity: 'validity' | 'validityDays';
+  /** A security e-mail: its footer does not tell a stranger to ignore it. */
+  readonly security: boolean;
+}
+
+const TEMPLATES: Readonly<Record<AccountNotificationTemplate, TemplateTexts>> = {
+  EMAIL_VERIFICATION: {
+    texts: 'verify',
+    page: 'verify-email',
+    validity: 'validity',
+    security: false,
+  },
+  PASSWORD_RESET: { texts: 'reset', page: 'reset-password', validity: 'validity', security: false },
+  NEW_SIGN_IN: {
+    texts: 'newSignIn',
+    page: 'secure-account',
+    validity: 'validityDays',
+    security: true,
+  },
+  PASSWORD_CHANGED: {
+    texts: 'passwordChanged',
+    page: 'secure-account',
+    validity: 'validityDays',
+    security: true,
+  },
+  SECOND_FACTOR_ENABLED: {
+    texts: 'secondFactorEnabled',
+    page: 'secure-account',
+    validity: 'validityDays',
+    security: true,
+  },
 };
+
+/** The e-mails that say when something happened to the account, with the way back (A04). */
+export function isSecurityTemplate(template: AccountNotificationTemplate): boolean {
+  return TEMPLATES[template].security;
+}
+
+/** What a security e-mail tells: when, with what, and how the practice writes a time (A04). */
+export interface AccountEmailDetails {
+  /** The sign-in of E10, the new password, or the app put in force. */
+  readonly at: Temporal.Instant;
+  /** E10: the browser or app and system, coarse; null when unknown. */
+  readonly device?: string | null;
+  readonly timeZone: string;
+  readonly numberingSystem: string;
+  readonly hourCycle: string;
+}
+
+/** A time as the practice writes it: its zone, its digits, its hours, in the account's language. */
+function written(locale: string, details: AccountEmailDetails): string {
+  const tag = `${locale}-u-nu-${details.numberingSystem}-hc-${details.hourCycle}`;
+  return new Intl.DateTimeFormat(tag, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+    timeZone: details.timeZone,
+  }).format(details.at.epochMilliseconds);
+}
 
 /** FIRST STRONG ISOLATE and POP DIRECTIONAL ISOLATE, as numbers: no such character in this file. */
 const FSI = String.fromCodePoint(0x2068);
@@ -42,7 +99,8 @@ function escaped(text: string): string {
  * An account e-mail, rendered when it is sent, in the language of the account: RTL HTML and plain
  * text, inline colours and no tracking. The link names the token in its fragment, so it reaches no
  * server log (03 §7). The caller passes a link from PUBLIC_WEB_URL, never from a request, and the
- * name of the practice whose account it is (ADR 0016).
+ * name of the practice whose account it is (ADR 0016). A security e-mail (A04) also says when, and
+ * with what device, isolated from the sentence around it.
  */
 export function renderAccountEmail(
   template: AccountNotificationTemplate,
@@ -50,17 +108,26 @@ export function renderAccountEmail(
   webUrl: string,
   token: string,
   practiceName: string,
+  details?: AccountEmailDetails,
 ): RenderedEmail {
   const locale = isLocale(accountLocale) ? accountLocale : DEFAULT_LOCALE;
-  const { texts, page } = TEMPLATES[template];
+  const { texts, page, validity: validityText, security } = TEMPLATES[template];
   const t = createTranslator({ locale, messages: messages[locale], namespace: 'emails' });
   const link = `${webUrl}/${locale}/${page}#token=${token}`;
   const subject = t(`${texts}.subject`);
   const heading = t(`${texts}.heading`);
-  const body = t(`${texts}.body`);
+  // The client names itself, and anyone can send any name: E10 says so (the review of A04 part 2b).
+  const deviceName = details?.device;
+  const body = t(`${texts}.body`, {
+    when: details === undefined ? '' : isolated(written(locale, details)),
+    device:
+      deviceName === undefined || deviceName === null
+        ? t('unknownDevice')
+        : t('deviceNamed', { name: isolated(deviceName) }),
+  });
   const action = t(`${texts}.action`);
-  const validity = t('validity');
-  const footer = t('footer', { practice: isolated(practiceName) });
+  const validity = t(validityText);
+  const footer = t(security ? 'footerSecurity' : 'footer', { practice: isolated(practiceName) });
   const { bg, text } = createColorTheme('light');
   const direction = getDirection(locale);
   const paragraph = `margin:0 0 16px;font:16px/24px sans-serif;color:${text.secondary}`;

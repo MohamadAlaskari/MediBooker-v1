@@ -11,6 +11,8 @@ export interface AccountNotificationRequest {
   /** One e-mail per reason. */
   readonly dedupeKey: string;
   readonly accountTokenId: string;
+  /** E10: the sign-in it tells of. */
+  readonly sessionId?: string;
 }
 
 /**

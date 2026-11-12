@@ -288,7 +288,20 @@
       "appearanceLabel": "Colours of the pages on this device",
       "themeSystem": "As set on this device",
       "themeLight": "Light",
-      "themeDark": "Dark"
+      "themeDark": "Dark",
+      "sessionsTitle": "Where you are signed in",
+      "sessionsBody": "Every browser and the app signed in to your account. End a sign-in you do not know.",
+      "sessionCurrent": "This device",
+      "sessionUnknownDevice": "Unknown device",
+      "sessionSince": "Signed in {when}",
+      "sessionLastActive": "Last active {when}",
+      "sessionSecondFactor": "With authenticator app",
+      "sessionEnd": "Sign out",
+      "sessionEndLabel": "Sign out on {device}, signed in {when}",
+      "sessionEnded": "That sign-in has ended.",
+      "sessionsEndOthers": "Sign out everywhere else",
+      "sessionsEndedOthers": "Every other sign-in has ended.",
+      "sessionsOnlyThis": "Only this device is signed in."
     },
     "twoFactor": {
       "title": "Set up two-step sign-in",
@@ -312,6 +325,16 @@
       "againTitle": "Please sign in again",
       "againBody": "This sign-in has no code from your authenticator app yet.",
       "noPractice": "This installation has no practice yet."
+    },
+    "secureAccount": {
+      "title": "Secure your account",
+      "body": "This ends every sign-in of your account and stops its password. Then we send you a link to choose a new one.",
+      "submit": "Secure my account",
+      "doneTitle": "Your account is secure",
+      "doneBody": "Every sign-in has ended. Check your inbox: we sent you a link to choose a new password.",
+      "noLinkTitle": "This link does not work",
+      "noLinkBody": "Please open the link from the e-mail again. A link works once and for 7 days; after that, choose a new password instead.",
+      "newPassword": "Choose a new password"
     }
   },
   "privacyPage": {
@@ -333,6 +356,28 @@
       "heading": "Reset your password",
       "body": "Someone asked to reset the password of your account. Choose a new one with this link.",
       "action": "Choose a new password"
+    },
+    "validityDays": "The link is valid for 7 days.",
+    "footerSecurity": "You receive this e-mail because of your account at {practice}.",
+    "unknownDevice": "it does not say what it is",
+    "deviceNamed": "it calls itself {name}",
+    "newSignIn": {
+      "subject": "New sign-in to your account",
+      "heading": "New sign-in to your account",
+      "body": "Someone signed in to your account on {when} from a device that was not used for it before; {device}. If that was you, there is nothing to do. If not, secure your account: every sign-in ends, and you choose a new password.",
+      "action": "This was not me: secure my account"
+    },
+    "passwordChanged": {
+      "subject": "Your password was changed",
+      "heading": "Your password was changed",
+      "body": "The password of your account was changed on {when}. If that was you, there is nothing to do. If not, secure your account: every sign-in ends, and you choose a new password.",
+      "action": "This was not me: secure my account"
+    },
+    "secondFactorEnabled": {
+      "subject": "An authenticator app was set up for your account",
+      "heading": "An authenticator app was set up for your account",
+      "body": "An authenticator app was set up for your account on {when}: from now on, signing in also needs its code. If that was you, there is nothing to do. If not, secure your account: every sign-in ends, and you choose a new password. Then ask the practice to remove the app from your account.",
+      "action": "This was not me: secure my account"
     }
   },
   "portal": {

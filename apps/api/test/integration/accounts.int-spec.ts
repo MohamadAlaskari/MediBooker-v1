@@ -323,12 +323,16 @@ describe('accounts on a real platform database', () => {
     it('sets cookies a script cannot read and another site cannot send', async () => {
       const response = await login(await register()).expect(200);
       const cookies = response.headers['set-cookie'] as unknown as string[];
-      expect(cookies).toHaveLength(3);
+      // Access, refresh and CSRF, and the browser's device cookie (A04, E10).
+      expect(cookies).toHaveLength(4);
       for (const cookie of cookies) {
         expect(cookie).toContain('Secure');
         expect(cookie).toContain('SameSite=Strict');
       }
-      expect(cookies.filter((cookie) => cookie.includes('HttpOnly'))).toHaveLength(2);
+      expect(cookies.filter((cookie) => cookie.includes('HttpOnly'))).toHaveLength(3);
+      const device = cookies.find((cookie) => cookie.startsWith('__Secure-mb_device='));
+      expect(device).toContain('Path=/api/v1/auth;');
+      expect(device).toContain('HttpOnly');
       expect(response.body).not.toHaveProperty('tokens');
       expect(JSON.stringify(response.body)).not.toContain('password');
     });

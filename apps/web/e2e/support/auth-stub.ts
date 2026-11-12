@@ -43,7 +43,18 @@ const refreshTokens = new Map<string, string>();
 /** The tokens of sessions that were opened with both factors. */
 const withSecondFactor = new Set<string>();
 /** A link's token and what it may do, once. */
-const links = new Map<string, { email: string; purpose: 'confirm' | 'reset' }>();
+const links = new Map<string, { email: string; purpose: 'confirm' | 'reset' | 'secure' }>();
+/** The sign-ins of the accounts (A04): every token names its family. */
+interface SignIn {
+  readonly email: string;
+  readonly device: string | null;
+  readonly signedInAt: string;
+  readonly secondFactor: boolean;
+}
+const signIns = new Map<string, SignIn>();
+const familyOf = new Map<string, string>();
+/** What the stub calls the browser of a sign-in through the page. */
+const THIS_BROWSER = 'Chrome · Windows';
 const newestLink = new Map<string, string>();
 const profiles = new Map<string, ProfileDto>();
 
@@ -56,17 +67,60 @@ function cookiesOf(request: IncomingMessage): Map<string, string> {
   );
 }
 
-function issueLink(email: string, purpose: 'confirm' | 'reset'): void {
+function issueLink(email: string, purpose: 'confirm' | 'reset' | 'secure'): void {
   const token = randomUUID();
   links.set(token, { email, purpose });
   newestLink.set(`${email}:${purpose}`, token);
 }
 
-function setSession(response: ServerResponse, email: string, secondFactor = false): void {
+/** A sign-in of its own, with its tokens; the family of the request's cookies keeps its own. */
+function openSignIn(
+  email: string,
+  device: string | null,
+  secondFactor: boolean,
+  existing?: string,
+): {
+  readonly access: string;
+  readonly refresh: string;
+} {
+  const family = existing ?? randomUUID();
   const access = randomUUID();
   const refresh = randomUUID();
+  const before = signIns.get(family);
+  signIns.set(family, {
+    email,
+    device: before?.device ?? device,
+    signedInAt: before?.signedInAt ?? new Date().toISOString(),
+    secondFactor,
+  });
   accessTokens.set(access, email);
   refreshTokens.set(refresh, email);
+  familyOf.set(access, family);
+  familyOf.set(refresh, family);
+  return { access, refresh };
+}
+
+function endFamily(family: string): void {
+  for (const tokens of [accessTokens, refreshTokens]) {
+    for (const token of tokens.keys()) {
+      if (familyOf.get(token) === family) tokens.delete(token);
+    }
+  }
+}
+
+/** A family is live while one of its refresh tokens is. */
+function isLive(family: string): boolean {
+  return [...refreshTokens.keys()].some((token) => familyOf.get(token) === family);
+}
+
+/** The cookies of a sign-in: a new one, or the next tokens of the family a refresh keeps. */
+function setSession(
+  response: ServerResponse,
+  email: string,
+  secondFactor = false,
+  family?: string,
+): void {
+  const { access, refresh } = openSignIn(email, THIS_BROWSER, secondFactor, family);
   if (secondFactor) {
     withSecondFactor.add(access);
     withSecondFactor.add(refresh);
@@ -189,6 +243,21 @@ async function handleRoute(
     respond(response, 202);
     return;
   }
+  if (route === 'sessions/revoke-all') {
+    const link = links.get(token);
+    const account = accounts.get(link?.email ?? '');
+    if (link?.purpose !== 'secure' || account === undefined) {
+      problem(response, 'INVALID_TOKEN');
+      return;
+    }
+    links.delete(token);
+    // "This was not me": every sign-in ends, the password stops, a link for a new one is sent.
+    account.password = randomUUID();
+    endSessions(account.email);
+    issueLink(account.email, 'reset');
+    respond(response, 204);
+    return;
+  }
   if (route === 'password/reset') {
     const link = links.get(token);
     const account = accounts.get(link?.email ?? '');
@@ -221,7 +290,7 @@ async function handleRoute(
       return;
     }
     refreshTokens.delete(presented);
-    setSession(response, owner.email, withSecondFactor.has(presented));
+    setSession(response, owner.email, withSecondFactor.has(presented), familyOf.get(presented));
     respond(response, 200, { account: accountDto(owner) });
     return;
   }
@@ -398,6 +467,51 @@ export function handleAccounts(
   if (pathname === '/__end-sessions') {
     endSessions(email);
     respond(response, 204);
+    return true;
+  }
+  if (pathname === '/api/v1/me/sessions' || pathname.startsWith('/api/v1/me/sessions/')) {
+    const access = cookiesOf(request).get('mb_access') ?? '';
+    const owner = accessTokens.get(access) ?? '';
+    const current = familyOf.get(access);
+    const rest = pathname.slice('/api/v1/me/sessions'.length);
+    if (!accounts.has(owner)) problem(response, 'UNAUTHENTICATED');
+    else if (rest === '' && method === 'GET') {
+      const mine = [...signIns.entries()]
+        .filter(([family, signIn]) => signIn.email === owner && isLive(family))
+        .map(([family, signIn]) => ({
+          id: family,
+          device: signIn.device,
+          signedInAt: signIn.signedInAt,
+          lastActiveAt: signIn.signedInAt,
+          current: family === current,
+          secondFactor: signIn.secondFactor,
+        }))
+        .reverse();
+      respond(response, 200, mine);
+    } else if (!hasCsrfHeader(request)) problem(response, 'FORBIDDEN');
+    else if (rest === '/revoke-others' && method === 'POST') {
+      for (const [family, signIn] of signIns) {
+        if (signIn.email === owner && family !== current) endFamily(family);
+      }
+      respond(response, 204);
+    } else if (method === 'DELETE') {
+      const family = rest.slice(1);
+      if (signIns.get(family)?.email !== owner || !isLive(family)) problem(response, 'NOT_FOUND');
+      else {
+        endFamily(family);
+        respond(response, 204);
+      }
+    } else problem(response, 'NOT_FOUND');
+    return true;
+  }
+  if (pathname === '/__sign-in-elsewhere') {
+    openSignIn(email, searchParams.get('device'), false);
+    respond(response, 204);
+    return true;
+  }
+  if (pathname === '/__secure-link') {
+    issueLink(email, 'secure');
+    respond(response, 200, { token: newestLink.get(`${email}:secure`) });
     return true;
   }
   if (pathname === '/api/v1/me/unconfirmed') {

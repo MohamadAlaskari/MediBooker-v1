@@ -27,6 +27,7 @@ const NEW_PASSWORD = 'another synthetic passphrase';
 const SLUG = 'staff-practice';
 const OPERATOR = 'local:test';
 const RESET_SUBJECT = 'Reset your password';
+const APP_SUBJECT = 'An authenticator app was set up for your account';
 
 interface Person {
   readonly userId: string;
@@ -232,6 +233,23 @@ describe('staff and their second factor on real databases (08 A04)', () => {
         body.tokens.accessToken,
       ).expect(409);
       expect(codeOf(again.body)).toBe('MFA_ALREADY_ENABLED');
+    });
+
+    it('tells the mailbox once it is in force, with the way back (BR-21)', async () => {
+      const who = await staff();
+      const notices = async (): Promise<Email[]> => {
+        await app.get(AccountOutbox).processDue();
+        return sent.filter((email) => email.to === who.email && email.subject === APP_SUBJECT);
+      };
+      const secret = await startTotp(who.token);
+      await confirmTotp(who.token, '000000').expect(400);
+      expect(await notices()).toEqual([]);
+      await confirmTotp(who.token, codeAt(secret)).expect(200);
+      const [notice, ...more] = await notices();
+      expect(more).toEqual([]);
+      expect(notice?.text).toMatch(/\/en\/secure-account#token=[\w-]+/);
+      expect(notice?.text).toContain('ask the practice to remove the app');
+      expect(notice?.text).toContain('Synthetic Practice');
     });
 
     it('ends the other sign-ins of the account, which have only the password', async () => {

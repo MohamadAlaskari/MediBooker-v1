@@ -54,6 +54,82 @@ describe('renderAccountEmail', () => {
     expect(html).toContain(`${fsi}${turning}${pdi}`);
   });
 
+  describe('the security e-mails (A04)', () => {
+    const AT = Temporal.Instant.from('2026-11-12T10:05:00Z');
+    const RIYADH = { timeZone: 'Asia/Riyadh', numberingSystem: 'latn', hourCycle: 'h23' };
+
+    it('tells of a new sign-in: when, as the practice writes it, and with what', () => {
+      const email = renderAccountEmail('NEW_SIGN_IN', 'en', WEB, 'the-token', PRACTICE, {
+        at: AT,
+        device: 'Chrome · Windows',
+        ...RIYADH,
+      });
+      expect(email.subject).toBe('New sign-in to your account');
+      expect(email.text).toContain('13:05');
+      expect(email.text).toContain('Thursday, November 12, 2026');
+      // The device's name is its own claim, and the e-mail says so (the review of A04 part 2b).
+      expect(email.text).toContain(`it calls itself ${isolated('Chrome · Windows')}.`);
+      expect(email.text).toContain('https://site.example/en/secure-account#token=the-token');
+      expect(email.text).toContain('The link is valid for 7 days.');
+      expect(email.text).not.toContain('ignore');
+    });
+
+    it('says when a device gives no name, and writes Arabic digits where the practice does', () => {
+      const email = renderAccountEmail('NEW_SIGN_IN', 'ar', WEB, 't', 'مركز النور الطبي', {
+        at: AT,
+        device: null,
+        ...RIYADH,
+        numberingSystem: 'arab',
+      });
+      expect(email.subject).toBe('تسجيل دخول جديد إلى حسابك');
+      expect(email.text).toContain('من قبل، ولا يذكر ما هو.');
+      expect(email.text).toContain('١٣:٠٥');
+      expect(email.html).toContain('<html lang="ar" dir="rtl">');
+      const named = renderAccountEmail('NEW_SIGN_IN', 'ar', WEB, 't', 'مركز النور الطبي', {
+        at: AT,
+        device: 'Firefox · Android',
+        ...RIYADH,
+      });
+      expect(named.text).toContain(`ويقدّم نفسه على أنه ${isolated('Firefox · Android')}.`);
+    });
+
+    it('tells of an authenticator app set up for the account, with the way back', () => {
+      const email = renderAccountEmail('SECOND_FACTOR_ENABLED', 'en', WEB, 'the-token', PRACTICE, {
+        at: AT,
+        ...RIYADH,
+      });
+      expect(email.subject).toBe('An authenticator app was set up for your account');
+      expect(email.text).toContain('13:05');
+      expect(email.text).toContain('ask the practice to remove the app');
+      expect(email.text).toContain('/en/secure-account#token=the-token');
+      expect(email.text).toContain('The link is valid for 7 days.');
+      expect(email.text).not.toContain('ignore');
+      const arabic = renderAccountEmail('SECOND_FACTOR_ENABLED', 'ar', WEB, 't', PRACTICE, {
+        at: AT,
+        ...RIYADH,
+      });
+      expect(arabic.subject).toBe('تم إعداد تطبيق المصادقة لحسابك');
+      expect(arabic.text).toContain('/ar/secure-account#token=t');
+    });
+
+    it('tells of a new password with the same way back', () => {
+      const email = renderAccountEmail('PASSWORD_CHANGED', 'en', WEB, 'the-token', PRACTICE, {
+        at: AT,
+        ...RIYADH,
+      });
+      expect(email.subject).toBe('Your password was changed');
+      expect(email.text).toContain('13:05');
+      expect(email.text).toContain('/en/secure-account#token=the-token');
+      expect(email.text).toContain(`your account at ${isolated(PRACTICE)}.`);
+    });
+
+    it('keeps the 30 minutes and the hint for strangers on the other e-mails', () => {
+      const { text } = renderAccountEmail('PASSWORD_RESET', 'en', WEB, 't', PRACTICE);
+      expect(text).toContain('The link is valid for 30 minutes.');
+      expect(text).toContain('you can ignore it');
+    });
+  });
+
   it('holds no tracking and loads nothing', () => {
     const { html } = renderAccountEmail('EMAIL_VERIFICATION', 'en', WEB, 't', PRACTICE);
     expect(html).not.toMatch(/<img|<script|<link|url\(/);

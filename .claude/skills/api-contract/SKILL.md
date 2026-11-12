@@ -120,7 +120,10 @@ Extend this list; never reuse a code with a different meaning.
 | POST /me/phone/verification, POST /me/phone/verification/confirm | patient | Send a one-time code by SMS (S05) / confirm it (`VERIFICATION_CODE_INVALID`); sets `phoneVerifiedAt` | BR-21 |
 | POST /me/devices | patient | Register or refresh a push token `{ platform, token, appVersion, locale }` (idempotent per token) | BR-21 |
 | DELETE /me/devices/{id} | patient | Remove a push token (the app also calls it on sign-out) | BR-21 |
-| POST /auth/sessions/revoke-all | signed-in user, or the single-use token from the "new sign-in" e-mail (E10) | Sign out everywhere and require a password reset | ADR 0001 |
+| POST /auth/sessions/revoke-all | public: the single-use token of a security e-mail (E10, E11, E12), valid a week | "This was not me": end every session, stop the password, forget the browsers, send a reset link; the second factor stays; `INVALID_TOKEN` otherwise | ADR 0004 §8 |
+| GET /me/sessions | any | The own sign-ins that still work, newest first: device, sign-in, last refresh, current, second factor | ADR 0004 §8 |
+| DELETE /me/sessions/{sessionId} | any | End one own sign-in; `NOT_FOUND` for another account's | ADR 0004 §8 |
+| POST /me/sessions/revoke-others | any | End every own sign-in but this one | ADR 0004 §8 |
 | GET /public/practices?limit&cursor | public | Cursor list of the current slugs of published, active practices in a served market, from the registry alone, no `lastmod`; the sitemap reads it | BR-22 |
 | GET /public/practices/{slug} | public | Practice page: published profile fields, opening hours, special days (next 60 days), online-bookable services, team members with consent (name, specialty, languages, `photoUrl` or null), theme (preset, 11-step scale, logo URL, initials), locales. Unpublished → 404 | BR-22, BR-23, BR-24 |
 | GET /providers?serviceId | patient | Doctors for the doctor picker: `displayName`, `photoUrl` (only with photo consent, else null → initials) | BR-24 |

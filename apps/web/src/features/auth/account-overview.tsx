@@ -17,6 +17,7 @@ import { clearChoice } from '../portal/booking-choice';
 import { AppearanceSetting } from './appearance-setting';
 import { FormError, PageHeading } from './form-parts';
 import { ResendButton } from './resend-button';
+import { SessionsSetting } from './sessions-setting';
 import { SignOutButton, useSessionChangeElsewhere } from './sign-out-button';
 
 /** What the account knows about a person, and the way to change it. */
@@ -142,6 +143,7 @@ export function AccountOverview(): ReactNode {
       )}
       <DetailsSummary />
       <AppearanceSetting />
+      <SessionsSetting />
       <LinkButton variant="outline" href={`/${locale}/appointments`} className="mb-2">
         {t('appointments')}
       </LinkButton>

@@ -1,5 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -8,6 +19,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { isUuid } from '../../common/context/request-id.js';
+import { DomainException } from '../../common/errors/domain.exception.js';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
 import { AccountService } from './account.service.js';
@@ -15,6 +28,7 @@ import { GUESSING_LIMIT } from './auth.controller.js';
 import {
   AccountDto,
   ConfirmTotpDto,
+  SignInDto,
   TotpEnabledDto,
   TotpSetupDto,
   UpdateAccountDto,
@@ -86,6 +100,36 @@ export class MeController {
       ...(tokens === undefined ? {} : { tokens }),
       recoveryCodes: [...recoveryCodes],
     };
+  }
+
+  @ApiOperation({ summary: 'The sign-ins of the own account that still work, newest first (A04)' })
+  @ApiOkResponse({ type: [SignInDto] })
+  @Get('sessions')
+  async getSessions(@CurrentUser() actor: Actor): Promise<SignInDto[]> {
+    const signIns = await this.auth.signInsOf(actor);
+    return signIns.map((signIn) => ({
+      ...signIn,
+      signedInAt: signIn.signedInAt.toString(),
+      lastActiveAt: signIn.lastActiveAt.toString(),
+    }));
+  }
+
+  @ApiOperation({ summary: 'End one sign-in of the own account, for example on a lost phone' })
+  @HttpCode(204)
+  @Delete('sessions/:sessionId')
+  async endSession(
+    @CurrentUser() actor: Actor,
+    @Param('sessionId') sessionId: string,
+  ): Promise<void> {
+    if (!isUuid(sessionId)) throw new DomainException('NOT_FOUND');
+    await this.auth.endSignIn(actor, sessionId);
+  }
+
+  @ApiOperation({ summary: 'End every sign-in of the own account but this one' })
+  @HttpCode(204)
+  @Post('sessions/revoke-others')
+  async endOtherSessions(@CurrentUser() actor: Actor): Promise<void> {
+    await this.auth.endOtherSignIns(actor);
   }
 
   @ApiOperation({ summary: 'Delete an own account that was never confirmed: a mistyped address' })

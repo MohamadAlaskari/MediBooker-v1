@@ -135,6 +135,19 @@ export const RegisterBody = zod.object({
 export const RegisterResponse = zod.void()
 
 /**
+ * @summary "This was not me": end every session, stop the password and send a link for a new one (E10 to E12)
+ */
+export const secureAccountBodyTokenMax = 256;
+
+
+
+export const SecureAccountBody = zod.object({
+  "token": zod.string().max(secureAccountBodyTokenMax)
+})
+
+export const SecureAccountResponse = zod.void()
+
+/**
  * @summary Confirm an e-mail address, with the password of the account
  */
 export const verifyEmailBodyPasswordMax = 1024;

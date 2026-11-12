@@ -12,6 +12,7 @@ import {
   RefreshDto,
   RegisterDto,
   ResetPasswordDto,
+  SecureAccountDto,
   SessionDto,
 } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
@@ -21,8 +22,10 @@ import {
   clearSessionCookies,
   cookiesOf,
   CSRF_HEADER,
+  deviceKeyOf,
   headerOf,
   REFRESH_COOKIE,
+  setDeviceCookie,
 } from './session-cookies.js';
 
 /** Per route and address (ADR 0004 §8); an account also waits after failed sign-ins. */
@@ -99,9 +102,17 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() { email, password, delivery, code, recoveryCode }: LoginDto,
+    @Req() request: IncomingMessage,
     @Res({ passthrough: true }) response: ServerResponse,
   ): Promise<SessionDto> {
-    const session = await this.auth.login(email, password, factorOf(code, recoveryCode));
+    const withCookies = (delivery ?? 'cookie') === 'cookie';
+    const session = await this.auth.login(email, password, factorOf(code, recoveryCode), {
+      withCookies,
+      deviceKey: withCookies ? deviceKeyOf(request.headers.cookie) : undefined,
+      userAgent: headerOf(request.headers['user-agent']),
+    });
+    // A browser keeps its device cookie, so its next sign-in is no stranger's (E10).
+    if (session.deviceKey !== undefined) setDeviceCookie(response, session.deviceKey);
     return sessionAnswer(this.accounts, session, delivery ?? 'cookie', response);
   }
 
@@ -147,6 +158,18 @@ export class AuthController {
   @Post('password/forgot')
   async forgotPassword(@Body() { email }: EmailDto): Promise<void> {
     await this.accounts.forgotPassword(email);
+  }
+
+  @Public() // ADR 0004 §8: the single-use token of a security e-mail is the proof
+  @Throttle(GUESSING_LIMIT)
+  @ApiOperation({
+    summary:
+      '"This was not me": end every session, stop the password and send a link for a new one (E10 to E12)',
+  })
+  @HttpCode(204)
+  @Post('sessions/revoke-all')
+  async secureAccount(@Body() { token }: SecureAccountDto): Promise<void> {
+    await this.accounts.secureAccount(token);
   }
 
   @Public() // ADR 0004: the token in the body is the proof

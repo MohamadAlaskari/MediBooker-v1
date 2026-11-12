@@ -466,6 +466,11 @@ describe('public routes (02 §4)', () => {
         { handler: 'AuthController.refresh', method: 'POST', path: '/api/v1/auth/refresh' },
         { handler: 'AuthController.register', method: 'POST', path: '/api/v1/auth/register' },
         {
+          handler: 'AuthController.secureAccount',
+          method: 'POST',
+          path: '/api/v1/auth/sessions/revoke-all',
+        },
+        {
           handler: 'AuthController.verifyEmail',
           method: 'POST',
           path: '/api/v1/auth/verify-email',

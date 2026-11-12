@@ -135,6 +135,41 @@ export class ResetPasswordDto {
   readonly password!: string;
 }
 
+/** The link of a security e-mail (E10 to E12): "this was not me". */
+export class SecureAccountDto {
+  @ApiProperty({ maxLength: MAX_TOKEN_LENGTH })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MAX_TOKEN_LENGTH)
+  readonly token!: string;
+}
+
+/** One sign-in of the own account (A04): a browser or the app, until it signs out or runs out. */
+export class SignInDto {
+  @ApiProperty({ format: 'uuid', description: 'The sign-in and every token refreshed from it' })
+  readonly id!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    maxLength: 60,
+    description: 'Browser or app and system, for example "Chrome · Windows"; null when unknown',
+  })
+  readonly device!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly signedInAt!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'The last refresh: when it was last used' })
+  readonly lastActiveAt!: string;
+
+  @ApiProperty({ description: 'The sign-in of this request' })
+  readonly current!: boolean;
+
+  @ApiProperty({ description: 'Signed in with the code of an authenticator app too' })
+  readonly secondFactor!: boolean;
+}
+
 export class UpdateAccountDto {
   @ApiProperty({ enum: LOCALES })
   @IsIn(LOCALES)

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { Injectable } from '@nestjs/common';
 import type { PlatformTransactionHost } from '../../common/database/platform-transactional.js';
@@ -19,10 +19,16 @@ import type {
 import { AccountNotifications } from '../notifications/account-notifications.js';
 import { hashPassword, verifyPassword } from './domain/password.js';
 import { isBreachedPassword } from './domain/password-policy.js';
-import { SignInAttempts } from './sign-in-attempts.js';
+import { KnownDevices } from './known-devices.js';
+import { NO_FAILURES, SignInAttempts } from './sign-in-attempts.js';
 
 /** ADR 0004 §8. */
 const ACCOUNT_TOKEN_MINUTES = 30;
+/**
+ * The "this was not me" link of the security e-mails (A04): a week, because whoever was not the one
+ * may read the e-mail only days later. It only takes access away, so it gives nobody anything.
+ */
+const SECURE_ACCOUNT_DAYS = 7;
 /** E-mails of one kind to one account while one still works, whoever asks and from wherever. */
 const MAX_TOKENS_PER_HOUR = 3;
 const PRIVACY_NOTICE = 'PRIVACY_NOTICE';
@@ -71,6 +77,7 @@ export class AccountService {
     private readonly notifications: AccountNotifications,
     private readonly audit: PlatformAudit,
     private readonly attempts: SignInAttempts,
+    private readonly devices: KnownDevices,
   ) {}
 
   /** Creates the account only, in the platform: a patient profile belongs to a practice (B01). */
@@ -141,11 +148,7 @@ export class AccountService {
       const userId = await this.consumeToken(token, 'EMAIL_VERIFICATION');
       await this.txHost.tx.user.update({
         where: { id: userId },
-        data: {
-          emailVerifiedAt: dbInstantOf(this.clock.now()),
-          failedLoginCount: 0,
-          lockedUntil: null,
-        },
+        data: { emailVerifiedAt: dbInstantOf(this.clock.now()), ...NO_FAILURES },
       });
       await this.audit.record({
         actor: auditActorOf(userId),
@@ -216,10 +219,8 @@ export class AccountService {
         });
         return;
       }
-      await db.user.update({
-        where: { id: userId },
-        data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
-      });
+      await db.user.update({ where: { id: userId }, data: { passwordHash, ...NO_FAILURES } });
+      await this.devices.clearFailures(userId);
       await db.accountToken.updateMany({
         where: { userId, purpose: 'PASSWORD_RESET', usedAt: null },
         data: { usedAt: now },
@@ -228,12 +229,73 @@ export class AccountService {
         where: { userId, revokedAt: null },
         data: { revokedAt: now },
       });
+      // BR-21: a new password is told to the mailbox, with the way back if it was not its owner.
+      await this.issueToken(userId, 'SECURE_ACCOUNT', 'PASSWORD_CHANGED');
       await this.audit.record({
         actor: auditActorOf(userId),
         action: 'auth.password.reset',
         outcome: 'SUCCEEDED',
       });
     });
+  }
+
+  /**
+   * "This was not me" (E10, ADR 0004 §8): with the link of a security e-mail, every session of the
+   * account ends, its password stops working, its browsers become strangers, and a link to choose a
+   * new password goes to the mailbox. Whoever signed in with a stolen password is out and stays out.
+   * The second factor stays: an older link with the mailbox must not take away the one the owner
+   * set up; one that an intruder set up only an admin or the operator removes (RT-96, M03).
+   */
+  async secureAccount(token: string): Promise<void> {
+    const unusable = await hashPassword(randomBytes(32).toString('base64url'));
+    await this.txHost.withTransaction(async () => {
+      const db = this.txHost.tx;
+      const now = dbInstantOf(this.clock.now());
+      const userId = await this.consumeToken(token, 'SECURE_ACCOUNT');
+      await db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
+      await db.user.update({
+        where: { id: userId },
+        data: { passwordHash: unusable, ...NO_FAILURES },
+      });
+      await db.accountToken.updateMany({
+        where: { userId, purpose: 'SECURE_ACCOUNT', usedAt: null },
+        data: { usedAt: now },
+      });
+      await this.devices.forget(userId);
+      await this.issueToken(userId, 'PASSWORD_RESET', 'PASSWORD_RESET');
+      await this.audit.record({
+        actor: auditActorOf(userId),
+        action: 'auth.account.secure',
+        outcome: 'SUCCEEDED',
+      });
+    });
+  }
+
+  /**
+   * E10, in the transaction of a sign-in that is not the account's first, from a browser it does not
+   * know or from the app. Only to a confirmed address: an unconfirmed one may belong to someone else,
+   * who would learn of sign-ins.
+   */
+  async noticeNewSignIn(userId: string, sessionId: string): Promise<void> {
+    if (!(await this.isConfirmed(userId))) return;
+    await this.issueToken(userId, 'SECURE_ACCOUNT', 'NEW_SIGN_IN', sessionId);
+  }
+
+  /**
+   * BR-21, in the transaction that put an authenticator app in force: whoever had only the password
+   * could have set it up, and the owner would then need its codes. Only to a confirmed address.
+   */
+  async noticeSecondFactor(userId: string): Promise<void> {
+    if (!(await this.isConfirmed(userId))) return;
+    await this.issueToken(userId, 'SECURE_ACCOUNT', 'SECOND_FACTOR_ENABLED');
+  }
+
+  private async isConfirmed(userId: string): Promise<boolean> {
+    const user = await this.txHost.tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { emailVerifiedAt: true },
+    });
+    return user.emailVerifiedAt !== null;
   }
 
   /**
@@ -277,10 +339,14 @@ export class AccountService {
     userId: string,
     purpose: AccountTokenPurpose,
     template: AccountNotificationTemplate,
+    sessionId?: string,
   ): Promise<void> {
     const db = this.txHost.tx;
     const now = this.clock.now();
-    const expiresAt = now.add({ minutes: ACCOUNT_TOKEN_MINUTES });
+    const expiresAt =
+      purpose === 'SECURE_ACCOUNT'
+        ? now.add({ hours: SECURE_ACCOUNT_DAYS * 24 })
+        : now.add({ minutes: ACCOUNT_TOKEN_MINUTES });
     // The lock of the account's row: requests at the same moment must count each other.
     await db.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
     // By their expiry, which comes from the clock of this process: created within the last hour.
@@ -307,6 +373,7 @@ export class AccountService {
       template,
       accountTokenId: id,
       dedupeKey: `account-token:${id}`,
+      ...(sessionId === undefined ? {} : { sessionId }),
     });
   }
 
@@ -319,6 +386,9 @@ export class AccountService {
       select: { id: true, userId: true, purpose: true },
     });
     if (row?.purpose !== purpose) throw new DomainException('INVALID_TOKEN');
+    // The account's row before the token's, as a deletion takes them: a confirmation, a reset or
+    // securing the account and a deletion lock in one order (the review of the profile).
+    await db.$queryRaw`SELECT 1 FROM users WHERE id = ${row.userId}::uuid FOR UPDATE`;
     const { count } = await db.accountToken.updateMany({
       where: { id: row.id, usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },
