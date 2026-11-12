@@ -38,7 +38,8 @@ test.describe("the practice's brand (08 I02)", () => {
     await expect(page.getByRole('contentinfo')).toHaveText(
       common.poweredBy.replace('{product}', 'MediBooker'),
     );
-    await expect(page).toHaveTitle(`${portal.list.title} · ${NAME[locale]}`);
+    // A sign-in without a way back lands on the home (B06).
+    await expect(page).toHaveTitle(`${portal.home.title} · ${NAME[locale]}`);
   });
 
   test('names the practice alone in the title of its own page', async ({ page }, testInfo) => {

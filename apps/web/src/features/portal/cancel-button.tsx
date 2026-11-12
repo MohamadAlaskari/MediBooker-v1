@@ -16,6 +16,7 @@ import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { FormError, useFocusOnArrival } from '../auth/form-parts';
+import { useWaitOut, WaitNote } from '../auth/wait-out';
 import { formatOf, isOutcomeUnknown, textIn, whenParts } from './appointment-view';
 
 const DANGER =
@@ -76,6 +77,7 @@ export function CancelButton({
     isApiError(cancel.error, 'CANCELLATION_DEADLINE_PASSED');
   // The answer got lost, so it may have gone through: "keep" would promise what nobody knows.
   const outcomeUnknown = isOutcomeUnknown(cancel.error);
+  const wait = useWaitOut(cancel.error);
   const closeButton = useFocusOnArrival<HTMLButtonElement>(refused);
   return (
     <DialogTrigger
@@ -114,7 +116,8 @@ export function CancelButton({
             ) : (
               <>
                 <Button
-                  isPending={cancel.isPending}
+                  // Also while it waits out a Retry-After: that keeps the focus on it.
+                  isPending={cancel.isPending || wait !== undefined}
                   className={DANGER}
                   onPress={() => {
                     cancel.mutate({
@@ -125,6 +128,7 @@ export function CancelButton({
                 >
                   {t('cancel.confirm')}
                 </Button>
+                <WaitNote seconds={wait} />
                 <Button variant="outline" isDisabled={cancel.isPending} onPress={close}>
                   {outcomeUnknown ? t('cancel.close') : t('cancel.keep')}
                 </Button>

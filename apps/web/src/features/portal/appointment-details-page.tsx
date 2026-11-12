@@ -67,8 +67,11 @@ export function AppointmentDetailsPage({ practiceId, appointmentId }: DetailsPro
   });
   const fromHistory = useFragmentValue('from') === 'past';
   const { arrival, said, onChanged } = useArrivals();
+  // To the history, which shows this appointment again (B06): its id, which this page's path holds
+  // already, and no count of what else a person has had.
+  const history = `#tab=past&practice=${practiceId}&appointment=${appointmentId}`;
   const back = (
-    <a href={`/${locale}/appointments${fromHistory ? '#tab=past' : ''}`} className={TEXT_LINK}>
+    <a href={`/${locale}/appointments${fromHistory ? history : ''}`} className={TEXT_LINK}>
       <ArrowLeft aria-hidden className="me-2 size-4 rtl:rotate-180" />
       {t('details.back')}
     </a>

@@ -1,10 +1,18 @@
 import type { PublicPracticeDto } from '@medibooker/api-client';
 import { isolate } from '@medibooker/i18n';
-import { ChevronRight, Globe, Info, Mail, MapPin, Phone, Stethoscope } from 'lucide-react';
+import { Globe, Info, Mail, MapPin, Phone, Stethoscope } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import type { PracticeFormat } from '@/lib/format';
-import { fullNameOf, initialsOf, mapsHref, safeHttpsUrl, telHref } from './practice-view';
+import { ContactRow } from './contact-row';
+import {
+  fullNameOf,
+  initialsOf,
+  mailtoHref,
+  mapsHref,
+  safeHttpsUrl,
+  telHref,
+} from './practice-view';
 import { CARD_CLASS, PageSection } from './section';
 
 interface SectionProps {
@@ -95,53 +103,6 @@ export function TeamSection({ practice, format }: SectionProps): ReactNode {
   );
 }
 
-function ContactRow({
-  icon,
-  title,
-  note,
-  href,
-  external,
-}: {
-  readonly icon: ReactNode;
-  readonly title: ReactNode;
-  readonly note?: string;
-  readonly href?: string;
-  readonly external?: boolean;
-}): ReactNode {
-  const content = (
-    <>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-bg-subtle">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-body-default text-text-primary">{title}</span>
-        {note === undefined ? null : (
-          <span className="block text-body-small text-text-secondary">{note}</span>
-        )}
-      </span>
-      {external === true ? (
-        <ChevronRight aria-hidden className="size-5 shrink-0 text-icon-secondary rtl:rotate-180" />
-      ) : null}
-    </>
-  );
-  const layout = 'flex min-h-touch-target items-center gap-3 py-3';
-  return (
-    <li className="border-b border-border-subtle last:border-b-0">
-      {href === undefined ? (
-        <div className={layout}>{content}</div>
-      ) : (
-        <a
-          href={href}
-          className={`${layout} hover:bg-bg-subtle`}
-          {...(external === true ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-        >
-          {content}
-        </a>
-      )}
-    </li>
-  );
-}
-
 export function FindUsSection({ practice, format }: SectionProps): ReactNode {
   const t = useTranslations('practicePage.findUs');
   const iconClass = 'size-5 text-icon-secondary';
@@ -189,7 +150,7 @@ export function FindUsSection({ practice, format }: SectionProps): ReactNode {
                 icon={<Mail aria-hidden className={iconClass} />}
                 title={<span dir="ltr">{practice.email}</span>}
                 note={t('emailHint')}
-                href={`mailto:${practice.email}`}
+                href={mailtoHref(practice.email)}
               />
             )}
           </ul>

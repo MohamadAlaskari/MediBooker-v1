@@ -2,7 +2,8 @@
   "common": {
     "retry": "Try again",
     "requestId": "Request ID: {id}",
-    "poweredBy": "Powered by {product}"
+    "poweredBy": "Powered by {product}",
+    "tryAgainIn": "You can try again in {seconds, plural, one {# second} other {# seconds}}."
   },
   "app": {
     "tagline": "Online appointments for medical practices.",
@@ -282,7 +283,12 @@
       "keepAccount": "Keep account",
       "signOut": "Sign out",
       "loading": "Loading your account",
-      "appointments": "My appointments"
+      "appointments": "My appointments",
+      "appearanceTitle": "Appearance",
+      "appearanceLabel": "Colours of the pages on this device",
+      "themeSystem": "As set on this device",
+      "themeLight": "Light",
+      "themeDark": "Dark"
     },
     "twoFactor": {
       "title": "Set up two-step sign-in",
@@ -333,7 +339,9 @@
     "nav": {
       "label": "Your pages",
       "appointments": "My appointments",
-      "account": "Account"
+      "account": "Account",
+      "home": "Home",
+      "book": "Book appointment"
     },
     "status": {
       "BOOKED": "Booked",
@@ -449,6 +457,22 @@
       "noPage": "This practice has no page with free times right now. Please call the practice.",
       "closedTitle": "This appointment cannot be changed online",
       "closedCancelled": "It was cancelled or moved. You find your current appointments under My appointments."
+    },
+    "home": {
+      "title": "Home",
+      "hello": "Hello",
+      "helloName": "Hello, {name}",
+      "book": "Book appointment",
+      "next": "Your next appointment",
+      "when": "{date}, {time} · {count, plural, one {approx. {minutes} min} other {approx. {minutes} min}}",
+      "upcoming": "Upcoming",
+      "all": "All appointments",
+      "empty": "You have no upcoming appointments.",
+      "contactTitle": "Your practice",
+      "openInMaps": "Open in maps",
+      "phone": "Phone",
+      "email": "Please do not send medical details by e-mail.",
+      "practicePage": "To the practice's page"
     }
   },
   "dashboard": {

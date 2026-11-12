@@ -73,9 +73,9 @@ async function signIn(page: Page, locale: 'ar' | 'en', email: string, password =
 }
 
 /** Signed in without another way back: the page has come to life, and has read what it needs. */
-async function atAppointments(page: Page, locale: 'ar' | 'en'): Promise<void> {
-  await expect(page).toHaveURL(`/${locale}/appointments`);
-  await expect(page.getByRole('main')).toContainText(messages[locale].portal.list.noPractices);
+async function atHome(page: Page, locale: 'ar' | 'en'): Promise<void> {
+  await expect(page).toHaveURL(`/${locale}/home`);
+  await expect(page.getByRole('main')).toContainText(messages[locale].portal.home.empty);
 }
 
 /** What a person chose on a practice's page, just now: only what ends a session removes it here. */
@@ -353,7 +353,7 @@ test.describe('signing in and out (08 A05)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
 
     const cookies = await context.cookies();
     const byName = new Map(cookies.map((cookie) => [cookie.name, cookie]));
@@ -383,7 +383,7 @@ test.describe('signing in and out (08 A05)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await atAppointments(page, locale);
+    await atHome(page, locale);
     await page.getByRole('button', { name: texts(locale).account.signOut }).click();
     await expect(page).toHaveURL(`/${locale}/sign-in`);
 
@@ -522,7 +522,7 @@ test.describe('the way back from a practice page (08 A05)', () => {
     const way = encodeURIComponent(`/${locale}`);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, email);
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
     await page.goto(`/${locale}/check-inbox#next=${way}`);
     await expect(page.getByRole('main')).toContainText(email);
 
@@ -535,7 +535,7 @@ test.describe('the way back from a practice page (08 A05)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in#next=${encodeURIComponent('//evil.example/en/x')}`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
   });
 
   test('is not for search engines', async ({ page }, testInfo) => {
@@ -568,7 +568,7 @@ test.describe('a forgotten password (08 A05)', () => {
     await signIn(page, locale, email);
     await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
     await signIn(page, locale, email, NEW_PASSWORD);
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
   });
 
   test('answers the same for an address without an account', async ({ page }, testInfo) => {
@@ -633,6 +633,8 @@ test.describe('signing out reaches every tab (08 B04)', () => {
   // ends would find that out by itself, and keep this page as the way back.
   const tabs = [
     { path: 'account/details', shows: (locale: 'ar' | 'en') => texts(locale).details.continue },
+    // Where a sign-in lands, with a first name and the next appointment (B06).
+    { path: 'home', shows: (locale: 'ar' | 'en') => messages[locale].portal.home.empty },
     {
       path: 'appointments',
       shows: (locale: 'ar' | 'en') => messages[locale].portal.list.noPractices,
@@ -644,7 +646,7 @@ test.describe('signing out reaches every tab (08 B04)', () => {
       const locale = localeOf(testInfo);
       await page.goto(`/${locale}/sign-in`);
       await signIn(page, locale, await existingAccount(testInfo));
-      await atAppointments(page, locale);
+      await atHome(page, locale);
 
       const other = await context.newPage();
       await other.goto(`/${locale}/${path}`);
@@ -659,7 +661,7 @@ test.describe('signing out reaches every tab (08 B04)', () => {
     const locale = localeOf(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, await existingAccount(testInfo));
-    await atAppointments(page, locale);
+    await atHome(page, locale);
     await keepAChoice(page);
     await page.getByRole('button', { name: texts(locale).account.signOut }).click();
     await expect(page).toHaveURL(`/${locale}/sign-in`);
@@ -678,14 +680,14 @@ test.describe('signing out reaches every tab (08 B04)', () => {
     const email = await existingAccount(testInfo);
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, email);
-    await atAppointments(page, locale);
+    await atHome(page, locale);
     await keepAChoice(page);
 
     const renewed = page.waitForEvent('load');
     await signIn(other, locale, email);
-    await atAppointments(other, locale);
+    await atHome(other, locale);
     await renewed;
-    await atAppointments(page, locale);
+    await atHome(page, locale);
     expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
   });
 });

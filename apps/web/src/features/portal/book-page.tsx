@@ -21,6 +21,7 @@ import { TextAreaField } from '@/components/ui/text-field';
 import { practiceFormat } from '@/lib/format';
 import { FormError, PageHeading, useFocusOnArrival } from '../auth/form-parts';
 import { ResendButton } from '../auth/resend-button';
+import { useWaitOut, WaitNote } from '../auth/wait-out';
 import { fullNameOf } from '../practice-page/practice-view';
 import { isChoiceGone, noteToSend, whenParts } from './appointment-view';
 import { clearChoice, parseChoice, readRawChoice, type BookingChoice } from './booking-choice';
@@ -168,6 +169,7 @@ export function Review({
   const doctor = practice.team.find(({ id }) => id === choice.providerId);
   const format = practiceFormat(locale, practice);
   const taken = isChoiceGone(book.error);
+  const wait = useWaitOut(book.error);
   const noteIsWrong =
     isApiError(book.error) && book.error.fieldErrors.some(({ field }) => field === NOTE_FIELD);
   const noteField = useFocusOnArrival<HTMLTextAreaElement>(noteIsWrong);
@@ -221,7 +223,8 @@ export function Review({
             </LinkButton>
           ) : (
             <Button
-              isPending={book.isPending}
+              // Also while it waits out a Retry-After: that keeps the focus on it.
+              isPending={book.isPending || wait !== undefined}
               onPress={() => {
                 const patientNote = noteToSend(note);
                 book.mutate(
@@ -251,6 +254,7 @@ export function Review({
               {t('book.confirm')}
             </Button>
           )}
+          <WaitNote seconds={wait} />
           <LinkButton variant="outline" href={timesHref}>
             <ArrowLeft aria-hidden data-icon="inline-start" className="rtl:rotate-180" />
             {t('book.back')}
@@ -291,11 +295,12 @@ export function BookPage({
   const [note, setNote] = useState('');
   // Whatever the list says by then: the join has answered, also that the person was there already.
   const [joined, setJoined] = useState(false);
-  // A press replaced what had the focus: what comes next takes it.
-  const [moved, setMoved] = useState(false);
+  // A press replaced what had the focus: what comes next takes it, each time (B06).
+  const [arrival, setArrival] = useState(0);
   const onPassed = (): void => {
-    setMoved(true);
+    setArrival((count) => count + 1);
   };
+  const moved = arrival > 0;
   const service = practice.data?.services.find(({ id }) => id === choice?.serviceId);
   const serviceGone = choice !== undefined && practice.data !== undefined && service === undefined;
   useEffect(() => {
@@ -309,7 +314,7 @@ export function BookPage({
       </>
     );
   }
-  const heading = <PageHeading title={t('title')} focusOnArrival={moved} />;
+  const heading = <PageHeading key={arrival} title={t('title')} focusOnArrival={moved} />;
   if (me.data === undefined) {
     return (
       <>
@@ -360,7 +365,7 @@ export function BookPage({
             focusOnArrival={moved}
             onDone={() => {
               setJoined(true);
-              setMoved(true);
+              onPassed();
               void queryClient.invalidateQueries();
             }}
           />
@@ -375,7 +380,7 @@ export function BookPage({
           practice={practice.data}
           onDone={() => {
             setStep('review');
-            setMoved(true);
+            onPassed();
           }}
         />
       </NarrowForm>

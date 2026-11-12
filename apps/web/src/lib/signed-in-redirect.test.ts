@@ -17,7 +17,12 @@ describe('signInRedirect', () => {
     });
   });
 
-  it('asks the same for the portal: the appointments and a booking', () => {
+  it('asks the same for the portal: the home, the appointments and a booking', () => {
+    expect(signInRedirect('/ar/home', false)).toEqual({
+      pathname: '/ar/sign-in',
+      hash: 'next=%2Far%2Fhome',
+    });
+    expect(signInRedirect('/en/home/more', false)).toBeUndefined();
     expect(signInRedirect('/en/appointments', false)?.pathname).toBe('/en/sign-in');
     expect(signInRedirect('/en/appointments/a-b/c-d/reschedule', false)?.pathname).toBe(
       '/en/sign-in',

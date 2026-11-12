@@ -17,10 +17,13 @@ const PRODUCT = 'MediBooker';
 export function PortalShell({
   children,
   brand,
+  bookHref,
 }: {
   readonly children: ReactNode;
   /** The installation's practice; undefined where it names none. */
   readonly brand?: string | undefined;
+  /** Where a booking starts: the free times on the installation's practice page (ADR 0016). */
+  readonly bookHref?: string | undefined;
 }): ReactNode {
   const t = useTranslations('portal.nav');
   const common = useTranslations('common');
@@ -28,7 +31,10 @@ export function PortalShell({
   const pathname = usePathname();
   useSessionChangeElsewhere();
   const links = [
+    { href: `/${locale}/home`, label: t('home') },
     { href: `/${locale}/appointments`, label: t('appointments') },
+    // A page of the practice, never the current one of this frame.
+    ...(bookHref === undefined ? [] : [{ href: bookHref, label: t('book') }]),
     { href: `/${locale}/account`, label: t('account') },
   ];
   return (

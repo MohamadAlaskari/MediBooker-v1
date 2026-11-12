@@ -1,5 +1,5 @@
 import type { PublicPracticeDto } from '@medibooker/api-client';
-import { DEFAULT_LOCALE, isLocale, messages } from '@medibooker/i18n';
+import { DEFAULT_LOCALE, isLocale, isolate, messages } from '@medibooker/i18n';
 import { NextIntlClientProvider, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import type { PracticeFormat } from '@/lib/format';
@@ -20,16 +20,19 @@ interface FreeTimesSectionProps {
 export function FreeTimesSection({ practice, locale, format }: FreeTimesSectionProps): ReactNode {
   const t = useTranslations('practicePage');
   const { services, team, phone, numberingSystem, hourCycle, timeZone } = practice;
-  const offers = services.map(({ id, name, durationMinutes }) => ({
-    id,
-    label: t('freeTimes.serviceOption', {
-      name: name ?? '',
-      duration: t('services.duration', {
-        count: durationMinutes,
-        minutes: format.number(durationMinutes),
-      }),
-    }),
-  }));
+  const offers = services.map(({ id, name, durationMinutes }) => {
+    const duration = t('services.duration', {
+      count: durationMinutes,
+      minutes: format.number(durationMinutes),
+    });
+    return {
+      id,
+      // Plain for React Aria's typeahead; isolated where it shows, so that a name in another script
+      // keeps its order and leaves the sentence's alone (B06).
+      label: t('freeTimes.serviceOption', { name: name ?? '', duration }),
+      display: t('freeTimes.serviceOption', { name: isolate(name ?? ''), duration }),
+    };
+  });
   const language = isLocale(locale) ? locale : DEFAULT_LOCALE;
   return (
     <PageSection

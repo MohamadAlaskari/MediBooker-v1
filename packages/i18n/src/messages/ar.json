@@ -2,7 +2,8 @@
   "common": {
     "retry": "إعادة المحاولة",
     "requestId": "رقم الطلب: {id}",
-    "poweredBy": "بتقنية {product}"
+    "poweredBy": "بتقنية {product}",
+    "tryAgainIn": "يمكنك المحاولة مرة أخرى بعد {seconds, plural, zero {لحظة} one {ثانية واحدة} two {ثانيتين} few {# ثوانٍ} many {# ثانية} other {# ثانية}}."
   },
   "app": {
     "tagline": "مواعيد عبر الإنترنت للعيادات الطبية.",
@@ -282,7 +283,12 @@
       "keepAccount": "الاحتفاظ بالحساب",
       "signOut": "تسجيل الخروج",
       "loading": "جارٍ تحميل حسابك",
-      "appointments": "مواعيدي"
+      "appointments": "مواعيدي",
+      "appearanceTitle": "المظهر",
+      "appearanceLabel": "ألوان الصفحات على هذا الجهاز",
+      "themeSystem": "حسب إعدادات هذا الجهاز",
+      "themeLight": "فاتح",
+      "themeDark": "داكن"
     },
     "twoFactor": {
       "title": "إعداد تسجيل الدخول بخطوتين",
@@ -333,7 +339,9 @@
     "nav": {
       "label": "صفحاتك",
       "appointments": "مواعيدي",
-      "account": "الحساب"
+      "account": "الحساب",
+      "home": "الرئيسية",
+      "book": "حجز موعد"
     },
     "status": {
       "BOOKED": "محجوز",
@@ -449,6 +457,22 @@
       "noPage": "لا توجد لهذه العيادة صفحة بأوقات متاحة حاليًا. يرجى الاتصال بالعيادة.",
       "closedTitle": "لا يمكن تغيير هذا الموعد عبر الإنترنت",
       "closedCancelled": "تم إلغاؤه أو نقله. تجد مواعيدك الحالية ضمن مواعيدي."
+    },
+    "home": {
+      "title": "الرئيسية",
+      "hello": "مرحبًا",
+      "helloName": "مرحبًا، {name}",
+      "book": "حجز موعد",
+      "next": "موعدك القادم",
+      "when": "{date}، {time} · {count, plural, zero {أقل من دقيقة} one {حوالي دقيقة} two {حوالي دقيقتين} few {حوالي {minutes} دقائق} many {حوالي {minutes} دقيقة} other {حوالي {minutes} دقيقة}}",
+      "upcoming": "المواعيد القادمة",
+      "all": "كل المواعيد",
+      "empty": "ليس لديك مواعيد قادمة.",
+      "contactTitle": "عيادتك",
+      "openInMaps": "فتح في الخرائط",
+      "phone": "الهاتف",
+      "email": "يرجى عدم إرسال التفاصيل الطبية عبر البريد الإلكتروني.",
+      "practicePage": "إلى صفحة العيادة"
     }
   },
   "dashboard": {

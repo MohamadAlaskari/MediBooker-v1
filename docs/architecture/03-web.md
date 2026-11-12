@@ -84,7 +84,7 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 | `[locale]/(public)/[slug]/` | Practice page PW13/PW14 (P03) with free times (P06); no cookies, no third parties; the installation's own practice leads to `[locale]/` with 308 | server fetch with `no-store`; not cached (decision D2) |
 | `[locale]/(auth)/` | The ways in, for someone without a session: sign-in, the first step of sign-up, verification, reset, two-factor (A05) | client only, `no-store` |
 | `[locale]/(patient)/` | The account of a signed-in person, with the steps of a sign-up after its first (details, check inbox) | client only, `no-store` |
-| `[locale]/(portal)/` | Appointments and booking (B04), in a frame with navigation and signing out | client only, `no-store` |
+| `[locale]/(portal)/` | The home (PW2, B06), where a sign-in without a way back lands, appointments and booking (B04), in a frame with navigation and signing out | client only, `no-store` |
 | `[locale]/(practice)/` | Practice dashboard: roles, 15-minute inactivity logout with a warning, realtime from RT01 | client only, `no-store` |
 | `[locale]/dev/kit/` | Component overview (X07); `notFound()` when `APP_ENV=production` | `force-dynamic` |
 | `global-error.tsx` | Static bilingual message with its own `<html lang="ar" dir="rtl">` | none |
@@ -105,7 +105,7 @@ GSAP and React write styles through the CSSOM (`element.style`), which this poli
 2. `QueryClientProvider` with `createQueryClient()`; `MutationCache.onError` shows a toast unless the mutation sets `meta.handlesError`. As built, without the toast so far: the frames of `(patient)` and `(portal)` pass `onUnauthenticated`, so that the code `UNAUTHENTICATED` on any query or press is a `location.replace` to sign-in, with the current path as `next`, or the safe `next` the fragment already holds. `(auth)` and a public page pass nothing, so a page of signed-in people belongs in one of those two groups. All three frames set React Aria's `I18nProvider` to the page's locale, and the public picker does so for itself: otherwise a dialog's hidden dismiss button and the arrow keys of tabs follow the browser's language.
 3. sonner's `<Toaster />`, placed by reading direction, announcing through an `aria-live="polite"` region.
 
-`data-theme` is `light`, `dark` or `system` (default). An explicit choice from the portal or dashboard settings (A05) is stored in a `theme` cookie that only signed-in areas set, so the server renders the right value without a flash. `data-brand` carries the practice's preset on practice-scoped pages.
+`data-theme` is `light`, `dark` or `system` (default). An explicit choice from the portal or dashboard settings (A05) is stored in a `theme` cookie that only signed-in areas set, so the server renders the right value without a flash. As built (B06): the account page sets it (`AppearanceSetting`: `Path=/`, a year, `SameSite=Lax`, `Secure` over HTTPS), and the root layout reads it through `themeOf` (`lib/theme.ts`), which lets only the three values reach the attribute. `data-brand` carries the practice's preset on practice-scoped pages.
 
 ## 7. API client and data
 

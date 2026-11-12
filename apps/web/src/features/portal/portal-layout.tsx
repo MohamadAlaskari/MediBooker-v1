@@ -2,7 +2,7 @@ import { isLocale, messages } from '@medibooker/i18n';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import { installationBrand } from '@/lib/api.server';
+import { installationBrand, installationPractice, practicePath } from '@/lib/api.server';
 import { AuthProviders } from '../auth/auth-providers';
 import { PortalShell } from './portal-shell';
 
@@ -19,6 +19,7 @@ export async function PortalLayout({ children, locale }: PortalLayoutProps): Pro
   if (!isLocale(locale)) notFound();
   const { a11y, auth, common, errors, validation, portal, practicePage } = messages[locale];
   const practice = await installationBrand(locale);
+  const slug = installationPractice();
   return (
     <NextIntlClientProvider
       messages={{
@@ -32,7 +33,12 @@ export async function PortalLayout({ children, locale }: PortalLayoutProps): Pro
       }}
     >
       <AuthProviders signedIn>
-        <PortalShell brand={practice?.name ?? undefined}>{children}</PortalShell>
+        <PortalShell
+          brand={practice?.name ?? undefined}
+          bookHref={slug === undefined ? undefined : `${practicePath(locale, slug)}#free-times`}
+        >
+          {children}
+        </PortalShell>
       </AuthProviders>
     </NextIntlClientProvider>
   );

@@ -99,7 +99,8 @@ Each file covers one area and links to the others instead of repeating them. Pro
 | M05, booking for a patient The team books on the phone and at the desk, also for a patient without an account | Committed (`09fc376`) |
 | M05, the calendar One doctor's week: appointments, free and blocked times, absences | Committed (`e13b020`); M05 complete |
 | M02, the practice's setup Services with texts per language, online booking and archive; the opening hours and special days of the public page | Committed (`07d766e`); W13's referral and buffer (`deb541c`) |
-| M04, the doctors' schedules Working hours per doctor, absences, free times made from them, a time blocked or freed; an appointment holds its doctor for its duration and buffer | Part 1 committed (`594cf26`, fix `33f1616`); part 2 committed (`438dcdc`); part 3 committed (one commit) |
+| M04, the doctors' schedules Working hours per doctor, absences, free times made from them, a time blocked or freed; an appointment holds its doctor for its duration and buffer | Part 1 committed (`594cf26`, fix `33f1616`); part 2 committed (`438dcdc`); part 3 committed (`6652af8`); M04 complete |
+| B06 The portal's home: the next appointment and what comes after, the practice's contact, a theme of one's own; what B04 left | Committed (one commit) |
 | Everything else | Planned, in the lean order of [08-roadmap.md](08-roadmap.md#order-since-2026-11-05-lean-mode): functional features first |
 
 v1 was removed on 2026-11-02 and is in the git history; v2 shares no code with it. The v1 database credential in that history stays valid: the user declined to rotate it and accepted the risk on 2026-11-04 (U1 in [09](09-risks-and-decisions.md)). Since F02, `.gitleaksignore` holds its two findings, pinned to `ACCEPTED_FINGERPRINTS`, and the full-history secret scan is a required check ([ADR 0009](../adr/0009-ci-branch-model-and-supply-chain.md)).

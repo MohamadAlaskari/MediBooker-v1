@@ -1,7 +1,7 @@
 import { isLocale } from '@medibooker/i18n';
 
 const SIGNED_IN_PAGE =
-  /^\/([a-zA-Z-]+)\/(?:account(?:\/[a-z0-9-]*)*|appointments(?:\/[a-z0-9-]*)*|book\/[a-z0-9-]+|dashboard(?:\/[a-z0-9-]*)*|sign-up\/details)$/;
+  /^\/([a-zA-Z-]+)\/(?:account(?:\/[a-z0-9-]*)*|appointments(?:\/[a-z0-9-]*)*|book\/[a-z0-9-]+|dashboard(?:\/[a-z0-9-]*)*|home|sign-up\/details)$/;
 
 export interface SignInRedirect {
   readonly pathname: string;

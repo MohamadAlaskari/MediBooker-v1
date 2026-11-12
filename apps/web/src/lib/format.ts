@@ -24,6 +24,8 @@ export interface PracticeFormat {
   readonly calendarDate: (isoDate: string) => string;
   /** Its month and year: "November 2026". */
   readonly monthYear: (isoDate: string) => string;
+  /** Its month, short: "Nov", for a date's tile. */
+  readonly monthShort: (isoDate: string) => string;
   /** Its short weekday: "Wed". */
   readonly weekdayShort: (isoDate: string) => string;
   /** Its weekday in one letter, where a short one does not fit: "W". */
@@ -108,6 +110,7 @@ export function practiceFormat(locale: string, settings: PracticeFormatSettings)
     calendarDate: (isoDate) =>
       inUtc({ day: 'numeric', month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
     monthYear: (isoDate) => inUtc({ month: 'long', year: 'numeric' }).format(utcDate(isoDate)),
+    monthShort: (isoDate) => inUtc({ month: 'short' }).format(utcDate(isoDate)),
     weekdayShort: (isoDate) => inUtc({ weekday: 'short' }).format(utcDate(isoDate)),
     weekdayNarrow: (isoDate) => inUtc({ weekday: 'narrow' }).format(utcDate(isoDate)),
     dayOfMonth: (isoDate) => inUtc({ day: 'numeric' }).format(utcDate(isoDate)),

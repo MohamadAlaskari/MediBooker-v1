@@ -1,6 +1,6 @@
 import { getDirection, isLocale, messages } from '@medibooker/i18n';
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
@@ -9,6 +9,7 @@ import { SkipLink } from '@/components/skip-link';
 import { installationBrand } from '@/lib/api.server';
 import { brandStyle } from '@/lib/brand-style';
 import { FONT_VARIABLES } from '@/lib/fonts';
+import { THEME_COOKIE, themeOf } from '@/lib/theme';
 import '@/styles/globals.css';
 
 /** Rendered per request: every page has its own CSP nonce (03 §4). */
@@ -33,8 +34,8 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
 
 /**
  * The root layout: language and reading direction come from the path, on the server (03 §5). The
- * theme follows the visitor's system; only signed-in areas will store a choice (A05), so a public
- * page sets no cookie.
+ * theme follows the visitor's system, or the choice a signed-in person stored in the `theme` cookie
+ * (03 §6, B06), which a public page reads and never sets.
  */
 export default async function LocaleLayout({
   children,
@@ -46,8 +47,9 @@ export default async function LocaleLayout({
   const { common, errorPage } = messages[locale];
   const nonce = (await headers()).get('x-nonce') ?? undefined;
   const practice = await installationBrand(locale);
+  const theme = themeOf((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang={locale} dir={getDirection(locale)} data-theme="system" className={FONT_VARIABLES}>
+    <html lang={locale} dir={getDirection(locale)} data-theme={theme} className={FONT_VARIABLES}>
       <head>
         {/* React Aria reads the nonce for the styles it adds; the browser keeps it out of the DOM. */}
         <meta property="csp-nonce" nonce={nonce} suppressHydrationWarning />

@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { PracticeFormat } from '@/lib/format';
-import { FormError } from '../auth/form-parts';
+import { FormError, useFocusOnArrival } from '../auth/form-parts';
 import { formatOf, phoneInSentence, textIn, whenParts } from './appointment-view';
 
 /** The white card of the portal's screens. */
@@ -80,12 +80,16 @@ interface RetryProps {
   readonly query: ReadQuery;
   /** It passed, and this button and the focus on it are about to go: the page knows where to. */
   readonly onPassed?: (() => void) | undefined;
+  /** It takes the place of a button that had the focus, such as "Show more": so it takes the focus. */
+  readonly focusOnArrival?: boolean;
 }
 
-export function RetryButton({ query, onPassed }: RetryProps): ReactNode {
+export function RetryButton({ query, onPassed, focusOnArrival = false }: RetryProps): ReactNode {
   const t = useTranslations('portal.list');
+  const button = useFocusOnArrival<HTMLButtonElement>(focusOnArrival);
   return (
     <Button
+      ref={button}
       variant="outline"
       isPending={query.isFetching}
       onPress={() => {
@@ -100,11 +104,11 @@ export function RetryButton({ query, onPassed }: RetryProps): ReactNode {
 }
 
 /** What a page needs could not be read: what the API said, and another try. */
-export function LoadError({ query, onPassed }: RetryProps): ReactNode {
+export function LoadError({ query, onPassed, focusOnArrival }: RetryProps): ReactNode {
   return (
     <div className="flex flex-col gap-2">
       <FormError error={query.error} />
-      <RetryButton query={query} onPassed={onPassed} />
+      <RetryButton query={query} onPassed={onPassed} focusOnArrival={focusOnArrival} />
     </div>
   );
 }

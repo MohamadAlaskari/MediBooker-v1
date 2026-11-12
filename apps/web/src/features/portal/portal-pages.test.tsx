@@ -534,7 +534,7 @@ describe('moving an appointment', () => {
       ['a move elsewhere', new ApiError({ status: 409, code: 'INVALID_STATUS_TRANSITION' })],
       ['a passed deadline', new ApiError({ status: 409, code: 'CANCELLATION_DEADLINE_PASSED' })],
       ['a lost answer', new ApiError({ status: 0, code: 'NETWORK_ERROR' })],
-      ['a failure of the server', new ApiError({ status: 503, code: 'SERVICE_UNAVAILABLE' })],
+      ['a failure of the server', new ApiError({ status: 500, code: 'INTERNAL_ERROR' })],
     ])('leads to the appointments after %s, with no second press', (_name, error) => {
       const html = confirm({ error });
       expect(html).not.toContain(portal.reschedule.confirm);
@@ -543,6 +543,16 @@ describe('moving an appointment', () => {
 
     it('keeps the press after a refusal that can pass', () => {
       expect(confirm({ error: LIMITED })).toContain(portal.reschedule.confirm);
+    });
+
+    it('keeps the press after a practice that was busy: nothing happened (B06)', () => {
+      const busy = new ApiError({
+        status: 503,
+        code: 'SERVICE_UNAVAILABLE',
+        retryAfterSeconds: 30,
+      });
+      // The same press is safe, with its key; whether it went through is not known for sure.
+      expect(confirm({ error: busy })).toContain(portal.reschedule.confirm);
     });
   });
 });

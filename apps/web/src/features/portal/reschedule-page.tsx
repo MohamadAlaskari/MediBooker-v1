@@ -16,12 +16,14 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
 import { Button, LinkButton } from '@/components/ui/button';
 import { FormError, PageHeading, useFocusOnArrival } from '../auth/form-parts';
+import { useWaitOut, WaitNote } from '../auth/wait-out';
 import { FreeTimesChooser, type ChosenTime } from '../practice-page/free-times/free-times-picker';
 import { doctorsOf, fullNameOf } from '../practice-page/practice-view';
 import {
   formatOf,
   isChoiceGone,
   isOutcomeUnknown,
+  isSafeToRepeat,
   practiceById,
   textIn,
   whenParts,
@@ -76,7 +78,9 @@ export function Confirm({
   const locale = useLocale();
   const heading = useFocusOnArrival();
   const overtaken = isOvertaken(error);
-  const moveGone = overtaken || isChoiceGone(error);
+  // A busy practice: its key makes the same press safe, which stays (B06).
+  const moveGone = (overtaken && !isSafeToRepeat(error)) || isChoiceGone(error);
+  const wait = useWaitOut(error);
   // The button with the focus goes, and this one stays.
   const other = useFocusOnArrival<HTMLButtonElement>(moveGone);
   return (
@@ -96,9 +100,13 @@ export function Confirm({
       <div className="mt-4 flex flex-col gap-2">
         <FormError error={error} notFound={t('book.timeGone')} />
         {moveGone ? null : (
-          <Button isPending={pending} onPress={onConfirm}>
-            {t('reschedule.confirm')}
-          </Button>
+          <>
+            {/* Pending while it waits out a Retry-After too: that keeps the focus on it. */}
+            <Button isPending={pending || wait !== undefined} onPress={onConfirm}>
+              {t('reschedule.confirm')}
+            </Button>
+            <WaitNote seconds={wait} />
+          </>
         )}
         {/* Reset while a request runs, the page would never hear its answer. */}
         <Button ref={other} variant="outline" isDisabled={pending} onPress={onOther}>

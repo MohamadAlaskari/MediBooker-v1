@@ -136,6 +136,16 @@ export function safeHttpsUrl(value: string | null): string | undefined {
   return new URL(value).protocol === 'https:' ? value : undefined;
 }
 
+/**
+ * A link for writing to an address, or none: only a plain `name@domain`, because `?`, `&` or `#` in a
+ * mailto would add recipients, a subject or a body to what a person writes (security review of B06).
+ */
+export function mailtoHref(email: string): string | undefined {
+  return /^[^\s?&#%,;:<>"'()[\]\\@]+@[^\s?&#%,;:<>"'()[\]\\@]+$/u.test(email)
+    ? `mailto:${email}`
+    : undefined;
+}
+
 /** A phone number as a link target: only what dialling uses. */
 export function telHref(phone: string): string {
   return `tel:${phone.replace(/[^+\d]/g, '')}`;

@@ -568,7 +568,7 @@ test.describe('booking on the web (08 B04)', () => {
     await register(email, locale);
     await page.goto(`/${locale}/sign-in`);
     await enterSignIn(page, locale, email);
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
 
     await chooseTime(page, locale);
     await expect(page.getByText(portal.book.confirmEmailTitle)).toBeVisible();
@@ -1626,7 +1626,9 @@ test.describe('my appointments (08 B04)', () => {
     // Back to where the person came from, also after the page has come to life.
     const asked = requestsTo(page, 'GET', /\/me\/appointments$/);
     await main.getByRole('link', { name: portal.details.back }).click();
-    await expect(page).toHaveURL(`/${locale}/appointments#tab=past`);
+    await expect(page).toHaveURL(
+      new RegExp(`/${locale}/appointments#tab=past&practice=[0-9a-f-]+&appointment=[0-9a-f-]+$`),
+    );
     await expect(page.getByRole('tab', { name: portal.list.past })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -1824,7 +1826,7 @@ test.describe('moving an appointment when things go otherwise (08 B04)', () => {
       await atConfirmCard(page, locale, newAddress(testInfo));
       await page.route(MOVE, async (route) => {
         if (failure === 'a lost connection') await route.abort('connectionreset');
-        else await route.fulfill(asProblem({ status: 503, code: 'SERVICE_UNAVAILABLE' }));
+        else await route.fulfill(asProblem({ status: 500, code: 'INTERNAL_ERROR' }));
       });
       await page.getByRole('button', { name: portal.reschedule.confirm }).click();
 
@@ -1952,7 +1954,7 @@ test.describe('the keyboard and the focus (08 B04)', () => {
     await tabTo(page, field);
     await expectRing(field);
     await enterSignIn(page, locale, email);
-    await expect(page).toHaveURL(`/${locale}/appointments`);
+    await expect(page).toHaveURL(`/${locale}/home`);
 
     await chooseTime(page, locale);
     await joinPractice(page, locale);

@@ -7,6 +7,7 @@ import {
   fullNameOf,
   initialsOf,
   isoWeekdayOf,
+  mailtoHref,
   mapsHref,
   openingRowsOf,
   openStatusOf,
@@ -243,5 +244,23 @@ describe('practiceJsonLd', () => {
       email: 'a@example.test',
       address: { '@type': 'PostalAddress', streetAddress: 'Street 1' },
     });
+  });
+});
+
+describe('mailtoHref (security review of B06)', () => {
+  it('links a plain address', () => {
+    expect(mailtoHref('info@al-noor.example')).toBe('mailto:info@al-noor.example');
+  });
+
+  it.each([
+    'info@al-noor.example?bcc=someone@else.example',
+    'info@al-noor.example&body=x',
+    'info@al-noor.example#x',
+    'a,b@al-noor.example',
+    'a b@al-noor.example',
+    'no-at-sign',
+    'a@b@c.example',
+  ])('links nothing else: %s', (email) => {
+    expect(mailtoHref(email)).toBeUndefined();
   });
 });

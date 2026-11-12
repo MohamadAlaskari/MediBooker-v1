@@ -9,6 +9,7 @@ import {
   isId,
   isOutcomeUnknown,
   isPracticeSlug,
+  isSafeToRepeat,
   nameInSentence,
   noteToSend,
   phoneInSentence,
@@ -129,6 +130,9 @@ describe('what a press answers', () => {
     ['a timeout', new ApiError({ status: 0, code: 'TIMEOUT' })],
     ['a failure of the server', new ApiError({ status: 500, code: 'INTERNAL_ERROR' })],
     ['an answer nobody can read', new ApiError({ status: 200, code: 'UNEXPECTED_RESPONSE' })],
+    // A busy practice: a connection can fail during the commit too (security review of B06).
+    ['a practice that was busy', new ApiError({ status: 503, code: 'SERVICE_UNAVAILABLE' })],
+    ['a 503 of something in between', new ApiError({ status: 503, code: 'UNEXPECTED_RESPONSE' })],
     ['something else', new Error('not from the API')],
   ])('leaves the outcome open after %s', (_name, error) => {
     expect(isOutcomeUnknown(error)).toBe(true);
@@ -140,6 +144,19 @@ describe('what a press answers', () => {
     ['a limit', new ApiError({ status: 429, code: 'RATE_LIMITED' })],
   ])('knows the outcome after %s', (_name, error) => {
     expect(isOutcomeUnknown(error)).toBe(false);
+  });
+
+  it('takes the same press as safe after a busy practice of the API only (B06)', () => {
+    expect(isSafeToRepeat(new ApiError({ status: 503, code: 'SERVICE_UNAVAILABLE' }))).toBe(true);
+    for (const error of [
+      null,
+      new Error('lost'),
+      new ApiError({ status: 503, code: 'UNEXPECTED_RESPONSE' }),
+      new ApiError({ status: 500, code: 'INTERNAL_ERROR' }),
+      new ApiError({ status: 0, code: 'NETWORK_ERROR' }),
+    ]) {
+      expect(isSafeToRepeat(error)).toBe(false);
+    }
   });
 });
 

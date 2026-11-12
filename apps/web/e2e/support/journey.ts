@@ -111,7 +111,8 @@ export async function signedIn(page: Page, locale: Locale, email: string): Promi
     page.waitForResponse((answer) => answer.url().endsWith(path)),
   );
   await enterSignIn(page, locale, email);
-  await expect(page).toHaveURL(`/${locale}/appointments`);
+  // A sign-in without a way back lands on the home (PW2, B06), which reads both.
+  await expect(page).toHaveURL(`/${locale}/home`);
   await Promise.all(answered);
 }
 

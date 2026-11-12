@@ -53,6 +53,12 @@ export function whenParts(
   };
 }
 
+/**
+ * The pages of a history a way back reads to find the appointment it comes from (B06), 20 each: past
+ * them, "Show more" is the person's again.
+ */
+export const MAX_REVEAL_PAGES = 5;
+
 export function practiceById(
   practices: readonly MyPracticeDto[] | undefined,
   id: string,
@@ -93,6 +99,17 @@ export function isOutcomeUnknown(error: unknown): boolean {
   if (error === null || error === undefined) return false;
   if (!isApiError(error)) return true;
   return error.status === 0 || error.status >= 500 || error.code === 'UNEXPECTED_RESPONSE';
+}
+
+/**
+ * A 503 of the API itself: the practice was busy or out of reach. Whether something was done is not
+ * known for sure, because a connection can also fail during the commit, but the same press is safe:
+ * its key answers a booking or a move that went through, and a second cancel answers like the first
+ * (B06). So that press stays, once its `Retry-After` is over. A 503 of anything in between is no
+ * answer of the API.
+ */
+export function isSafeToRepeat(error: unknown): boolean {
+  return isApiError(error) && error.status === 503 && error.code === 'SERVICE_UNAVAILABLE';
 }
 
 /** What a note may not hold (`NOTE_TEXT` of the API), except line breaks and the joiners. */

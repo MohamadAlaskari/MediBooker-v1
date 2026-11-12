@@ -108,7 +108,7 @@ export function SignInForm(): ReactNode {
   const signedIn = (): void => {
     announceSignIn();
     // A new document: a practice page's style carries the nonce of its own document.
-    window.location.replace(returnPath ?? `/${locale}/appointments`);
+    window.location.replace(returnPath ?? `/${locale}/home`);
   };
   const submit = handleSubmit((data) => {
     login.mutate(

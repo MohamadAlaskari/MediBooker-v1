@@ -26,6 +26,7 @@ import {
   useValidationError,
 } from './form-parts';
 import { useSessionChangeElsewhere } from './sign-out-button';
+import { useWaitOut, WaitNote } from './wait-out';
 
 export const INSURANCE_TYPES = ['PUBLIC', 'PRIVATE', 'SELF_PAY'] as const;
 export type InsuranceType = (typeof INSURANCE_TYPES)[number];
@@ -218,6 +219,7 @@ export function DetailsSteps({
   // A number is copied only for the same type of insurance.
   const known = chosenType === details?.insuranceType ? details.insuranceNumberEnd : null;
   // Only what is on the page: an error about anything else must show above the button.
+  const wait = useWaitOut(saving.error);
   const shownFields = [
     ...PERSON_FIELDS,
     'insuranceType',
@@ -358,7 +360,8 @@ export function DetailsSteps({
         ) : null}
         {beforeSubmit}
         <FormError error={saving.error} fields={shownFields} />
-        <SubmitButton pending={saving.isPending}>{submitLabel}</SubmitButton>
+        <SubmitButton pending={saving.isPending || wait !== undefined}>{submitLabel}</SubmitButton>
+        <WaitNote seconds={wait} />
         <Button
           variant="ghost"
           onPress={() => {

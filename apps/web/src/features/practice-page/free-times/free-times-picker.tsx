@@ -86,7 +86,16 @@ interface FreeTimesPickerProps {
   readonly settings: PracticeFormatSettings;
   readonly today: string;
   readonly weekStart: number;
-  readonly services: readonly { readonly id: string; readonly label: string }[];
+  /**
+   * `label` is plain text, which React Aria's typeahead matches what is typed against: a mark that
+   * isolates a name would stop that. `display` is what the list and the field show, with the name
+   * isolated inside the sentence (B06); left out, the label shows on its own, isolated whole.
+   */
+  readonly services: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly display?: string;
+  }[];
   readonly doctors: readonly {
     readonly id: string;
     readonly name: string;
@@ -247,6 +256,8 @@ interface TimesProps {
   readonly providerId: string | undefined;
   readonly date: string;
   readonly format: PracticeFormat;
+  /** A "Try again" passed: the chooser moves the focus, which its button had. */
+  readonly onRetried: () => void;
 }
 
 function TimeGroup({
@@ -305,7 +316,15 @@ function TimeGroup({
   );
 }
 
-function Times({ slug, action, serviceId, providerId, date, format }: TimesProps): ReactNode {
+function Times({
+  slug,
+  action,
+  serviceId,
+  providerId,
+  date,
+  format,
+  onRetried,
+}: TimesProps): ReactNode {
   const t = useTranslations('practicePage.freeTimes');
   const container = useRef<HTMLDivElement>(null);
   const { data, isPending, isError, error, refetch } = useGetPublicFreeTimes(
@@ -351,7 +370,9 @@ function Times({ slug, action, serviceId, providerId, date, format }: TimesProps
           variant="outline"
           className="mt-2"
           onPress={() => {
-            void refetch();
+            void refetch().then(({ isSuccess }) => {
+              if (isSuccess) onRetried();
+            });
           }}
         >
           {t('retry')}
@@ -429,6 +450,17 @@ export function FreeTimesChooser({
   const [shownWeek, setShownWeek] = useState<number>();
   const previousArrow = useRef<HTMLButtonElement>(null);
   const nextArrow = useRef<HTMLButtonElement>(null);
+  // A "Try again" that passed took its button, and the focus, away: the day's heading takes it, or
+  // what the chooser says instead of a day (B06).
+  const dayHeading = useRef<HTMLHeadingElement>(null);
+  const noDays = useRef<HTMLParagraphElement>(null);
+  const [retried, setRetried] = useState(0);
+  useEffect(() => {
+    if (retried > 0) (dayHeading.current ?? noDays.current)?.focus();
+  }, [retried]);
+  const onRetried = (): void => {
+    setRetried((count) => count + 1);
+  };
 
   const availability = useGetPublicAvailability(
     slug,
@@ -472,9 +504,9 @@ export function FreeTimesChooser({
           <Label className="text-label-default text-text-primary">{t('service')}</Label>
           <SelectTrigger className="mt-2" />
           <SelectContent>
-            {services.map(({ id, label }) => (
+            {services.map(({ id, label, display }) => (
               <SelectItem key={id} id={id} textValue={label}>
-                <bdi>{label}</bdi>
+                {display ?? <bdi>{label}</bdi>}
               </SelectItem>
             ))}
           </SelectContent>
@@ -506,14 +538,20 @@ export function FreeTimesChooser({
               variant="outline"
               className="mt-2"
               onPress={() => {
-                void availability.refetch();
+                void availability.refetch().then(({ isSuccess }) => {
+                  if (isSuccess) onRetried();
+                });
               }}
             >
               {t('retry')}
             </Button>
           </Alert>
         ) : selected === undefined ? (
-          <p className="text-body-default text-text-primary">{t('empty')}</p>
+          // Only a script focuses it, after a "Try again". Its ring stays: `outline-none` would also
+          // hide the rings of the chooser's own targets (see its test).
+          <p ref={noDays} tabIndex={-1} className="text-body-default text-text-primary">
+            {t('empty')}
+          </p>
         ) : (
           <>
             <div className="flex items-center justify-between gap-2">
@@ -555,7 +593,11 @@ export function FreeTimesChooser({
               format={format}
               onSelect={setChosenDate}
             />
-            <DayHeading className="text-heading-h3 text-text-primary">
+            <DayHeading
+              ref={dayHeading}
+              tabIndex={-1}
+              className="text-heading-h3 text-text-primary"
+            >
               {format.dayLong(selected)}
             </DayHeading>
             <Times
@@ -565,6 +607,7 @@ export function FreeTimesChooser({
               providerId={providerId}
               date={selected}
               format={format}
+              onRetried={onRetried}
             />
             <p className="text-caption text-text-tertiary">{hint ?? t('hint')}</p>
           </>

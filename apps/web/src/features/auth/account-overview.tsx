@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, LinkButton } from '@/components/ui/button';
 import { announceSignOut } from '@/lib/session-broadcast';
 import { clearChoice } from '../portal/booking-choice';
+import { AppearanceSetting } from './appearance-setting';
 import { FormError, PageHeading } from './form-parts';
 import { ResendButton } from './resend-button';
 import { SignOutButton, useSessionChangeElsewhere } from './sign-out-button';
@@ -140,6 +141,7 @@ export function AccountOverview(): ReactNode {
         </Alert>
       )}
       <DetailsSummary />
+      <AppearanceSetting />
       <LinkButton variant="outline" href={`/${locale}/appointments`} className="mb-2">
         {t('appointments')}
       </LinkButton>
