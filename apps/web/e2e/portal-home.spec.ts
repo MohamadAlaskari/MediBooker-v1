@@ -106,8 +106,12 @@ test.describe('the portal home (08 B06, PW2)', () => {
       'href',
       `/${locale}`,
     );
-    await main.getByRole('link', { name: portal.home.book }).click();
-    await expect(page).toHaveURL(`/${locale}#free-times`);
+    // To the practice's free times. Not opened here: their chips fade in, and the page's own tests
+    // wait that out before axe looks at their contrast.
+    await expect(main.getByRole('link', { name: portal.home.book })).toHaveAttribute(
+      'href',
+      `/${locale}#free-times`,
+    );
   });
 
   test('shows the next appointment with what can be done, then what comes after', async ({
