@@ -363,13 +363,19 @@ model Slot {
   status     SlotStatus @default(OPEN)
   /// class: personal (null: the rule is gone, and the slot can be booked for no service)
   ruleId     String?    @map("rule_id") @db.Uuid
+  /// class: health (the appointment whose time, visit and buffer, this slot is part of: BR-27;
+  /// set exactly while the slot is BOOKED by it, CHECK in the migration)
+  heldById   String?    @map("held_by_id") @db.Uuid
 
   provider     StaffMember       @relation(fields: [providerId], references: [id], onDelete: Restrict)
   rule         AvailabilityRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
-  appointments Appointment[]
+  /// The appointments that began with this slot, the cancelled ones too.
+  appointments Appointment[]     @relation("AppointmentStart")
+  heldBy       Appointment?      @relation("AppointmentHold", fields: [heldById], references: [id], onDelete: SetNull)
 
   @@unique([providerId, startsAt])
   @@index([ruleId])
+  @@index([heldById])
   @@index([startsAt], map: "slots_open_starts_at_idx", where: raw("(status = 'OPEN'::slot_status)"))
   @@map("slots")
 }
@@ -487,36 +493,40 @@ enum AppointmentStatus {
 /// person booked can reveal a condition, so all of this is health data.
 model Appointment {
   /// class: health
-  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// class: health
-  patientId            String            @map("patient_id") @db.Uuid
+  patientId             String            @map("patient_id") @db.Uuid
+  /// class: health (the first slot of its time)
+  slotId                String            @map("slot_id") @db.Uuid
+  /// class: health (the end of the visit: its start and the service's duration at booking, BR-27)
+  endsAt                DateTime          @map("ends_at") @db.Timestamptz(3)
   /// class: health
-  slotId               String            @map("slot_id") @db.Uuid
+  serviceId             String            @map("service_id") @db.Uuid
   /// class: health
-  serviceId            String            @map("service_id") @db.Uuid
-  /// class: health
-  status               AppointmentStatus @default(BOOKED)
+  status                AppointmentStatus @default(BOOKED)
   /// class: health (encrypted with this practice's data key, bound to this row)
-  patientNoteEncrypted String?           @map("patient_note_encrypted")
+  patientNoteEncrypted  String?           @map("patient_note_encrypted")
   /// class: personal (the account that booked: from FA01 not always the patient's own)
-  bookedById           String            @map("booked_by_id") @db.Uuid
+  bookedById            String            @map("booked_by_id") @db.Uuid
   /// class: health
-  bookedAt             DateTime          @map("booked_at") @db.Timestamptz(3)
+  bookedAt              DateTime          @map("booked_at") @db.Timestamptz(3)
   /// class: health (set exactly when the status is CANCELLED; CHECK in the migration)
-  cancelledAt          DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  cancelledAt           DateTime?         @map("cancelled_at") @db.Timestamptz(3)
   /// class: personal (the account that cancelled)
-  cancelledById        String?           @map("cancelled_by_id") @db.Uuid
+  cancelledById         String?           @map("cancelled_by_id") @db.Uuid
   /// class: health (only a cancel by the practice has one, BR-04; sealed like the note; CHECK in the migration)
-  cancelReasonEncrypted String?          @map("cancel_reason_encrypted")
+  cancelReasonEncrypted String?           @map("cancel_reason_encrypted")
   /// class: health (when the team checked the patient in, BR-11; set exactly for CHECKED_IN and COMPLETED)
-  checkedInAt          DateTime?         @map("checked_in_at") @db.Timestamptz(3)
+  checkedInAt           DateTime?         @map("checked_in_at") @db.Timestamptz(3)
   /// class: health (when the team completed the visit, BR-11; set exactly for COMPLETED)
-  completedAt          DateTime?         @map("completed_at") @db.Timestamptz(3)
+  completedAt           DateTime?         @map("completed_at") @db.Timestamptz(3)
   /// class: health (the appointment this one replaced, BR-05)
-  rescheduledFromId    String?           @unique(map: "appointments_rescheduled_from_id_key") @map("rescheduled_from_id") @db.Uuid
+  rescheduledFromId     String?           @unique(map: "appointments_rescheduled_from_id_key") @map("rescheduled_from_id") @db.Uuid
 
   patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  slot            Slot         @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  slot            Slot         @relation("AppointmentStart", fields: [slotId], references: [id], onDelete: Restrict)
+  /// Every slot of its time, from its start to the end of its buffer, while it holds them.
+  heldSlots       Slot[]       @relation("AppointmentHold")
   service         Service      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   rescheduledFrom Appointment? @relation("Reschedule", fields: [rescheduledFromId], references: [id], onDelete: Restrict)
   rescheduledTo   Appointment? @relation("Reschedule")
@@ -566,19 +576,19 @@ enum MembershipStatus {
 /// table through the integration outbox; this table decides.
 model Membership {
   /// class: personal
-  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// class: personal (the account in the platform database)
   userId        String           @unique @map("user_id") @db.Uuid
   /// class: personal (the doctor this account is: a doctor changes only its own hours, M04)
   staffMemberId String?          @unique @map("staff_member_id") @db.Uuid
   /// class: personal
-  role      StaffRole
+  role          StaffRole
   /// class: personal
-  status    MembershipStatus @default(ACTIVE)
+  status        MembershipStatus @default(ACTIVE)
   /// class: personal
-  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   /// class: personal
-  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   staffMember StaffMember? @relation(fields: [staffMemberId], references: [id], onDelete: SetNull)
 

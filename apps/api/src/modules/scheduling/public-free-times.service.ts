@@ -1,11 +1,16 @@
 import { InjectTransactionHost } from '@nestjs-cls/transactional';
 import { Injectable } from '@nestjs/common';
+import { ClsService } from 'nestjs-cls';
+import type { RequestContext } from '../../common/context/request-context.js';
 import { DomainException } from '../../common/errors/domain.exception.js';
 import { FIELD_ERROR_MESSAGES } from '../../common/errors/field-error-codes.js';
+import { requirePracticeContext } from '../../common/tenancy/practice-context.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
+import { RunningLimit } from '../../common/tenancy/running-limit.js';
 import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import type { Prisma } from '../../generated/practice/client.js';
+import { freeStartsOf, type HoldLength } from './domain/hold.rules.js';
 import { PUBLIC_PROVIDER } from './domain/public-profile.js';
 import {
   bookableWindow,
@@ -24,6 +29,13 @@ import type {
 
 /** At most this many days in one question about availability (08 P05). */
 export const MAX_AVAILABILITY_DAYS = 42;
+
+/**
+ * At most this many answers of free times are made at once per practice and instance; more are 429
+ * with Retry-After. A public route, and each answer reads every slot of its range (security review
+ * of M04 part 2).
+ */
+export const FREE_TIMES_AT_ONCE = 4;
 
 interface Offer {
   readonly serviceId: string;
@@ -68,9 +80,12 @@ function laterOf(a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant {
  */
 @Injectable()
 export class PublicFreeTimesService {
+  private readonly running = new RunningLimit();
+
   constructor(
     @InjectTransactionHost('practice') private readonly txHost: PracticeTransactionHost,
     private readonly clock: Clock,
+    private readonly cls: ClsService<RequestContext>,
   ) {}
 
   async availability(
@@ -78,7 +93,7 @@ export class PublicFreeTimesService {
     audience: FreeTimesAudience = PUBLIC_AUDIENCE,
   ): Promise<PublicAvailabilityDto> {
     const settings = await this.settings();
-    await this.assertOffered(query, audience);
+    const length = await this.assertOffered(query, audience);
     const { timeZone } = settings;
     const from =
       query.from === undefined
@@ -96,10 +111,13 @@ export class PublicFreeTimesService {
         ],
       });
     }
-    const starts = await this.freeStarts(
-      query,
-      { start: dayRange(from, timeZone).start, end: dayRange(to, timeZone).end },
-      audience.window(this.clock.now(), settings),
+    const starts = await this.atOnce(() =>
+      this.freeStarts(
+        query,
+        length,
+        { start: dayRange(from, timeZone).start, end: dayRange(to, timeZone).end },
+        audience.window(this.clock.now(), settings),
+      ),
     );
     return {
       days: daysWithFreeTimes(from, to, starts, timeZone).map(({ date, hasFreeTimes }) => ({
@@ -114,17 +132,25 @@ export class PublicFreeTimesService {
     audience: FreeTimesAudience = PUBLIC_AUDIENCE,
   ): Promise<PublicFreeTimesDto> {
     const settings = await this.settings();
-    await this.assertOffered(query, audience);
+    const length = await this.assertOffered(query, audience);
     const date = Temporal.PlainDate.from(query.date);
-    const starts = await this.freeStarts(
-      query,
-      dayRange(date, settings.timeZone),
-      audience.window(this.clock.now(), settings),
+    const starts = await this.atOnce(() =>
+      this.freeStarts(
+        query,
+        length,
+        dayRange(date, settings.timeZone),
+        audience.window(this.clock.now(), settings),
+      ),
     );
     return {
       date: date.toString(),
       times: starts.map((start) => ({ startsAt: start.toString() })),
     };
+  }
+
+  private atOnce<T>(work: () => Promise<T>): Promise<T> {
+    const { practice } = requirePracticeContext(this.cls);
+    return this.running.run(practice.id, FREE_TIMES_AT_ONCE, work);
   }
 
   private settings(): Promise<{
@@ -138,51 +164,88 @@ export class PublicFreeTimesService {
     });
   }
 
+  /** The service's time, when the audience may ask for the service and the doctor (BR-27). */
   private async assertOffered(
     { serviceId, providerId }: Offer,
     audience: FreeTimesAudience,
-  ): Promise<void> {
+  ): Promise<HoldLength> {
     const db = this.txHost.tx;
     const service = await db.service.findFirst({
       where: { id: serviceId, ...audience.services },
-      select: { id: true },
+      select: { durationMinutes: true, bufferMinutes: true },
     });
     if (service === null) throw new DomainException('NOT_FOUND');
-    if (providerId === undefined) return;
-    const provider = await db.staffMember.findFirst({
-      where: { id: providerId, ...audience.providers },
-      select: { id: true },
-    });
-    if (provider === null) throw new DomainException('NOT_FOUND');
+    if (providerId !== undefined) {
+      const provider = await db.staffMember.findFirst({
+        where: { id: providerId, ...audience.providers },
+        select: { id: true },
+      });
+      if (provider === null) throw new DomainException('NOT_FOUND');
+    }
+    return service;
   }
 
   /**
-   * The starts, each once and without an id, grouped by the database: which doctor has a time stays
-   * out of the answer, and so does how many have it. A booking picks the slot in its transaction.
+   * The starts, each once and without an id: which doctor has a time stays out of the answer, and so
+   * does how many have it. A start is free when its doctor is free from it for the service's
+   * duration and buffer (BR-27), by the rule a booking applies; the booking picks the doctor and
+   * holds the time in its transaction.
    */
   private async freeStarts(
     { serviceId, providerId }: Offer,
+    length: HoldLength,
     { start, end }: InstantRange,
     {
       earliest,
       latest,
     }: { readonly earliest: Temporal.Instant; readonly latest: Temporal.Instant },
   ): Promise<Temporal.Instant[]> {
-    const rows = await this.txHost.tx.slot.groupBy({
-      by: ['startsAt'],
+    const db = this.txHost.tx;
+    // Only the doctors whose rules offer the service, one query after the other: a practice has
+    // few connections (PRACTICE_POOL_MAX).
+    const rules = await db.availabilityRule.findMany({
       where: {
-        status: 'OPEN',
-        startsAt: {
-          gte: dbInstantOf(laterOf(earliest, start)),
-          lt: dbInstantOf(end),
-          lte: dbInstantOf(latest),
-        },
+        services: { some: { serviceId } },
         ...(providerId === undefined ? {} : { providerId }),
-        provider: { isProvider: true },
-        rule: { services: { some: { serviceId } } },
       },
-      orderBy: { startsAt: 'asc' },
+      select: { id: true, providerId: true },
     });
-    return rows.map(({ startsAt }) => instantOf(startsAt));
+    if (rules.length === 0) return [];
+    const offers = new Set(rules.map(({ id }) => id));
+    const doctors = [...new Set(rules.map((rule) => rule.providerId))];
+    const from = laterOf(earliest, start);
+    // The time of the last start reaches past the range by the duration and the buffer.
+    const reach = end.add({ minutes: length.durationMinutes + length.bufferMinutes });
+    const rows = await db.slot.findMany({
+      where: {
+        providerId: { in: doctors },
+        startsAt: { gte: dbInstantOf(from), lt: dbInstantOf(reach) },
+        provider: { isProvider: true },
+      },
+      select: {
+        id: true,
+        providerId: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        heldById: true,
+        ruleId: true,
+      },
+    });
+    const slots = rows.map((row) => ({
+      ...row,
+      startsAt: instantOf(row.startsAt),
+      endsAt: instantOf(row.endsAt),
+    }));
+    return freeStartsOf(
+      slots,
+      ({ status, ruleId, startsAt }) =>
+        status === 'OPEN' &&
+        ruleId !== null &&
+        offers.has(ruleId) &&
+        Temporal.Instant.compare(startsAt, end) < 0 &&
+        Temporal.Instant.compare(startsAt, latest) <= 0,
+      length,
+    );
   }
 }

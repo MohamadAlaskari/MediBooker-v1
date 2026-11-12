@@ -94,6 +94,8 @@ describe('booking for a patient on real databases (08 M05, W7)', () => {
       // first of the fresh times, which lie beyond it.
       const soon = NOW.add({ minutes: 47 });
       await world.slotAt(practice, soon, { other: true });
+      // The service of 45 minutes needs the slot after it too (BR-27).
+      await world.slotAt(practice, soon.add({ minutes: 30 }), { other: true });
       const date = dayOf(soon);
       expect(await freeTimes({ serviceId: practice.serviceId, date })).toContain(soon.toString());
       expect(await freeTimes({ serviceId: practice.notOnlineServiceId, date })).toContain(
@@ -169,7 +171,10 @@ describe('booking for a patient on real databases (08 M05, W7)', () => {
       const practice = world.alNoor();
       const patientId = await world.join(await world.person(), practice);
       const startsAt = world.freshTime();
+      world.freshTime();
       await world.slotAt(practice, startsAt, { other: true });
+      // Its 45 minutes hold the slot after it too (BR-27).
+      await world.slotAt(practice, startsAt.add({ minutes: 30 }), { other: true });
       const booked = await book({
         patientId,
         serviceId: practice.notOnlineServiceId,

@@ -22,7 +22,7 @@ import {
   isAllDay,
   workingWeekOf,
 } from './domain/working-hours.rules.js';
-import { SlotGenerationService } from './slot-generation.service.js';
+import { generationLockKey, SlotGenerationService } from './slot-generation.service.js';
 import type {
   AbsenceCreatedDto,
   AbsenceDto,
@@ -253,6 +253,13 @@ export class WorkingHours {
           });
         }
         // The doctor's free times to come are made anew by the new rules, with their services.
+        // No run of the doctor's free times meanwhile, and the doctor's slots to come locked in the
+        // order of their starts, as every path that waits for slot locks takes them (TimeHolds).
+        const key = generationLockKey(providerId);
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+        await tx.$queryRaw`
+          SELECT id FROM slots WHERE provider_id = ${providerId}::uuid
+            AND starts_at > ${dbInstantOf(now)} ORDER BY starts_at FOR UPDATE`;
         const later = { providerId, startsAt: { gt: dbInstantOf(now) } } as const;
         await tx.slot.deleteMany({
           where: { ...later, status: 'OPEN', appointments: { none: {} } },
@@ -324,14 +331,12 @@ export class WorkingHours {
       });
       return created;
     });
+    // Every visit the absence touches, also one that began before it (BR-27).
     const bookedInside = await this.txHost.tx.appointment.count({
       where: {
         status: 'BOOKED',
-        slot: {
-          providerId,
-          startsAt: { lt: dbInstantOf(endsAt) },
-          endsAt: { gt: dbInstantOf(startsAt) },
-        },
+        endsAt: { gt: dbInstantOf(startsAt) },
+        slot: { providerId, startsAt: { lt: dbInstantOf(endsAt) } },
       },
     });
     await this.regenerate(providerId);

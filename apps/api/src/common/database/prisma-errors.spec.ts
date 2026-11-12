@@ -141,6 +141,12 @@ describe('isDatabaseBusy', () => {
     ).toBe(true);
   });
 
+  it('is true for a transaction the database ended because it waited in a circle', () => {
+    expect(
+      isDatabaseBusy(reported({ kind: 'postgres', originalCode: '40P01', severity: 'ERROR' })),
+    ).toBe(true);
+  });
+
   it('is false for anything else: a failed connection, another error, what is no error', () => {
     expect(isDatabaseBusy(reported({ kind: 'ConnectionClosed' }))).toBe(false);
     expect(isDatabaseBusy(reported({ kind: 'postgres', originalCode: '23514' }))).toBe(false);

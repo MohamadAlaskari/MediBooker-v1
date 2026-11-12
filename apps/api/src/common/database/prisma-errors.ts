@@ -33,6 +33,8 @@ const CONNECTION_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 const LOCK_NOT_AVAILABLE = '55P03';
+/** Two transactions waited for each other, and the database ended one of them. */
+const DEADLOCK_DETECTED = '40P01';
 const POOL_TIMEOUT_TEXT = 'timeout exceeded when trying to connect';
 
 function isObject(value: unknown): value is object {
@@ -94,12 +96,16 @@ export function isConnectionFailure(error: unknown): boolean {
 
 /**
  * True when the database is busy, not broken: no connection of the pool came free in time, a
- * transaction could not start or ran out of time (P2028), or a row lock did not come free (55P03).
- * pg's own connect timeout has no code, only this constant text.
+ * transaction could not start or ran out of time (P2028), a row lock did not come free (55P03), or
+ * the database ended a transaction that waited in a circle with another one (40P01): a retry can
+ * pass. pg's own connect timeout has no code, only this constant text.
  */
 export function isDatabaseBusy(error: unknown): boolean {
   if (isPrismaKnownRequestError(error)) {
-    return error.code === 'P2028' || driverFailureOf(error)?.sqlState === LOCK_NOT_AVAILABLE;
+    const sqlState = driverFailureOf(error)?.sqlState;
+    return (
+      error.code === 'P2028' || sqlState === LOCK_NOT_AVAILABLE || sqlState === DEADLOCK_DETECTED
+    );
   }
   return isError(error) && error.message.includes(POOL_TIMEOUT_TEXT);
 }

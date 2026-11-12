@@ -21,7 +21,6 @@ const PATIENT_USER = '00000000-0000-4000-8000-000000000002';
 const ID = '00000000-0000-4000-8000-0000000000aa';
 const PATIENT = '00000000-0000-4000-8000-0000000000bb';
 const PROVIDER = '00000000-0000-4000-8000-0000000000cc';
-const SLOT = '00000000-0000-4000-8000-0000000000dd';
 const ACTOR = { userId: STAFF_USER, sessionId: 'session', amr: ['pwd', 'otp'] };
 const SETTINGS = { timeZone: 'Asia/Riyadh', numberingSystem: 'latn', hourCycle: 'h23' };
 
@@ -43,11 +42,15 @@ const ROW = {
     insuranceType: 'SELF_PAY',
   },
   service: { name: { en: 'Check-up' }, durationMinutes: 30 },
-  slot: {
-    providerId: PROVIDER,
-    startsAt: new Date('2026-11-15T09:00:00Z'),
-    endsAt: new Date('2026-11-15T09:30:00Z'),
-  },
+  endsAt: new Date('2026-11-15T09:30:00Z'),
+  slot: { providerId: PROVIDER, startsAt: new Date('2026-11-15T09:00:00Z') },
+};
+/** The slot an appointment begins with, as W2 reads it. */
+const WEEK_HOLDER = {
+  id: ID,
+  status: 'BOOKED',
+  patient: { firstName: 'Sami', lastName: 'Beispiel' },
+  service: { name: { en: 'Check-up' } },
 };
 
 const DETAIL = {
@@ -77,7 +80,6 @@ function setUp({
 } = {}) {
   const changing = {
     status,
-    slotId: SLOT,
     cancelReasonEncrypted,
     slot: { startsAt: slotStartsAt },
   };
@@ -95,11 +97,10 @@ function setUp({
           'patientId' in args.select ? (detail === null ? null : { patientId: PATIENT }) : detail,
         ),
       ),
-      findUniqueOrThrow: vi
-        .fn()
-        .mockImplementation((args: { select: Record<string, unknown> }) =>
-          Promise.resolve('slotId' in args.select ? changing : ROW),
-        ),
+      findUniqueOrThrow: vi.fn().mockImplementation((args: { select: Record<string, unknown> }) =>
+        // The row of a list or a detail names its patient; the one a change reads does not.
+        Promise.resolve('patient' in args.select ? ROW : changing),
+      ),
       update: vi.fn().mockResolvedValue({}),
       count: vi.fn().mockResolvedValue(12),
     },
@@ -262,21 +263,25 @@ describe('DeskService.week', () => {
     db.slot.findMany.mockResolvedValueOnce([
       {
         ...ROW.slot,
+        endsAt: new Date('2026-11-15T09:30:00Z'),
         status: 'BOOKED',
-        appointments: [
-          {
-            id: ID,
-            status: 'BOOKED',
-            patient: { firstName: 'Sami', lastName: 'Beispiel' },
-            service: { name: { en: 'Check-up' } },
-          },
-        ],
+        appointments: [WEEK_HOLDER],
+        heldBy: WEEK_HOLDER,
       },
+      // The rest of its time, its visit or its buffer (BR-27).
       {
         startsAt: new Date('2026-11-15T09:30:00Z'),
         endsAt: new Date('2026-11-15T10:00:00Z'),
+        status: 'BOOKED',
+        appointments: [],
+        heldBy: WEEK_HOLDER,
+      },
+      {
+        startsAt: new Date('2026-11-15T10:00:00Z'),
+        endsAt: new Date('2026-11-15T10:30:00Z'),
         status: 'OPEN',
         appointments: [],
+        heldBy: null,
       },
     ]);
     db.availabilityException.findMany.mockResolvedValueOnce([
@@ -312,11 +317,19 @@ describe('DeskService.week', () => {
           serviceName: { en: 'Check-up' },
           status: 'BOOKED',
         },
+        continuation: false,
       }),
       expect.objectContaining({
         startsAt: '2026-11-15T09:30:00Z',
+        status: 'BOOKED',
+        appointment: expect.objectContaining({ id: ID }) as unknown,
+        continuation: true,
+      }),
+      expect.objectContaining({
+        startsAt: '2026-11-15T10:00:00Z',
         status: 'OPEN',
         appointment: null,
+        continuation: false,
       }),
     ]);
     // Seven days from midnight in Riyadh, which is 21:00 UTC the day before.
@@ -341,6 +354,7 @@ describe('DeskService.week', () => {
       endsAt: new Date('2026-11-15T10:00:00Z'),
       status: 'OPEN',
       appointments: [],
+      heldBy: null,
     };
     db.slot.findMany.mockResolvedValueOnce(Array.from({ length: WEEK_SLOT_LIMIT + 1 }, () => free));
     const week = await inPractice(() => service.week(ACTOR, { providerId: PROVIDER }, undefined));
@@ -598,10 +612,10 @@ describe('DeskService changes', () => {
         cancelReasonEncrypted: 'sealed-reason',
       },
     });
-    expect(db.slot.updateMany).toHaveBeenCalledWith({
-      where: { id: SLOT, status: 'BOOKED' },
-      data: { status: 'OPEN' },
-    });
+    // Its slots locked in order; the database frees its whole time with the cancel (BR-27).
+    expect(db.slot.updateMany).not.toHaveBeenCalled();
+    const locks = db.$queryRaw.mock.calls.map(([sql]) => (sql as readonly string[]).join('?'));
+    expect(locks.some((sql) => sql.includes('held_by_id'))).toBe(true);
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'appointment.cancel_by_practice' }),
     );

@@ -374,6 +374,8 @@ export class DeskService {
           select: WEEK_APPOINTMENT_FIELDS,
           take: 1,
         },
+        // A time an appointment holds after its start: its visit or its buffer (BR-27).
+        heldBy: { select: WEEK_APPOINTMENT_FIELDS },
       },
       orderBy: { startsAt: 'asc' },
       take: WEEK_SLOT_LIMIT + 1,
@@ -384,12 +386,17 @@ export class DeskService {
       select: { startsAt: true, endsAt: true, reason: true },
       orderBy: { startsAt: 'asc' },
     });
-    const held = slots.flatMap(({ appointments }) => appointments);
+    const held = new Set(
+      slots.flatMap(({ appointments, heldBy }) => [
+        ...appointments.map(({ id: appointmentId }) => appointmentId),
+        ...(heldBy === null ? [] : [heldBy.id]),
+      ]),
+    );
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
     await this.audit.recordEachUnlessRecent({
       userId,
       action: DESK_AUDIT.list,
-      subjectIds: held.map((appointment) => appointment.id),
+      subjectIds: [...held],
       ipHash,
       minutes: LIST_AUDIT_MINUTES,
     });
@@ -400,7 +407,8 @@ export class DeskService {
       now: now.toString(),
       providerId: id,
       slots: slots.map((slot) => {
-        const holder = slot.appointments[0];
+        const start = slot.appointments[0];
+        const holder = start ?? slot.heldBy ?? undefined;
         return {
           id: slot.id,
           startsAt: instantOf(slot.startsAt).toString(),
@@ -415,6 +423,7 @@ export class DeskService {
                   serviceName: holder.service.name as Readonly<Record<string, string>>,
                   status: holder.status,
                 },
+          continuation: start === undefined && holder !== undefined,
         };
       }),
       absences: absences.map((absence) => ({
@@ -534,7 +543,6 @@ export class DeskService {
         where: { id },
         select: {
           status: true,
-          slotId: true,
           cancelReasonEncrypted: true,
           slot: { select: { startsAt: true } },
         },
@@ -560,7 +568,7 @@ export class DeskService {
         subjectId: id,
         ipHash,
       });
-      if (outcome.kind === 'apply') await this.write(id, row.slotId, change, userId, now);
+      if (outcome.kind === 'apply') await this.write(id, change, userId, now);
       const written = await db.appointment.findUniqueOrThrow({ where: { id }, select: ROW_FIELDS });
       const names = await this.rows.namesOf([written]);
       return this.rows.viewOf(written, names, now, settings.timeZone);
@@ -569,7 +577,6 @@ export class DeskService {
 
   private async write(
     id: string,
-    slotId: string,
     change: Change,
     userId: string,
     now: Temporal.Instant,
@@ -596,6 +603,9 @@ export class DeskService {
         return;
       }
       case 'CANCEL': {
+        // Its slots in the order of their starts, as every path that waits for them (TimeHolds).
+        await db.$queryRaw`
+          SELECT id FROM slots WHERE held_by_id = ${id}::uuid ORDER BY starts_at FOR UPDATE`;
         await db.appointment.update({
           where: { id },
           data: {
@@ -605,11 +615,8 @@ export class DeskService {
             cancelReasonEncrypted: change.sealedReason,
           },
         });
-        // The time is free for others again (BR-07); the note stays with the appointment.
-        await db.slot.updateMany({
-          where: { id: slotId, status: 'BOOKED' },
-          data: { status: 'OPEN' },
-        });
+        // Its whole time, visit and buffer, is free for others again (BR-07, BR-27): the database
+        // frees it with the cancel (`appointments_release_on_cancel`). The note stays.
         return;
       }
     }

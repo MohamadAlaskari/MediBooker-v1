@@ -20,11 +20,8 @@ const row = (id = ID) => ({
   status: 'BOOKED',
   bookedAt: new Date(NOW.epochMilliseconds),
   service: { name: { ar: 'فحص', en: 'Check-up' } },
-  slot: {
-    providerId: PROVIDER,
-    startsAt: new Date('2026-11-17T07:00:00Z'),
-    endsAt: new Date('2026-11-17T07:30:00Z'),
-  },
+  endsAt: new Date('2026-11-17T07:30:00Z'),
+  slot: { providerId: PROVIDER, startsAt: new Date('2026-11-17T07:00:00Z') },
 });
 
 function setUp() {

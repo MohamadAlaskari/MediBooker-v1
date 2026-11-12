@@ -39,8 +39,9 @@ export const ROW_FIELDS = {
   patient: {
     select: { id: true, userId: true, firstName: true, lastName: true, insuranceType: true },
   },
+  endsAt: true,
   service: { select: { name: true, durationMinutes: true } },
-  slot: { select: { providerId: true, startsAt: true, endsAt: true } },
+  slot: { select: { providerId: true, startsAt: true } },
 } as const;
 
 export type DeskRow = Prisma.AppointmentGetPayload<{ select: typeof ROW_FIELDS }>;
@@ -145,7 +146,7 @@ export class DeskRows {
       providerId: row.slot.providerId,
       providerName: names.get(row.slot.providerId) ?? '',
       startsAt: startsAt.toString(),
-      endsAt: instantOf(row.slot.endsAt).toString(),
+      endsAt: instantOf(row.endsAt).toString(),
       status: row.status,
       bookedOnline: row.patient.userId !== null && row.bookedById === row.patient.userId,
       checkedInAt: iso(row.checkedInAt),

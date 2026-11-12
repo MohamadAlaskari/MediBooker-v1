@@ -12,6 +12,11 @@ export interface SlotGenerationResult {
   readonly removed: number;
 }
 
+/** The advisory lock of a doctor's free times: a run, and a change of the doctor's week. */
+export function generationLockKey(providerId: string): string {
+  return `slot-generation:${providerId}`;
+}
+
 function keyOf(providerId: string, startsAtMilliseconds: number): string {
   return `${providerId}@${String(startsAtMilliseconds)}`;
 }
@@ -70,7 +75,7 @@ export class SlotGenerationService {
       const db = this.txHost.tx;
       const lockWait = `${String(this.env.DATABASE_LOCK_TIMEOUT_MS)}ms`;
       await db.$executeRaw`SELECT set_config('lock_timeout', ${lockWait}, true)`;
-      const key = `slot-generation:${providerId}`;
+      const key = generationLockKey(providerId);
       await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
       const now = this.clock.now();
       const settings = await db.practiceSettings.findUniqueOrThrow({ where: { id: 1 } });

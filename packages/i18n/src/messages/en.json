@@ -658,6 +658,7 @@
       "checkedIn": "Checked in",
       "available": "Available",
       "blocked": "Blocked",
+      "continues": "Continues",
       "availableFor": "Available · {minutes} min",
       "absence": "Blocked · {reason, select, VACATION {Vacation} HOLIDAY {Holiday} TRAINING {Training} other {Away}}",
       "time": "Time",

@@ -11,7 +11,14 @@ import { PRACTICE_A, practiceRoute } from '../support/practice-routes.js';
 
 const PATH = '/api/v1/public/practices/al-noor';
 const SERVICE = '10000000-0000-4000-8000-000000000001';
+const RULE = '30000000-0000-4000-8000-000000000001';
 const STARTS = ['2026-11-15T09:00:00.000Z', '2026-11-15T09:30:00.000Z'];
+
+/** The service's time (BR-27): one slot of 30 minutes holds its visit and buffer. */
+interface ServiceTime {
+  readonly durationMinutes: number;
+  readonly bufferMinutes: number;
+}
 
 /** A practice client that returns synthetic rows: the routes never reach a database here. */
 const client = {
@@ -19,11 +26,31 @@ const client = {
     findUniqueOrThrow: () =>
       Promise.resolve({ timeZone: 'Asia/Riyadh', minLeadTimeMinutes: 120, maxHorizonDays: 90 }),
   },
-  service: { findFirst: vi.fn(() => Promise.resolve<{ id: string } | null>({ id: SERVICE })) },
+  service: {
+    findFirst: vi.fn(() =>
+      Promise.resolve<ServiceTime | null>({ durationMinutes: 20, bufferMinutes: 5 }),
+    ),
+  },
   staffMember: { findFirst: vi.fn(() => Promise.resolve<{ id: string } | null>(null)) },
   slot: {
-    groupBy: vi.fn(() =>
-      Promise.resolve(STARTS.map((startsAt) => ({ startsAt: new Date(startsAt) }))),
+    // Two free slots of one doctor, whose rule offers the service.
+    findMany: vi.fn(() =>
+      Promise.resolve(
+        STARTS.map((startsAt, index) => ({
+          id: `40000000-0000-4000-8000-00000000000${String(index)}`,
+          providerId: '20000000-0000-4000-8000-000000000001',
+          startsAt: new Date(startsAt),
+          endsAt: new Date(Date.parse(startsAt) + 30 * 60_000),
+          status: 'OPEN',
+          heldById: null,
+          ruleId: RULE,
+        })),
+      ),
+    ),
+  },
+  availabilityRule: {
+    findMany: vi.fn(() =>
+      Promise.resolve([{ id: RULE, providerId: '20000000-0000-4000-8000-000000000001' }]),
     ),
   },
 };

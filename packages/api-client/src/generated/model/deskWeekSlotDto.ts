@@ -10,6 +10,8 @@ import type { DeskWeekSlotDtoStatus } from './deskWeekSlotDtoStatus';
 export interface DeskWeekSlotDto {
   /** The appointment that holds the time; a cancelled one holds none */
   appointment: DeskWeekAppointmentDto | null;
+  /** The time is part of an appointment that began in an earlier slot, its visit or its buffer (BR-27) */
+  continuation: boolean;
   endsAt: string;
   /** For blocking or freeing the time (M04) */
   id: string;

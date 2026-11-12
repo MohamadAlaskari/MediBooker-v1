@@ -44,17 +44,21 @@ const TONES: Readonly<Record<StatusVariant, string>> = {
 function Held({
   appointment,
   startsAt,
+  continued,
   format,
   onOpen,
 }: {
   readonly appointment: DeskWeekAppointmentDto;
   readonly startsAt: string;
+  /** A time after the appointment's start: the rest of its visit, or its buffer (BR-27). */
+  readonly continued: boolean;
   readonly format: PracticeFormat;
   readonly onOpen: (id: string) => void;
 }): ReactNode {
   const locale = useLocale();
+  const t = useTranslations('dashboard.calendar');
   const name = `${appointment.patient.firstName} ${appointment.patient.lastName}`;
-  const service = textIn(appointment.serviceName, locale);
+  const service = continued ? t('continues') : textIn(appointment.serviceName, locale);
   return (
     <button
       type="button"
@@ -195,6 +199,7 @@ function Cell({
       <Held
         appointment={slot.appointment}
         startsAt={slot.startsAt}
+        continued={slot.continuation}
         format={format}
         onOpen={onOpen}
       />

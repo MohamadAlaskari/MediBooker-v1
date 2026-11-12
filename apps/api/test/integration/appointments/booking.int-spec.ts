@@ -251,8 +251,8 @@ describe('booking an appointment on real databases (08 B02)', () => {
       const { body } = (await world
         .book(who, practice, { serviceId: practice.serviceId, startsAt: startsAt.toString() })
         .expect(201)) as { body: AppointmentBody };
-      const insert = `INSERT INTO appointments (patient_id, slot_id, service_id, booked_by_id, booked_at, status, cancelled_at, cancelled_by_id)
-        SELECT $1, slot_id, service_id, booked_by_id, booked_at, $3::appointment_status,
+      const insert = `INSERT INTO appointments (patient_id, slot_id, ends_at, service_id, booked_by_id, booked_at, status, cancelled_at, cancelled_by_id)
+        SELECT $1, slot_id, ends_at, service_id, booked_by_id, booked_at, $3::appointment_status,
           CASE WHEN $4::boolean THEN now() END, CASE WHEN $4::boolean THEN booked_by_id END
         FROM appointments WHERE id = $2`;
       await expect(
@@ -330,8 +330,10 @@ describe('booking an appointment on real databases (08 B02)', () => {
       const someoneElse = await world.patient(practice);
       await world.book(someoneElse, practice, bookingOf(practice, startsAt)).expect(201);
 
+      // The next slot: the visit of 20 minutes ends before its slot does (BR-27).
       const { endsAt } = first.body as { endsAt: string };
-      const after = Temporal.Instant.from(endsAt);
+      expect(endsAt).toBe(startsAt.add({ minutes: 20 }).toString());
+      const after = startsAt.add({ minutes: 30 });
       await world.slotAt(practice, after);
       const next = await world.book(who, practice, bookingOf(practice, after)).expect(201);
       await world.cancel(who, practice, (next.body as AppointmentBody).id).expect(200);

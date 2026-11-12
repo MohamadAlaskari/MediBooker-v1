@@ -14,6 +14,7 @@ import { DeskRows } from './desk-rows.js';
 import { DeskController } from './desk.controller.js';
 import { DeskService } from './desk.service.js';
 import { IdempotencyKeySweepJob } from './idempotency-key-sweep.job.js';
+import { TimeHolds } from './time-holds.js';
 
 /** A patient's appointments (B02, B03), and the practice's side of them (M05). */
 @Module({
@@ -31,6 +32,7 @@ import { IdempotencyKeySweepJob } from './idempotency-key-sweep.job.js';
     DeskPatients,
     DeskService,
     IdempotencyKeySweepJob,
+    TimeHolds,
   ],
 })
 export class AppointmentsModule {}

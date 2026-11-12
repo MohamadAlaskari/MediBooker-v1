@@ -17,6 +17,7 @@ import { Clock } from '../../common/time/clock.js';
 import { dbInstantOf, instantOf } from '../../common/time/convert.js';
 import type { Prisma } from '../../generated/practice/client.js';
 import type { InsuranceTypeName } from '../account-profile/domain/profile.rules.js';
+import { type HoldLength, holdRangeOf } from '../scheduling/domain/hold.rules.js';
 import { PUBLIC_PROVIDER } from '../scheduling/domain/public-profile.js';
 import { bookableWindow, practiceBookableWindow } from '../scheduling/domain/slots.rules.js';
 import { AppointmentReader } from './appointment-reader.js';
@@ -36,6 +37,7 @@ import {
   isServiceBookableByPractice,
   UPCOMING_STATUSES,
 } from './domain/booking.rules.js';
+import { type TakenTime, TimeHolds } from './time-holds.js';
 
 interface PatientRow {
   readonly insurance_type: InsuranceTypeName;
@@ -68,6 +70,15 @@ const CHANGE_FIELDS = {
 
 type ChangeRow = Prisma.AppointmentGetPayload<{ select: typeof CHANGE_FIELDS }>;
 
+/** What a booking needs of its service: whether it may be booked, and its time (BR-27). */
+const SERVICE_FIELDS = {
+  active: true,
+  isBookableOnline: true,
+  allowedInsuranceTypes: true,
+  durationMinutes: true,
+  bufferMinutes: true,
+} as const;
+
 /** A time to book, as the rules read it. */
 interface Wanted {
   readonly serviceId: string;
@@ -79,7 +90,7 @@ interface Wanted {
 interface Placement {
   readonly id: string;
   readonly patientId: string;
-  readonly slotId: string;
+  readonly taken: TakenTime;
   readonly serviceId: string;
   readonly sealedNote: string | null;
   readonly userId: string;
@@ -114,9 +125,9 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * Books, reschedules and cancels for the caller's own profile (BR-01 to 05, 08, 09), and books for a
- * patient when the team does (W7). One transaction
- * in this practice's database takes its locks in one order, key, patient, slot, so that no two of
+ * Books, reschedules and cancels for the caller's own profile (BR-01 to 05, 08, 09, 27), and books
+ * for a patient when the team does (W7). One transaction in this practice's database takes its locks
+ * in one order, key, patient, then the doctor's slots SKIP LOCKED (`TimeHolds`), so that no two of
  * them can wait for each other, and everything a person does here waits for that person's row. A
  * failed attempt rolls its key back, so that a retry with it is judged anew. A replay answers with
  * the appointment as it is now: after a cancel its status says so, and no new booking is made.
@@ -131,6 +142,7 @@ export class AppointmentsService {
     private readonly clock: Clock,
     private readonly keys: PracticeKeys,
     private readonly audit: PracticeAudit,
+    private readonly holds: TimeHolds,
   ) {}
 
   async book(
@@ -175,15 +187,15 @@ export class AppointmentsService {
       const patient = await this.lockPatient(selfPatientId);
       const settings = await this.bookingSettings();
       this.requireCompleteProfile(patient, settings, practice.market);
-      await this.requireBookable(wanted, patient, settings, now);
+      const length = await this.requireBookable(wanted, patient, settings, now);
 
       await this.requireBookingPlace(selfPatientId, settings, now);
 
-      const slotId = await this.takeSlot(wanted, selfPatientId);
+      const taken = await this.takeTime(wanted, length, selfPatientId);
       await this.place({
         id,
         patientId: selfPatientId,
-        slotId,
+        taken,
         serviceId: wanted.serviceId,
         sealedNote,
         userId,
@@ -242,14 +254,14 @@ export class AppointmentsService {
 
       const patient = await this.lockPatient(patientId);
       const settings = await this.bookingSettings();
-      await this.requireBookableByPractice(wanted, patient, settings, now);
+      const length = await this.requireBookableByPractice(wanted, patient, settings, now);
       await this.requireBookingPlace(patientId, settings, now);
 
-      const slotId = await this.takeSlot(wanted, patientId);
+      const taken = await this.takeTime(wanted, length, patientId);
       await this.place({
         id,
         patientId,
-        slotId,
+        taken,
         serviceId: wanted.serviceId,
         sealedNote: null,
         userId,
@@ -319,16 +331,21 @@ export class AppointmentsService {
       this.requireChangeable(old, settings, now);
       this.requireCompleteProfile(patient, settings, practice.market);
       const wanted: Wanted = { serviceId: old.serviceId, startsAt, providerId };
-      await this.requireBookable(wanted, patient, settings, now);
+      const length = await this.requireBookable(wanted, patient, settings, now);
 
-      // Before the old slot is free: the same time with the same doctor is no other time.
-      const slotId = await this.takeSlot(wanted, selfPatientId, oldId);
+      // The old time's slots first, in the order of their starts (TimeHolds). It counts as free,
+      // but not its start: the same time with the same doctor is no other time.
+      await this.holds.lockHeld(oldId);
+      const taken = await this.takeTime(wanted, length, selfPatientId, {
+        id: oldId,
+        slotId: old.slotId,
+      });
       // The note moves with it: another copy would be one more to keep, export and erase.
       await this.cancelRow(old, userId, now, { keepNote: false });
       await this.place({
         id,
         patientId: selfPatientId,
-        slotId,
+        taken,
         serviceId: old.serviceId,
         sealedNote,
         userId,
@@ -362,6 +379,7 @@ export class AppointmentsService {
       // Not for a row that was moved: the person may think the new appointment is gone too.
       if (old.status === 'CANCELLED' && old.rescheduledTo === null) return this.reader.read(id);
       this.requireChangeable(old, await this.bookingSettings(), now);
+      await this.holds.lockHeld(id);
       await this.cancelRow(old, userId, now, { keepNote: true });
       await this.audit.record({ userId, action: 'appointment.cancel', subjectId: id, ipHash });
       return this.reader.read(id);
@@ -408,50 +426,53 @@ export class AppointmentsService {
     if (!complete) throw new DomainException('PATIENT_PROFILE_INCOMPLETE');
   }
 
-  /** BR-03, BR-08, and a doctor who may be asked for by name. */
+  /** BR-03, BR-08, and a doctor who may be asked for by name; the service's time (BR-27). */
   private async requireBookable(
     { serviceId, startsAt, providerId }: Wanted,
     patient: PatientRow,
     settings: BookingSettings,
     now: Temporal.Instant,
-  ): Promise<void> {
+  ): Promise<HoldLength> {
     if (!isInBookingWindow(startsAt, bookableWindow(now, settings))) {
       throw new DomainException('OUTSIDE_BOOKING_WINDOW');
     }
     const service = await this.txHost.tx.service.findUnique({
       where: { id: serviceId },
-      select: { active: true, isBookableOnline: true, allowedInsuranceTypes: true },
+      select: SERVICE_FIELDS,
     });
     if (service === null || !isServiceBookable(service, patient.insurance_type)) {
       throw new DomainException('SERVICE_NOT_BOOKABLE');
     }
     if (providerId !== undefined) await this.requirePublicProvider(providerId);
+    return service;
   }
 
-  /** BR-03 and BR-08 for the team (W7), and any doctor of the practice. */
+  /** BR-03 and BR-08 for the team (W7), and any doctor of the practice; the service's time. */
   private async requireBookableByPractice(
     { serviceId, startsAt, providerId }: Wanted,
     patient: PatientRow,
     settings: BookingSettings,
     now: Temporal.Instant,
-  ): Promise<void> {
+  ): Promise<HoldLength> {
     if (!isInBookingWindow(startsAt, practiceBookableWindow(now, settings))) {
       throw new DomainException('OUTSIDE_BOOKING_WINDOW');
     }
     const db = this.txHost.tx;
     const service = await db.service.findUnique({
       where: { id: serviceId },
-      select: { active: true, isBookableOnline: true, allowedInsuranceTypes: true },
+      select: SERVICE_FIELDS,
     });
     if (service === null || !isServiceBookableByPractice(service, patient.insurance_type)) {
       throw new DomainException('SERVICE_NOT_BOOKABLE');
     }
-    if (providerId === undefined) return;
-    const provider = await db.staffMember.findFirst({
-      where: { id: providerId, isProvider: true },
-      select: { id: true },
-    });
-    if (provider === null) throw new DomainException('NOT_FOUND');
+    if (providerId !== undefined) {
+      const provider = await db.staffMember.findFirst({
+        where: { id: providerId, isProvider: true },
+        select: { id: true },
+      });
+      if (provider === null) throw new DomainException('NOT_FOUND');
+    }
+    return service;
   }
 
   /** BR-02: per patient profile, under its lock. */
@@ -483,35 +504,23 @@ export class AppointmentsService {
   }
 
   /**
-   * SKIP LOCKED: with several doctors free at that time, a booking takes another one's slot instead
-   * of waiting for a booking it would then lose to. Marked as booked here, so that the row is held.
-   * `moving` is the appointment this one replaces, which BR-25 does not count.
+   * The doctor's time for the visit and its buffer (BR-27), held until the transaction ends: with
+   * several doctors free at that time, a booking takes another one's time instead of waiting for a
+   * booking it would then lose to. `moving` is the appointment this one replaces, which BR-25 does
+   * not count and whose time counts as free.
    */
-  private async takeSlot(
-    { serviceId, startsAt, providerId }: Wanted,
+  private async takeTime(
+    wanted: Wanted,
+    length: HoldLength,
     patientId: string,
-    moving?: string,
-  ): Promise<string> {
-    const db = this.txHost.tx;
-    const [slot] = await db.$queryRaw<{ id: string; ends_at: Date }[]>`
-      SELECT s.id, s.ends_at
-      FROM slots s
-      JOIN availability_rule_services rs ON rs.rule_id = s.rule_id
-      JOIN staff_members p ON p.id = s.provider_id
-      WHERE rs.service_id = ${serviceId}::uuid
-        AND s.starts_at = ${dbInstantOf(startsAt)}
-        AND s.status = 'OPEN'
-        AND p.is_provider
-        AND (${providerId ?? null}::uuid IS NULL OR s.provider_id = ${providerId ?? null}::uuid)
-      ORDER BY s.provider_id
-      LIMIT 1
-      FOR UPDATE OF s SKIP LOCKED`;
-    // Also without a free slot: the person's own appointment may be the reason, and says it better.
-    const until = slot?.ends_at ?? dbInstantOf(startsAt.add({ milliseconds: 1 }));
-    await this.requireNoOverlap(patientId, startsAt, until, moving);
-    if (slot === undefined) throw new DomainException('SLOT_NOT_AVAILABLE');
-    await db.slot.update({ where: { id: slot.id }, data: { status: 'BOOKED' } });
-    return slot.id;
+    moving?: { readonly id: string; readonly slotId: string },
+  ): Promise<TakenTime> {
+    const taken = await this.holds.take({ ...wanted, length, moving });
+    // Also without a free time: the person's own appointment may be the reason, and says it better.
+    const { visitEnd } = holdRangeOf(wanted.startsAt, length);
+    await this.requireNoOverlap(patientId, wanted.startsAt, visitEnd, moving?.id);
+    if (taken === undefined) throw new DomainException('SLOT_NOT_AVAILABLE');
+    return taken;
   }
 
   /**
@@ -522,15 +531,17 @@ export class AppointmentsService {
   private async requireNoOverlap(
     patientId: string,
     startsAt: Temporal.Instant,
-    endsAt: Date,
+    endsAt: Temporal.Instant,
     moving: string | undefined,
   ): Promise<void> {
+    // The person's visits; the buffer is the doctor's, not the patient's.
     const overlapping = await this.txHost.tx.appointment.count({
       where: {
         patientId,
         status: { in: [...UPCOMING_STATUSES] },
         ...(moving === undefined ? {} : { id: { not: moving } }),
-        slot: { startsAt: { lt: endsAt }, endsAt: { gt: dbInstantOf(startsAt) } },
+        endsAt: { gt: dbInstantOf(startsAt) },
+        slot: { startsAt: { lt: dbInstantOf(endsAt) } },
       },
     });
     if (overlapping > 0) throw new DomainException('APPOINTMENT_OVERLAP');
@@ -539,7 +550,7 @@ export class AppointmentsService {
   private async place({
     id,
     patientId,
-    slotId,
+    taken,
     serviceId,
     sealedNote,
     userId,
@@ -552,7 +563,8 @@ export class AppointmentsService {
       data: {
         id,
         patientId,
-        slotId,
+        slotId: taken.slotId,
+        endsAt: dbInstantOf(taken.visitEnd),
         serviceId,
         status: 'BOOKED',
         patientNoteEncrypted: sealedNote,
@@ -561,6 +573,7 @@ export class AppointmentsService {
         ...(rescheduledFromId === undefined ? {} : { rescheduledFromId }),
       },
     });
+    await this.holds.hold(taken.heldIds, id);
     await db.idempotencyKey.update({
       where: { actorId_key: { actorId: userId, key } },
       data: { appointmentId: id },
@@ -591,9 +604,13 @@ export class AppointmentsService {
     }
   }
 
-  /** The appointment says who and when, and its slot is free for others again. */
+  /**
+   * The appointment says who and when, and its whole time is free for others again: the database
+   * frees its slots with the cancel (`appointments_release_on_cancel`), after `lockHeld` took them
+   * in order. A reschedule then holds again those both times share.
+   */
   private async cancelRow(
-    { id, slotId }: ChangeRow,
+    { id }: ChangeRow,
     userId: string,
     now: Temporal.Instant,
     { keepNote }: { readonly keepNote: boolean },
@@ -607,10 +624,6 @@ export class AppointmentsService {
         cancelledById: userId,
         ...(keepNote ? {} : { patientNoteEncrypted: null }),
       },
-    });
-    await db.slot.updateMany({
-      where: { id: slotId, status: 'BOOKED' },
-      data: { status: 'OPEN' },
     });
   }
 

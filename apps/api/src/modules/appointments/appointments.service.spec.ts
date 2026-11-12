@@ -9,6 +9,7 @@ import type { PracticeTransactionHost } from '../../common/tenancy/practice-tran
 import { FixedClock } from '../../common/time/fixed-clock.js';
 import type { AppointmentReader } from './appointment-reader.js';
 import { AppointmentsService } from './appointments.service.js';
+import type { TimeHolds } from './time-holds.js';
 
 const cls = ClsServiceManager.getClsService<RequestContext>();
 const NOW = Temporal.Instant.from('2026-11-15T07:00:00Z');
@@ -22,6 +23,8 @@ const OLD = '00000000-0000-4000-8000-0000000000ff';
 const OLD_SLOT = '00000000-0000-4000-8000-000000000011';
 const ACTOR = { userId: USER, sessionId: 'session', amr: ['pwd'] };
 const STARTS_AT = '2026-11-16T07:00:00Z';
+/** The end of a visit of the service's 30 minutes from STARTS_AT (BR-27). */
+const VISIT_END = '2026-11-16T07:30:00Z';
 const SETTINGS = {
   minLeadTimeMinutes: 120,
   maxHorizonDays: 90,
@@ -44,7 +47,7 @@ const OLD_ROW = {
 };
 const VIEW = { id: 'view' };
 
-/** The answers of $queryRaw in their order: the key's row, the patient, the slot. */
+/** The answers of $queryRaw in their order: the key's row, the patient; `slot`: a free time. */
 function setUp({
   stored = { request_hash: 'hash', appointment_id: null },
   patient = SELF_PAYER,
@@ -60,8 +63,7 @@ function setUp({
     $queryRaw: vi
       .fn()
       .mockResolvedValueOnce(stored === null ? [] : [stored])
-      .mockResolvedValueOnce(patient === null ? [] : [patient])
-      .mockResolvedValueOnce(slot === null ? [] : [slot]),
+      .mockResolvedValueOnce(patient === null ? [] : [patient]),
     $executeRaw: vi.fn().mockResolvedValue(1),
     practiceSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue(SETTINGS) },
     service: {
@@ -69,6 +71,8 @@ function setUp({
         active: true,
         isBookableOnline: true,
         allowedInsuranceTypes: [],
+        durationMinutes: 30,
+        bufferMinutes: 10,
       }),
     },
     staffMember: { findFirst: vi.fn().mockResolvedValue({ id: PROVIDER }) },
@@ -96,6 +100,20 @@ function setUp({
     ipHashOf: vi.fn().mockResolvedValue('ip-hash'),
   } as unknown as PracticeAudit;
   const read = vi.fn().mockResolvedValue(VIEW);
+  const holds = {
+    take: vi.fn().mockResolvedValue(
+      slot === null
+        ? undefined
+        : {
+            slotId: SLOT,
+            providerId: PROVIDER,
+            heldIds: [SLOT],
+            visitEnd: Temporal.Instant.from(VISIT_END),
+          },
+    ),
+    hold: vi.fn().mockResolvedValue(undefined),
+    lockHeld: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new AppointmentsService(
     txHost,
     { run } as unknown as AccountTransactions,
@@ -104,6 +122,7 @@ function setUp({
     new FixedClock(NOW),
     keys,
     audit,
+    holds as unknown as TimeHolds,
   );
   const inPractice = <T>(work: () => Promise<T>) =>
     cls.run(() => {
@@ -122,23 +141,39 @@ function setUp({
       });
       return work();
     });
-  return { service, db, run, read, encrypt, decrypt, keyedHash, record, inPractice, outside };
+  return {
+    service,
+    db,
+    holds,
+    run,
+    read,
+    encrypt,
+    decrypt,
+    keyedHash,
+    record,
+    inPractice,
+    outside,
+  };
 }
 
 describe('AppointmentsService.book', () => {
-  it('takes the slot, books it for the own profile, remembers the key and audits it', async () => {
+  it('takes the time, books it for the own profile, remembers the key and audits it', async () => {
     const context = setUp();
     const dto = await context.inPractice(() => context.service.book(ACTOR, INPUT, KEY, 'x'));
-    expect(context.db.slot.update).toHaveBeenCalledWith({
-      where: { id: SLOT },
-      data: { status: 'BOOKED' },
+    // The service's duration and buffer (BR-27), for the doctor's time.
+    expect(context.holds.take.mock.calls[0]?.[0]).toMatchObject({
+      serviceId: SERVICE,
+      startsAt: Temporal.Instant.from(STARTS_AT),
+      length: { durationMinutes: 30, bufferMinutes: 10 },
     });
     const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
       data: Record<string, unknown>;
     };
+    expect(context.holds.hold).toHaveBeenCalledWith([SLOT], data.id);
     expect(data).toMatchObject({
       patientId: SELF,
       slotId: SLOT,
+      endsAt: new Date(VISIT_END),
       serviceId: SERVICE,
       status: 'BOOKED',
       patientNoteEncrypted: null,
@@ -265,7 +300,7 @@ describe('AppointmentsService.book', () => {
   });
 
   it('BR-25 refuses a time that overlaps an own appointment, and books nothing', async () => {
-    const context = setUp({ slot: { id: SLOT, ends_at: new Date('2026-11-17T07:30:00Z') } });
+    const context = setUp();
     // The first count is BR-02's, which leaves a place; the second is this rule's.
     context.db.appointment.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
     await expect(
@@ -275,13 +310,12 @@ describe('AppointmentsService.book', () => {
       where: {
         patientId: SELF,
         status: { in: ['BOOKED', 'CHECKED_IN'] },
-        slot: {
-          startsAt: { lt: new Date('2026-11-17T07:30:00Z') },
-          endsAt: { gt: new Date(INPUT.startsAt) },
-        },
+        // The visit, not the buffer: that is the doctor's time, not the person's.
+        endsAt: { gt: new Date(INPUT.startsAt) },
+        slot: { startsAt: { lt: new Date(VISIT_END) } },
       },
     });
-    expect(context.db.slot.update).not.toHaveBeenCalled();
+    expect(context.holds.hold).not.toHaveBeenCalled();
     expect(context.db.appointment.create).not.toHaveBeenCalled();
   });
 
@@ -385,10 +419,11 @@ describe('AppointmentsService.cancel', () => {
         cancelledById: USER,
       },
     });
-    expect(context.db.slot.updateMany).toHaveBeenCalledWith({
-      where: { id: OLD_SLOT, status: 'BOOKED' },
-      data: { status: 'OPEN' },
-    });
+    // Its slots locked in order first: the database frees its whole time with the cancel (BR-27).
+    expect(context.holds.lockHeld).toHaveBeenCalledWith(OLD);
+    const locked = context.holds.lockHeld.mock.invocationCallOrder[0] ?? 0;
+    const cancelled = context.db.appointment.update.mock.invocationCallOrder[0] ?? 0;
+    expect(locked).toBeLessThan(cancelled);
     expect(context.record).toHaveBeenCalledWith({
       userId: USER,
       action: 'appointment.cancel',
@@ -466,7 +501,7 @@ describe('AppointmentsService.cancel', () => {
 describe('AppointmentsService.reschedule (BR-05)', () => {
   const MOVE = { startsAt: STARTS_AT };
 
-  it('takes the new slot before it frees the old one, and links the new row to the old', async () => {
+  it('takes the new time before it frees the old one, and links the new row to the old', async () => {
     const context = setUp();
     context.db.appointment.findFirst
       .mockResolvedValueOnce({ patientNoteEncrypted: null })
@@ -474,9 +509,18 @@ describe('AppointmentsService.reschedule (BR-05)', () => {
     await expect(
       context.inPractice(() => context.service.reschedule(ACTOR, OLD, MOVE, KEY, 'x')),
     ).resolves.toBe(VIEW);
-    const taken = context.db.slot.update.mock.invocationCallOrder[0] ?? 0;
-    const freed = context.db.slot.updateMany.mock.invocationCallOrder[0] ?? 0;
+    // The old time's slots locked first, then the new time taken, then the old one cancelled.
+    const locked = context.holds.lockHeld.mock.invocationCallOrder[0] ?? 0;
+    const taken = context.holds.take.mock.invocationCallOrder[0] ?? 0;
+    const freed = context.db.appointment.update.mock.invocationCallOrder[0] ?? 0;
+    expect(context.holds.lockHeld).toHaveBeenCalledWith(OLD);
+    expect(locked).toBeLessThan(taken);
     expect(taken).toBeLessThan(freed);
+    // The old time counts as free, its start does not.
+    expect(context.holds.take.mock.calls[0]?.[0]).toMatchObject({
+      moving: { id: OLD, slotId: OLD_SLOT },
+    });
+    expect(context.holds.hold).toHaveBeenCalledWith([SLOT], expect.any(String));
     const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
       data: Record<string, unknown>;
     };

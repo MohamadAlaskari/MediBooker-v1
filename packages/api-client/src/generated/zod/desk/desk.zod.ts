@@ -637,6 +637,7 @@ export const GetDeskWeekResponse = zod.object({
   "serviceName": zod.record(zod.string(), zod.string()).describe('The name of the service per locale'),
   "status": zod.enum(['BOOKED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'CANCELLED'])
 }),zod.null()]).describe('The appointment that holds the time; a cancelled one holds none'),
+  "continuation": zod.boolean().describe('The time is part of an appointment that began in an earlier slot, its visit or its buffer (BR-27)'),
   "endsAt": zod.iso.datetime({"offset":true}),
   "id": zod.uuid().describe('For blocking or freeing the time (M04)'),
   "startsAt": zod.iso.datetime({"offset":true}),

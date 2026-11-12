@@ -658,6 +658,7 @@
       "checkedIn": "تم الحضور",
       "available": "متاح",
       "blocked": "غير متاح",
+      "continues": "تتمة الموعد",
       "availableFor": "متاح · {minutes} دقيقة",
       "absence": "غير متاح · {reason, select, VACATION {إجازة} HOLIDAY {عطلة} TRAINING {تدريب} other {غياب}}",
       "time": "الوقت",

@@ -634,6 +634,12 @@ export class DeskWeekSlotDto {
     description: 'The appointment that holds the time; a cancelled one holds none',
   })
   readonly appointment!: DeskWeekAppointmentDto | null;
+
+  @ApiProperty({
+    description:
+      'The time is part of an appointment that began in an earlier slot, its visit or its buffer (BR-27)',
+  })
+  readonly continuation!: boolean;
 }
 
 /** A time the doctor is away, in which no slot exists. */

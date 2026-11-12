@@ -1575,6 +1575,10 @@
             ],
             "description": "The appointment that holds the time; a cancelled one holds none"
           },
+          "continuation": {
+            "description": "The time is part of an appointment that began in an earlier slot, its visit or its buffer (BR-27)",
+            "type": "boolean"
+          },
           "endsAt": {
             "format": "date-time",
             "type": "string"
@@ -1603,7 +1607,8 @@
           "startsAt",
           "endsAt",
           "status",
-          "appointment"
+          "appointment",
+          "continuation"
         ],
         "type": "object"
       },

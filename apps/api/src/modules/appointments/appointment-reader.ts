@@ -34,8 +34,9 @@ const APPOINTMENT_FIELDS = {
   serviceId: true,
   status: true,
   bookedAt: true,
+  endsAt: true,
   service: { select: { name: true } },
-  slot: { select: { providerId: true, startsAt: true, endsAt: true } },
+  slot: { select: { providerId: true, startsAt: true } },
 } as const;
 
 type AppointmentRow = Prisma.AppointmentGetPayload<{ select: typeof APPOINTMENT_FIELDS }>;
@@ -209,7 +210,8 @@ export class AppointmentReader {
         providerId: doctor?.id ?? null,
         providerName: doctor === undefined ? null : displayNameOf(doctor),
         startsAt: startsAt.toString(),
-        endsAt: instantOf(row.slot.endsAt).toString(),
+        // The end of the visit, as the service's duration was at booking (BR-27).
+        endsAt: instantOf(row.endsAt).toString(),
         timeZone: settings.timeZone,
         numberingSystem: settings.numberingSystem,
         hourCycle: settings.hourCycle,

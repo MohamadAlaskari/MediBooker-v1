@@ -14,6 +14,7 @@ function free(startsAt: string): DeskWeekSlotDto {
     endsAt: new Date(Date.parse(startsAt) + 30 * 60_000).toISOString().replace('.000', ''),
     status: 'OPEN',
     appointment: null,
+    continuation: false,
   };
 }
 

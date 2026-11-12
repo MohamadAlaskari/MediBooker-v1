@@ -139,6 +139,7 @@ function weekAnswer(owner: string, from: string): DeskWeekDto {
           endsAt: appointment.endsAt,
           status: 'OPEN',
           appointment: null,
+          continuation: false,
         }
       : {
           id: slotIdOf(appointment.startsAt),
@@ -151,6 +152,7 @@ function weekAnswer(owner: string, from: string): DeskWeekDto {
             serviceName: appointment.serviceName,
             status: appointment.status,
           },
+          continuation: false,
         },
   );
   const off = blockedOf(owner);
@@ -166,6 +168,7 @@ function weekAnswer(owner: string, from: string): DeskWeekDto {
       endsAt: new Date(Date.parse(startsAt) + 30 * MINUTE_MS).toISOString().replace('.000', ''),
       status: off.has(slotIdOf(startsAt)) ? 'BLOCKED' : 'OPEN',
       appointment: null,
+      continuation: false,
     }),
   );
   // Training on the stub's Tuesday morning, 08:00 to 11:00 in Riyadh.
