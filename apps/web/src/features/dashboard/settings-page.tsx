@@ -493,8 +493,17 @@ function SpecialDayRow({
   const locale = useLocale();
   const { practiceId } = useDesk();
   const invalidate = useInvalidatePractice();
-  const remove = useDeleteSpecialDay({ mutation: { onSettled: invalidate } });
   const date = format.dayLongWithYear(day.date);
+  // The news on the hook, not on mutate: the refetch takes the row out of the list, and a row that
+  // is gone gets no callback of mutate (TanStack Query), so the news would depend on a race.
+  const remove = useDeleteSpecialDay({
+    mutation: {
+      onSuccess: () => {
+        onDone(t('removedSpecial', { date }));
+      },
+      onSettled: invalidate,
+    },
+  });
   return (
     <li className="flex flex-col gap-2 py-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -510,14 +519,7 @@ function SpecialDayRow({
             aria-label={t('removeSpecial', { date })}
             isPending={remove.isPending}
             onPress={() => {
-              remove.mutate(
-                { practiceId, specialDayId: day.id },
-                {
-                  onSuccess: () => {
-                    onDone(t('removedSpecial', { date }));
-                  },
-                },
-              );
+              remove.mutate({ practiceId, specialDayId: day.id });
             }}
           >
             <Trash2 aria-hidden data-icon="inline-start" />

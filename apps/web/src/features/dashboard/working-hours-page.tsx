@@ -533,7 +533,16 @@ function AbsenceRow({
   const t = useTranslations('dashboard.workingHours');
   const { practiceId } = useDesk();
   const invalidate = useInvalidatePractice();
-  const remove = useDeleteAbsence({ mutation: { onSettled: invalidate } });
+  // The news on the hook, not on mutate: the refetch takes the row out of the list, and a row that
+  // is gone gets no callback of mutate (TanStack Query), so the news would depend on a race.
+  const remove = useDeleteAbsence({
+    mutation: {
+      onSuccess: () => {
+        onDone(t('absenceRemoved'));
+      },
+      onSettled: invalidate,
+    },
+  });
   const when = absenceText(absence, format, t);
   return (
     <li className="flex flex-col gap-2 py-3">
@@ -547,14 +556,7 @@ function AbsenceRow({
           aria-label={t('removeAbsence', { when })}
           isPending={remove.isPending}
           onPress={() => {
-            remove.mutate(
-              { practiceId, providerId: doctorId, absenceId: absence.id },
-              {
-                onSuccess: () => {
-                  onDone(t('absenceRemoved'));
-                },
-              },
-            );
+            remove.mutate({ practiceId, providerId: doctorId, absenceId: absence.id });
           }}
         >
           <Trash2 aria-hidden data-icon="inline-start" />

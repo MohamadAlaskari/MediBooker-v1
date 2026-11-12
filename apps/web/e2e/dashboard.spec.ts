@@ -681,6 +681,12 @@ test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
     await again.getByRole('button', { name: d.specialForm.cancel }).click();
     await special.getByRole('button', { name: new RegExp(d.settings.remove) }).click();
     await expect(special).toContainText(d.settings.noSpecial);
+    // The news comes although the removed day's row leaves the list with the refetch.
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: d.settings.removedSpecial.replace(/\{date\}.*$/u, '').trim() }),
+    ).toBeVisible();
   });
 });
 
@@ -726,6 +732,9 @@ test.describe('the doctors’ schedules (08 M04, W14, W2)', () => {
     const exceptions = page.getByRole('region', { name: d.workingHours.absencesTitle });
     await exceptions.getByRole('button', { name: new RegExp(d.workingHours.remove) }).click();
     await expect(exceptions).toContainText(d.workingHours.noAbsences);
+    await expect(
+      page.getByRole('status').filter({ hasText: d.workingHours.absenceRemoved }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: d.workingHours.generate }).click();
     await expect(page.getByRole('status').first()).toContainText('12');
