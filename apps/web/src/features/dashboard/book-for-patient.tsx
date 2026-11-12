@@ -23,11 +23,7 @@ import { TextAreaField, TextField } from '@/components/ui/text-field';
 import type { PracticeFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FormError } from '../auth/form-parts';
-import {
-  ROVING_GROUP,
-  ROVING_ITEM,
-  useRovingFocus,
-} from '../practice-page/free-times/use-roving-focus';
+import { ROVING_GROUP, ROVING_ITEM, useRovingFocus } from '../portal/free-times/use-roving-focus';
 import { noteToSend, textIn } from '../portal/appointment-view';
 import { useDesk } from './desk-context';
 import { initialsOf } from './desk-view';

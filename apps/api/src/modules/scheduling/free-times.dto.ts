@@ -4,20 +4,21 @@ import { IsISO8601, IsOptional, IsUUID, Matches } from 'class-validator';
 const PLAIN_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * What the public learns about a practice's times: whether a day has a free time, and which times
- * are free. Never a count, never a booked time, and a provider only if the visitor chose one. Never
- * a slot id either: two answers could be compared by it, which would show the times and absences
- * of a provider without a public profile (BR-24).
+ * What a signed-in patient learns about a practice's times (BR-22), and the team for W7: whether a
+ * day has a free time, and which times are free. Never a count, never a booked time, and a provider
+ * only if the person chose one. Never a slot id either: two answers could be compared by it, which
+ * would show the times and absences of a provider without a public profile (BR-24). What remains is
+ * accepted in BR-24: "any doctor" holds the times of doctors without a public profile too.
  */
 
-export class PublicAvailabilityQueryDto {
+export class AvailabilityQueryDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   readonly serviceId!: string;
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: 'A doctor: on the public routes one with a public profile',
+    description: 'A doctor: for a patient one with a public profile (BR-24)',
   })
   @IsOptional()
   @IsUUID()
@@ -42,14 +43,14 @@ export class PublicAvailabilityQueryDto {
   readonly to?: string;
 }
 
-export class PublicFreeTimesQueryDto {
+export class FreeTimesQueryDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   readonly serviceId!: string;
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: 'A doctor: on the public routes one with a public profile',
+    description: 'A doctor: for a patient one with a public profile (BR-24)',
   })
   @IsOptional()
   @IsUUID()
@@ -61,7 +62,7 @@ export class PublicFreeTimesQueryDto {
   readonly date!: string;
 }
 
-export class PublicAvailabilityDayDto {
+export class AvailabilityDayDto {
   @ApiProperty({ description: "ISO date in the practice's time zone", example: '2026-11-15' })
   readonly date!: string;
 
@@ -69,20 +70,20 @@ export class PublicAvailabilityDayDto {
   readonly hasFreeTimes!: boolean;
 }
 
-export class PublicAvailabilityDto {
-  @ApiProperty({ type: [PublicAvailabilityDayDto] })
-  readonly days!: readonly PublicAvailabilityDayDto[];
+export class AvailabilityDto {
+  @ApiProperty({ type: [AvailabilityDayDto] })
+  readonly days!: readonly AvailabilityDayDto[];
 }
 
-export class PublicFreeTimeDto {
+export class FreeTimeDto {
   @ApiProperty({ description: 'An instant', example: '2026-11-15T09:00:00Z' })
   readonly startsAt!: string;
 }
 
-export class PublicFreeTimesDto {
+export class FreeTimesDto {
   @ApiProperty({ description: "ISO date in the practice's time zone", example: '2026-11-15' })
   readonly date!: string;
 
-  @ApiProperty({ type: [PublicFreeTimeDto] })
-  readonly times!: readonly PublicFreeTimeDto[];
+  @ApiProperty({ type: [FreeTimeDto] })
+  readonly times!: readonly FreeTimeDto[];
 }

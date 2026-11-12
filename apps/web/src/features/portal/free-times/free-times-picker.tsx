@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  createQueryClient,
-  isApiError,
-  useGetPublicAvailability,
-  useGetPublicFreeTimes,
-} from '@medibooker/api-client';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { isApiError, useGetAvailability, useGetFreeTimes } from '@medibooker/api-client';
 import { Check, ChevronLeft, ChevronRight, Phone, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
@@ -18,30 +12,20 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { I18nProvider, Label } from 'react-aria-components';
+import { Label } from 'react-aria-components';
 import { flushSync } from 'react-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { practiceFormat, type PracticeFormat, type PracticeFormatSettings } from '@/lib/format';
 import { DURATION_FAST, EASE_ENTER, gsap, useGSAP } from '@/lib/motion/gsap';
-import { onSessionChangeElsewhere } from '@/lib/session-broadcast';
 import { cn } from '@/lib/utils';
-import { clearChoice, expireChoice, saveChoice } from '../../portal/booking-choice';
-import { telHref } from '../practice-view';
-import {
-  bookHref,
-  partsOfDay,
-  selectedDay,
-  weeksFrom,
-  type AvailabilityDay,
-} from './free-times-view';
+import { telHref } from '../../practice-page/practice-view';
+import { partsOfDay, selectedDay, weeksFrom, type AvailabilityDay } from './free-times-view';
 import { ROVING_GROUP, ROVING_ITEM, useRovingFocus } from './use-roving-focus';
 
 /** How often an open page asks again; a slot someone else booked disappears within this (08 P06). */
 const POLL_MS = 45_000;
-/** Past the browser's 30 seconds of keeping an answer: it asks the server whether it still holds. */
-const REQUEST = { cache: 'no-cache' } as const;
 const CHIP_RISE_PX = 4;
 const CHIP_STAGGER_SECONDS = 0.02;
 
@@ -81,7 +65,8 @@ interface TimeAction {
 }
 
 interface FreeTimesPickerProps {
-  readonly slug: string;
+  /** The practice whose times these are: only a signed-in account may ask (B07). */
+  readonly practiceId: string;
   readonly locale: string;
   readonly settings: PracticeFormatSettings;
   readonly today: string;
@@ -250,7 +235,7 @@ function WeekStrip({
 }
 
 interface TimesProps {
-  readonly slug: string;
+  readonly practiceId: string;
   readonly action: TimeAction;
   readonly serviceId: string;
   readonly providerId: string | undefined;
@@ -317,7 +302,7 @@ function TimeGroup({
 }
 
 function Times({
-  slug,
+  practiceId,
   action,
   serviceId,
   providerId,
@@ -327,10 +312,10 @@ function Times({
 }: TimesProps): ReactNode {
   const t = useTranslations('practicePage.freeTimes');
   const container = useRef<HTMLDivElement>(null);
-  const { data, isPending, isError, error, refetch } = useGetPublicFreeTimes(
-    slug,
+  const { data, isPending, isError, error, refetch } = useGetFreeTimes(
+    practiceId,
     { serviceId, date, ...(providerId === undefined ? {} : { providerId }) },
-    { query: { refetchInterval: POLL_MS }, request: REQUEST },
+    { query: { refetchInterval: POLL_MS } },
   );
   const times = data?.times ?? [];
   useGSAP(
@@ -413,7 +398,7 @@ function CallUs({ phone }: { readonly phone: string | null }): ReactNode {
 
 interface FreeTimesChooserProps extends FreeTimesPickerProps {
   readonly action: TimeAction;
-  /** What the picker says below the times; on a public page, how booking goes on. */
+  /** What the picker says below the times: how booking goes on. */
   readonly hint?: string;
   /** The doctor to start on, as long as the list has them; "Any doctor" stays a choice. */
   readonly initialProviderId?: string | null;
@@ -426,7 +411,7 @@ interface FreeTimesChooserProps extends FreeTimesPickerProps {
  * client and React Aria's language.
  */
 export function FreeTimesChooser({
-  slug,
+  practiceId,
   locale,
   settings,
   today,
@@ -462,10 +447,10 @@ export function FreeTimesChooser({
     setRetried((count) => count + 1);
   };
 
-  const availability = useGetPublicAvailability(
-    slug,
+  const availability = useGetAvailability(
+    practiceId,
     { serviceId, ...(providerId === undefined ? {} : { providerId }) },
-    { query: { refetchInterval: POLL_MS }, request: REQUEST },
+    { query: { refetchInterval: POLL_MS } },
   );
   const gone = noLongerOffered(availability.error);
   const days = gone ? [] : (availability.data?.days ?? []);
@@ -601,7 +586,7 @@ export function FreeTimesChooser({
               {format.dayLong(selected)}
             </DayHeading>
             <Times
-              slug={slug}
+              practiceId={practiceId}
               action={action}
               serviceId={serviceId}
               providerId={providerId}
@@ -615,33 +600,5 @@ export function FreeTimesChooser({
         <CallUs phone={phone} />
       </div>
     </div>
-  );
-}
-
-/**
- * Free times without sign-in (PW13, P-77). Its own query client and React Aria's language, because
- * nothing else on this page needs them on the client. A chosen time goes along to the booking, which
- * signs a visitor in on the way.
- */
-export function FreeTimesPicker(props: FreeTimesPickerProps): ReactNode {
-  const [queryClient] = useState(createQueryClient);
-  const { slug, locale } = props;
-  // This page has no signed-in frame, so nothing else here looks after a choice stored earlier.
-  useEffect(() => {
-    expireChoice();
-    return onSessionChangeElsewhere(clearChoice);
-  }, []);
-  const action: TimeAction = {
-    href: bookHref(locale, slug),
-    onChoose: ({ serviceId, providerId, startsAt }) => {
-      saveChoice({ slug, serviceId, startsAt, providerId });
-    },
-  };
-  return (
-    <I18nProvider locale={locale}>
-      <QueryClientProvider client={queryClient}>
-        <FreeTimesChooser {...props} action={action} />
-      </QueryClientProvider>
-    </I18nProvider>
   );
 }

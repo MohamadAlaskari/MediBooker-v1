@@ -324,7 +324,7 @@ export const GetDeskAvailabilityParams = zod.object({
 
 export const GetDeskAvailabilityQueryParams = zod.object({
   "serviceId": zod.uuid(),
-  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
+  "providerId": zod.uuid().optional().describe('A doctor: for a patient one with a public profile (BR-24)'),
   "from": zod.string().optional().describe('First day, in the practice\'s time zone; default: today'),
   "to": zod.string().optional().describe('Last day; at most 42 days in all; default: the 42nd day')
 })
@@ -429,7 +429,7 @@ export const GetDeskFreeTimesParams = zod.object({
 
 export const GetDeskFreeTimesQueryParams = zod.object({
   "serviceId": zod.uuid(),
-  "providerId": zod.uuid().optional().describe('A doctor: on the public routes one with a public profile'),
+  "providerId": zod.uuid().optional().describe('A doctor: for a patient one with a public profile (BR-24)'),
   "date": zod.string().describe('A day in the practice\'s time zone')
 })
 

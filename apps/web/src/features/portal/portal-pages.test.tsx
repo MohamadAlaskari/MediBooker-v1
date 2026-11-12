@@ -24,7 +24,7 @@ import { Booked, BookPage, Review } from './book-page';
 import { Confirm, ReschedulePage } from './reschedule-page';
 import { JoinStep } from './practice-details-steps';
 
-const { portal, errors, auth } = messages.en;
+const { portal, errors, auth, practicePage } = messages.en;
 /** Up to its apostrophe, which the HTML writes as an entity. */
 const NO_PRACTICES = portal.list.noPractices.split("'")[0] ?? '';
 
@@ -560,7 +560,7 @@ describe('moving an appointment', () => {
 describe('booking', () => {
   const ACCOUNT = { id: 'a', email: 'sami@example.test', emailVerified: true, locale: 'en' };
   const page = (seed: (client: QueryClient) => void): string =>
-    render(<BookPage slug={SLUG} practiceHref={`/en/${SLUG}`} />, seed);
+    render(<BookPage slug={SLUG} />, seed);
 
   it('has a heading and the way back for a practice it cannot find', () => {
     const html = page((client) => {
@@ -571,6 +571,37 @@ describe('booking', () => {
     expect(html).toContain(`>${portal.book.title}</h1>`);
     expect(html).toContain(portal.book.notFound);
     expect(html).toContain('href="/en/appointments"');
+  });
+
+  it('starts with the free times of the practice, chosen on this page (B07)', () => {
+    const html = page((client) => {
+      answered(client, ME, ACCOUNT);
+      answered(client, PRACTICES, { items: [] });
+      answered(client, PAGE, PRACTICE);
+    });
+    expect(html).toContain(`>${portal.book.title}</h1>`);
+    expect(html).toContain(portal.book.chooseBody);
+    expect(html).toContain(practicePage.freeTimes.service);
+    expect(html).not.toContain(portal.book.confirm);
+  });
+
+  it('asks to confirm the address first, before any time', () => {
+    const html = page((client) => {
+      answered(client, ME, { ...ACCOUNT, emailVerified: false });
+      answered(client, PRACTICES, { items: [] });
+      answered(client, PAGE, PRACTICE);
+    });
+    expect(html).toContain(portal.book.confirmEmailTitle);
+    expect(html).not.toContain(practicePage.freeTimes.service);
+  });
+
+  it('says to call when the practice offers nothing online', () => {
+    const html = page((client) => {
+      answered(client, ME, ACCOUNT);
+      answered(client, PRACTICES, { items: [] });
+      answered(client, PAGE, { ...PRACTICE, services: [] });
+    });
+    expect(html).toContain(practicePage.freeTimes.placeholder);
   });
 
   it('offers another try for a failure that can pass', () => {
@@ -609,7 +640,7 @@ describe('booking', () => {
   });
 
   describe('its review', () => {
-    const CHOICE = { slug: SLUG, serviceId: SERVICE_ID, startsAt: '2026-11-22T06:00:00Z' };
+    const CHOICE = { serviceId: SERVICE_ID, startsAt: '2026-11-22T06:00:00Z' };
     const review = (props: { providerId?: string; note?: string } = {}): string =>
       render(
         <Review
@@ -626,7 +657,7 @@ describe('booking', () => {
           onNoteChange={noop}
           onBooked={noop}
           onIncomplete={noop}
-          timesHref={`/en/${SLUG}#free-times`}
+          onChooseAgain={noop}
         />,
       );
 
@@ -641,7 +672,7 @@ describe('booking', () => {
       const html = review({ providerId: '20000000-0000-4000-8000-000000000002' });
       expect(html).toContain(portal.book.doctorGoneTitle);
       expect(html).not.toContain(portal.book.confirm);
-      expect(html).toContain(`href="/en/${SLUG}#free-times"`);
+      expect(html).toContain(portal.book.back);
     });
 
     it('keeps the note it is given, and takes no more than the API does', () => {

@@ -1,10 +1,11 @@
 import type { PublicPracticeDto } from '@medibooker/api-client';
 import { LOCALES } from '@medibooker/i18n';
-import { CalendarPlus, Globe } from 'lucide-react';
+import { Globe, LogIn } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { LinkButton } from '@/components/ui/button';
 import { ownLanguageName } from '@/lib/format';
+import { authHrefs } from './book-online-section';
 
 interface PracticeHeaderProps {
   readonly practice: PublicPracticeDto;
@@ -12,10 +13,11 @@ interface PracticeHeaderProps {
   readonly showHours: boolean;
 }
 
-/** Name, section links, the other languages and the way to book (PW13). */
+/** Name, section links, the other languages and the ways to sign in or up (PW13, B07). */
 export function PracticeHeader({ practice, locale, showHours }: PracticeHeaderProps): ReactNode {
   const t = useTranslations('practicePage');
   const a11y = useTranslations('a11y');
+  const auth = authHrefs(locale, practice.slug);
   const otherLocales = LOCALES.filter(
     (code) => code !== locale && practice.supportedLocales.includes(code),
   );
@@ -66,10 +68,11 @@ export function PracticeHeader({ practice, locale, showHours }: PracticeHeaderPr
               {ownLanguageName(code)}
             </a>
           ))}
-          <LinkButton href="#free-times">
-            <CalendarPlus aria-hidden data-icon="inline-start" />
-            {t('hero.bookAppointment')}
+          <LinkButton variant="outline" href={auth.signIn}>
+            <LogIn aria-hidden data-icon="inline-start" className="rtl:rotate-180" />
+            {t('bookOnline.signIn')}
           </LinkButton>
+          <LinkButton href={auth.signUp}>{t('bookOnline.signUp')}</LinkButton>
         </div>
       </div>
     </header>

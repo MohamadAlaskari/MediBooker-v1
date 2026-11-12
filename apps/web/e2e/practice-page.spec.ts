@@ -1,7 +1,8 @@
 import { API_STUB_PORT } from './support/ports';
 import { expect, test } from './support/test';
 
-const SECTIONS = ['opening-hours', 'free-times', 'services', 'team', 'find-us'];
+const SECTIONS = ['opening-hours', 'book-online', 'services', 'team', 'find-us'];
+const BACK_TO_BOOKING = `#next=${encodeURIComponent('/en/book/al-noor')}`;
 
 test.describe('the public practice page (08 P03)', () => {
   test('renders from the API in the language and direction of the path', async ({ page }) => {
@@ -26,10 +27,59 @@ test.describe('the public practice page (08 P03)', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
   });
 
+  test('shows no free times, and leads to signing in or up and on to the booking (B07)', async ({
+    page,
+  }) => {
+    const requests: string[] = [];
+    page.on('request', (request) => requests.push(request.url()));
+    await page.goto('/en');
+    await expect(page.getByRole('heading', { name: 'Book online' })).toBeVisible();
+    const section = page.locator('#book-online');
+    await expect(section.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      `/en/sign-in${BACK_TO_BOOKING}`,
+    );
+    await expect(section.getByRole('link', { name: 'Create account' })).toHaveAttribute(
+      'href',
+      `/en/sign-up${BACK_TO_BOOKING}`,
+    );
+    const header = page.getByRole('banner');
+    await expect(header.getByRole('link', { name: 'Sign in' })).toBeVisible();
+    await expect(header.getByRole('link', { name: 'Create account' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Book appointment' })).toHaveAttribute(
+      'href',
+      '/en/book/al-noor',
+    );
+    // Nothing on this page asks for times, nor shows any.
+    await expect(page.getByRole('radiogroup')).toHaveCount(0);
+    expect(requests.filter((url) => /availability|free-times|slots/u.test(url))).toEqual([]);
+
+    await section.getByRole('link', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(`/en/sign-in${BACK_TO_BOOKING}`);
+  });
+
+  test('a visitor who books is asked to sign in first, and comes back to the booking', async ({
+    page,
+  }) => {
+    await page.goto('/en');
+    await page.getByRole('link', { name: 'Book appointment' }).click();
+    await expect(page).toHaveURL(`/en/sign-in${BACK_TO_BOOKING}`);
+  });
+
+  test('keeps the type of the design next to a colour', async ({ page }) => {
+    await page.goto('/en');
+    await expect(page.getByRole('link', { name: 'Book appointment' })).toHaveCSS(
+      'font-weight',
+      '600',
+    );
+  });
+
   test('gives everything tappable at least 44 px', async ({ page }) => {
     await page.goto('/en');
     for (const link of [
-      page.getByRole('link', { name: 'Book appointment' }).first(),
+      page.getByRole('link', { name: 'Book appointment' }),
+      page.getByRole('banner').getByRole('link', { name: 'Sign in' }),
+      page.getByRole('banner').getByRole('link', { name: 'Create account' }),
       page.getByRole('link', { name: 'Call us' }),
       page.getByRole('link', { name: /العربية/ }),
       page.getByRole('link', { name: /Open in maps/ }),
@@ -218,6 +268,12 @@ test.describe('without JavaScript', () => {
     for (const id of SECTIONS) await expect(page.locator(`#${id}`)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Check-up' })).toBeVisible();
   });
+
+  test('still leads to signing in, and to the phone', async ({ page }) => {
+    await page.goto('/en');
+    await expect(page.locator('#book-online').getByRole('link', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Call us' })).toBeVisible();
+  });
 });
 
 test.describe('with reduced motion', () => {
@@ -246,8 +302,7 @@ test.describe('on a phone', () => {
 
   test('long Arabic text does not make the page wider than the screen', async ({ page }) => {
     await page.goto('/ar/long-arabic');
-    // Once it is alive: the picker's hidden select comes with the first answers.
-    await expect(page.locator('#free-times [data-a11y-ignore]')).toBeAttached();
+    await expect(page.locator('#book-online')).toBeVisible();
     const { scrollWidth, innerWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,

@@ -18,6 +18,7 @@ import type {
 } from 'msw';
 
 import type {
+  AvailabilityDto,
   CancelAsPracticeDto,
   DeskAppointmentDto,
   DeskAppointmentPageDto,
@@ -34,9 +35,8 @@ import type {
   DeskPatientRowDto,
   DeskPatientSearchDto,
   DeskWeekDto,
-  PatientDto,
-  PublicAvailabilityDto,
-  PublicFreeTimesDto
+  FreeTimesDto,
+  PatientDto
 } from '../../model';
 
 
@@ -68,7 +68,7 @@ export const getMarkAppointmentNoShowResponseMock = (overrideResponse: Partial<E
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const), ...overrideResponse})
 
-export const getGetDeskAvailabilityResponseMock = (overrideResponse: Partial<Extract<PublicAvailabilityDto, object>> = {}): PublicAvailabilityDto => ({days: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({date: faker.string.alpha({length: {min: 10, max: 20}}), hasFreeTimes: faker.datatype.boolean()})), ...overrideResponse})
+export const getGetDeskAvailabilityResponseMock = (overrideResponse: Partial<Extract<AvailabilityDto, object>> = {}): AvailabilityDto => ({days: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({date: faker.string.alpha({length: {min: 10, max: 20}}), hasFreeTimes: faker.datatype.boolean()})), ...overrideResponse})
 
 export const getGetDeskCatalogResponseMock = (overrideResponse: Partial<Extract<DeskCatalogDto, object>> = {}): DeskCatalogDto => ({insurance: {numberTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), providerTypes: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const), types: faker.helpers.arrayElements(['PUBLIC','PRIVATE','SELF_PAY'] as const)}, providers: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.string.uuid(), name: faker.string.alpha({length: {min: 10, max: 20}})})), services: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({active: faker.datatype.boolean(), durationMinutes: faker.number.float({fractionDigits: 2}), id: faker.string.uuid(), name: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
@@ -78,7 +78,7 @@ export const getGetDeskDayResponseMock = (overrideResponse: Partial<Extract<Desk
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       }, started: faker.datatype.boolean(), startsAt: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.helpers.arrayElement(['BOOKED','CHECKED_IN','COMPLETED','NO_SHOW','CANCELLED'] as const)})), nextOpenAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), now: faker.date.past().toISOString().slice(0, 19) + 'Z', numberingSystem: faker.string.alpha({length: {min: 10, max: 20}}), openTimes: faker.number.float({fractionDigits: 2}), timeZone: faker.string.alpha({length: {min: 10, max: 20}}), today: faker.date.past().toISOString().slice(0, 10), truncated: faker.datatype.boolean(), ...overrideResponse})
 
-export const getGetDeskFreeTimesResponseMock = (overrideResponse: Partial<Extract<PublicFreeTimesDto, object>> = {}): PublicFreeTimesDto => ({date: faker.string.alpha({length: {min: 10, max: 20}}), times: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({startsAt: faker.string.alpha({length: {min: 10, max: 20}})})), ...overrideResponse})
+export const getGetDeskFreeTimesResponseMock = (overrideResponse: Partial<Extract<FreeTimesDto, object>> = {}): FreeTimesDto => ({date: faker.string.alpha({length: {min: 10, max: 20}}), times: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({startsAt: faker.string.alpha({length: {min: 10, max: 20}})})), ...overrideResponse})
 
 export const getAddDeskPatientResponseMock = (overrideResponse: Partial<Extract<DeskPatientRowDto, object>> = {}): DeskPatientRowDto => ({age: faker.number.float({fractionDigits: 2}), dateOfBirth: faker.date.past().toISOString().slice(0, 10), firstName: faker.string.alpha({length: {min: 10, max: 20}}), hasAccount: faker.datatype.boolean(), id: faker.string.uuid(), insuranceProvider: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), insuranceType: faker.helpers.arrayElement(['PUBLIC','PRIVATE','SELF_PAY'] as const), lastName: faker.string.alpha({length: {min: 10, max: 20}}), lastVisitAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), nextAppointmentAt: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', null]), phone: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
@@ -185,7 +185,7 @@ export const getMarkAppointmentNoShowMockHandler = (overrideResponse?: DeskAppoi
   }, options)
 }
 
-export const getGetDeskAvailabilityMockHandler = (overrideResponse?: PublicAvailabilityDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<PublicAvailabilityDto> | PublicAvailabilityDto), options?: RequestHandlerOptions) => {
+export const getGetDeskAvailabilityMockHandler = (overrideResponse?: AvailabilityDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<AvailabilityDto> | AvailabilityDto), options?: RequestHandlerOptions) => {
   return http.get<{ practiceId: string }>('*/api/v1/practices/:practiceId/desk/availability', async (info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => {
 
 
@@ -221,7 +221,7 @@ export const getGetDeskDayMockHandler = (overrideResponse?: DeskDayDto | ((info:
   }, options)
 }
 
-export const getGetDeskFreeTimesMockHandler = (overrideResponse?: PublicFreeTimesDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<PublicFreeTimesDto> | PublicFreeTimesDto), options?: RequestHandlerOptions) => {
+export const getGetDeskFreeTimesMockHandler = (overrideResponse?: FreeTimesDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<FreeTimesDto> | FreeTimesDto), options?: RequestHandlerOptions) => {
   return http.get<{ practiceId: string }>('*/api/v1/practices/:practiceId/desk/free-times', async (info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => {
 
 

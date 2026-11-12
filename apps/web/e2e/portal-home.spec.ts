@@ -6,6 +6,8 @@ import {
   joinPractice,
   localeOf,
   newAddress,
+  openDay,
+  pickTime,
   pressConfirm,
   signedIn,
   startOf,
@@ -24,7 +26,7 @@ const POP_DIRECTIONAL_ISOLATE = String.fromCodePoint(0x2069);
 
 const AN_APPOINTMENT = '**/api/v1/practices/*/appointments/*';
 const MOVE = `${AN_APPOINTMENT}/reschedule`;
-const AVAILABILITY = '**/api/v1/public/practices/al-noor/availability?*';
+const AVAILABILITY = '**/api/v1/practices/*/availability?*';
 const PAST_PAGE_AFTER_A_CURSOR = '**/api/v1/practices/*/me/appointments?*cursor=*';
 const MY_PRACTICES = '**/api/v1/me/practices';
 const PUBLIC_PAGE = '**/api/v1/public/practices/al-noor';
@@ -98,7 +100,7 @@ test.describe('the portal home (08 B06, PW2)', () => {
     );
     await expect(nav.getByRole('link', { name: portal.nav.book })).toHaveAttribute(
       'href',
-      `/${locale}#free-times`,
+      `/${locale}/book/al-noor`,
     );
     // The practice of the installation, and how to reach it.
     await expect(main.getByRole('heading', { name: PRACTICE_NAME[locale] })).toBeVisible();
@@ -106,11 +108,11 @@ test.describe('the portal home (08 B06, PW2)', () => {
       'href',
       `/${locale}`,
     );
-    // To the practice's free times. Not opened here: their chips fade in, and the page's own tests
-    // wait that out before axe looks at their contrast.
+    // To the booking page with the free times (B07). Not opened here: their chips fade in, and the
+    // page's own tests wait that out before axe looks at their contrast.
     await expect(main.getByRole('link', { name: portal.home.book })).toHaveAttribute(
       'href',
-      `/${locale}#free-times`,
+      `/${locale}/book/al-noor`,
     );
   });
 
@@ -202,13 +204,15 @@ test.describe('what B04 left (08 B06)', () => {
   test('a "Try again" in the chooser hands the focus to the day', async ({ page }, testInfo) => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
+    await signedIn(page, locale, newAddress(testInfo));
     const letPass = await refuseReads(page, AVAILABILITY);
-    await page.goto(`/${locale}`);
+    await page.goto(`/${locale}/book/al-noor`);
     const retry = page.getByRole('button', { name: free.retry });
     await expect(retry).toBeVisible();
     await letPass();
     await retry.click();
-    await expect(page.locator('#free-times').getByRole('heading', { level: 3 })).toBeFocused();
+    // On the booking page the day's heading follows its h1.
+    await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toBeFocused();
   });
 
   test('the chosen service keeps its name whole in a sentence, and typing still finds it', async ({
@@ -216,7 +220,8 @@ test.describe('what B04 left (08 B06)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
-    await page.goto(`/${locale}`);
+    await signedIn(page, locale, newAddress(testInfo));
+    await page.goto(`/${locale}/book/al-noor`);
     const service = page.getByRole('button', { name: new RegExp(free.service) });
     const shown = service.locator('[data-slot="select-value"]');
     await expect(shown).toContainText(CHECK_UP);
@@ -298,7 +303,10 @@ test.describe('what B04 left (08 B06)', () => {
     await letPage();
     await retry.click();
     await expect(heading(page)).toBeFocused();
-    // Now the list of practices, which failed too: another "Try again", and the focus again.
+    // Now the list of practices, which failed too and is wanted once a time is chosen (B07): another
+    // "Try again", and the focus again.
+    await openDay(page, locale);
+    await pickTime(page, locale, 0);
     await expect(retry).toBeVisible();
     await retry.focus();
     await letPractices();

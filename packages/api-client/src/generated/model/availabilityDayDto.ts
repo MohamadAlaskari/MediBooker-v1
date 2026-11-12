@@ -4,10 +4,9 @@
  * MediBooker API
  * OpenAPI spec version: 1
  */
-import type { PublicFreeTimeDto } from './publicFreeTimeDto';
 
-export interface PublicFreeTimesDto {
+export interface AvailabilityDayDto {
   /** ISO date in the practice's time zone */
   date: string;
-  times: PublicFreeTimeDto[];
+  hasFreeTimes: boolean;
 }

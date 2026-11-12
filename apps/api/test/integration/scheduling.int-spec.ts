@@ -1,6 +1,6 @@
 /**
- * Slots and public free times against real databases (08 P04, P05): two practices, each with its
- * own zone, weekend and rules in its own database.
+ * Slots and the free times of a signed-in account against real databases (08 P04, P05, B07): two
+ * practices, each with its own zone, weekend and rules in its own database.
  */
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
@@ -8,13 +8,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fillPractice, SEED_PRACTICES } from '../../prisma/seed-practices.js';
 import type { PracticeRunSummary } from '../../src/common/tenancy/practice-runner.js';
 import { FixedClock } from '../../src/common/time/fixed-clock.js';
-import { PUBLIC_FREE_TIMES_REQUESTS_PER_MINUTE } from '../../src/modules/scheduling/public-free-times.controller.js';
+import { FREE_TIMES_REQUESTS_PER_MINUTE } from '../../src/modules/scheduling/free-times.controller.js';
 import { SlotGenerationJob } from '../../src/modules/scheduling/slot-generation.job.js';
 import { createTestApp } from '../support/create-test-app.js';
 import { usePracticeDatabases } from '../support/practices.js';
+import { signedInAccount } from './support/signed-in-account.js';
 import { withClient } from './support/sql.js';
 
-const PATH = '/api/v1/public/practices';
+const API = '/api/v1';
 const [AL_NOOR, LINDENHOF] = SEED_PRACTICES;
 const [SERVICE, , , NOT_ONLINE] = AL_NOOR.data.services;
 const [SARA, OMAR] = AL_NOOR.data.staff;
@@ -30,13 +31,17 @@ interface Availability {
   days: { date: string; hasFreeTimes: boolean }[];
 }
 
-describe('slots and free times on real databases (08 P04, P05)', () => {
+describe('slots and free times on real databases (08 P04, P05, B07)', () => {
   const databases = usePracticeDatabases({ practices: 'none' });
   const clock = new FixedClock(NOW);
   let app: NestExpressApplication;
   let alNoorUrl: string;
   let lindenhofUrl: string;
+  let alNoorId: string;
+  let lindenhofId: string;
   let firstRun: PracticeRunSummary;
+  /** A confirmed account: the free times are for signed-in people only (B07). */
+  let token: string;
 
   const countOf = async (url: string, sql: string, values: unknown[] = []): Promise<number> =>
     withClient(url, async (client) => {
@@ -65,16 +70,19 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
 
   const slotsOf = (date: string, query: Record<string, string> = {}): request.Test =>
     request(app.getHttpServer())
-      .get(`${PATH}/${AL_NOOR.slug}/slots`)
+      .get(`${API}/practices/${alNoorId}/free-times`)
+      .set('Authorization', `Bearer ${token}`)
       .query({ serviceId: SERVICE?.id, date, ...query });
 
   const availabilityOf = (query: Record<string, string> = {}): request.Test =>
     request(app.getHttpServer())
-      .get(`${PATH}/${AL_NOOR.slug}/availability`)
+      .get(`${API}/practices/${alNoorId}/availability`)
+      .set('Authorization', `Bearer ${token}`)
       .query({ serviceId: SERVICE?.id, ...query });
 
   beforeAll(async () => {
     const urls: string[] = [];
+    const ids: string[] = [];
     for (const practice of [AL_NOOR, LINDENHOF]) {
       const provisioned = await databases.provision({
         market: practice.market,
@@ -85,9 +93,15 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
       await fillPractice(owner, practice.data).finally(() => owner.end());
       await publish(provisioned.practiceId, practice.slug, practice.name);
       urls.push(databases.superuserUrl(`practice_${provisioned.practiceId.replaceAll('-', '')}`));
+      ids.push(provisioned.practiceId);
     }
     [alNoorUrl = '', lindenhofUrl = ''] = urls;
+    [alNoorId = '', lindenhofId = ''] = ids;
     app = await createTestApp({ env: databases.apiEnv, clock });
+    ({ token } = await signedInAccount(app.getHttpServer(), databases.platformOwnerUrl, {
+      email: 'free-times@example.test',
+      clientAddress: '203.0.113.71',
+    }));
     firstRun = await job().run();
   });
 
@@ -140,7 +154,71 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
     });
   });
 
-  describe('GET …/slots (08 P05)', () => {
+  describe('who sees the free times (B07)', () => {
+    const asked = (practiceId: string, bearer?: string): request.Test => {
+      const test = request(app.getHttpServer())
+        .get(`${API}/practices/${practiceId}/free-times`)
+        .set('X-Forwarded-For', '203.0.113.72')
+        .query({ serviceId: SERVICE?.id, date: '2026-11-16' });
+      return bearer === undefined ? test : test.set('Authorization', `Bearer ${bearer}`);
+    };
+
+    it('answers 401 without a sign-in, on both routes', async () => {
+      const times = await asked(alNoorId);
+      const days = await request(app.getHttpServer())
+        .get(`${API}/practices/${alNoorId}/availability`)
+        .set('X-Forwarded-For', '203.0.113.72')
+        .query({ serviceId: SERVICE?.id });
+      for (const response of [times, days]) {
+        expect(response.status).toBe(401);
+        expect(response.body).toMatchObject({ code: 'UNAUTHENTICATED' });
+      }
+    });
+
+    it('BR-09 refuses an account whose address is not confirmed', async () => {
+      const unconfirmed = await signedInAccount(app.getHttpServer(), databases.platformOwnerUrl, {
+        email: 'free-times-unconfirmed@example.test',
+        clientAddress: '203.0.113.73',
+        confirmed: false,
+      });
+      const response = await asked(alNoorId, unconfirmed.token).expect(403);
+      expect(response.body).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+    });
+
+    it('answers 404 for a practice without a publication, as for one that does not exist', async () => {
+      await withClient(databases.platformOwnerUrl, (platform) =>
+        platform.query('UPDATE practices SET published_at = NULL WHERE id = $1', [lindenhofId]),
+      );
+      try {
+        for (const practiceId of [lindenhofId, '99999999-9999-4999-8999-999999999999']) {
+          const response = await asked(practiceId, token);
+          expect(response.status).toBe(404);
+          expect(response.body).toMatchObject({ code: 'NOT_FOUND' });
+        }
+      } finally {
+        await withClient(databases.platformOwnerUrl, (platform) =>
+          platform.query('UPDATE practices SET published_at = now() WHERE id = $1', [lindenhofId]),
+        );
+      }
+    });
+
+    it('serves a confirmed account that is no patient of the practice yet', async () => {
+      const response = await asked(alNoorId, token).expect(200);
+      expect((response.body as FreeTimes).times.length).toBeGreaterThan(0);
+    });
+
+    it('has no public route any more', async () => {
+      for (const route of ['slots', 'availability']) {
+        const response = await request(app.getHttpServer())
+          .get(`${API}/public/practices/${AL_NOOR.slug}/${route}`)
+          .set('X-Forwarded-For', '203.0.113.72')
+          .query({ serviceId: SERVICE?.id, date: '2026-11-16' });
+        expect(response.status).toBe(404);
+      }
+    });
+  });
+
+  describe('GET …/free-times (08 P05)', () => {
     it('BR-03 shows a slot at now + 120 minutes and not at now + 119', async () => {
       const exactly = (await slotsOf('2026-11-15').expect(200)).body as FreeTimes;
       expect(exactly.times[0]?.startsAt).toBe('2026-11-15T09:00:00Z');
@@ -151,9 +229,9 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
       clock.set(NOW);
     });
 
-    it('BR-24 may be kept for 30 seconds, and shows each start once, with no slot and no provider', async () => {
+    it('BR-24 is kept by no cache, and shows each start once, with no slot and no provider', async () => {
       const response = await slotsOf('2026-11-16').expect(200);
-      expect(response.headers['cache-control']).toBe('public, max-age=30');
+      expect(response.headers['cache-control']).toBe('no-store');
       const { times } = response.body as FreeTimes;
       // Two doctors from 09:00 to 13:00 and one from 16:00 to 20:00, in 30-minute slots.
       expect(times).toHaveLength(16);
@@ -202,7 +280,7 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
   describe('GET …/availability (08 P05)', () => {
     it('answers the next 42 days by default, with the practice’s closed days', async () => {
       const response = await availabilityOf().expect(200);
-      expect(response.headers['cache-control']).toBe('public, max-age=30');
+      expect(response.headers['cache-control']).toBe('no-store');
       const { days } = response.body as Availability;
       expect(days).toHaveLength(42);
       expect(days[0]).toEqual({ date: '2026-11-15', hasFreeTimes: true });
@@ -252,7 +330,7 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
 
     it('answers 429 after its limit', async () => {
       let status = 0;
-      for (let count = 0; count <= PUBLIC_FREE_TIMES_REQUESTS_PER_MINUTE; count += 1) {
+      for (let count = 0; count <= FREE_TIMES_REQUESTS_PER_MINUTE; count += 1) {
         ({ status } = await availabilityOf());
       }
       expect(status).toBe(429);
@@ -274,7 +352,8 @@ describe('slots and free times on real databases (08 P04, P05)', () => {
       );
       const starts = async (): Promise<string[]> => {
         const response = await request(app.getHttpServer())
-          .get(`${PATH}/${LINDENHOF.slug}/slots`)
+          .get(`${API}/practices/${lindenhofId}/free-times`)
+          .set('Authorization', `Bearer ${token}`)
           .query({ serviceId: LINDENHOF.data.services[0]?.id, date: '2026-11-16' })
           .expect(200);
         return (response.body as FreeTimes).times.map(({ startsAt }) => startsAt);

@@ -24,7 +24,7 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 ## Surfaces
 
 - **Patient app**: React Native for iOS and Android. This is the main channel for patients.
-- **Web**: React with Next.js. Public practice page (no sign-in, with free times), patient portal, and the practice dashboard (Praxis-Dashboard) for staff and admins.
+- **Web**: React with Next.js. Public practice page (no sign-in; its free times only after signing in, D19), patient portal, and the practice dashboard (Praxis-Dashboard) for staff and admins.
 - **API**: NestJS, REST plus realtime events.
 
 ## Tech stack status

@@ -2,8 +2,9 @@ import { isLocale, messages } from '@medibooker/i18n';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import { installationBrand, installationPractice, practicePath } from '@/lib/api.server';
+import { installationBrand, installationPractice } from '@/lib/api.server';
 import { AuthProviders } from '../auth/auth-providers';
+import { bookHref } from './free-times/free-times-view';
 import { PortalShell } from './portal-shell';
 
 interface PortalLayoutProps {
@@ -29,13 +30,17 @@ export async function PortalLayout({ children, locale }: PortalLayoutProps): Pro
         errors,
         validation,
         portal,
-        practicePage: { freeTimes: practicePage.freeTimes },
+        // The booking page names a service with its length (B07).
+        practicePage: {
+          freeTimes: practicePage.freeTimes,
+          services: { duration: practicePage.services.duration },
+        },
       }}
     >
       <AuthProviders signedIn>
         <PortalShell
           brand={practice?.name ?? undefined}
-          bookHref={slug === undefined ? undefined : `${practicePath(locale, slug)}#free-times`}
+          bookHref={slug === undefined ? undefined : bookHref(locale, slug)}
         >
           {children}
         </PortalShell>

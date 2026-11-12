@@ -108,8 +108,8 @@ Texts contain date, time, clinic and the first name of the person only — never
 | ID | Feature | Rules | Screens | Status |
 |---|---|---|---|---|
 | P-70 | Public page per clinic: name, logo or initials, short description per language, "open now" status, address, phone, languages spoken; header with section links, language switch, sign in and book | BR-22 | PW13 (desktop), PW14 (mobile web) | v0.4 |
-| P-71 | Services with duration and hints; choosing a service or "Book appointment" jumps to the free times | BR-08, BR-22 | PW13, PW14 | v0.4 |
-| P-77 | **Free times without sign-in:** service, doctor (round photo) or any doctor, week strip (weekend and closed days disabled), morning and afternoon times. Choosing a time leads to sign-in or sign-up, then to the review with this time | BR-03, BR-09, BR-22 | PW13, PW14 → PW1 | v0.4 |
+| P-71 | Services with duration and hints; "Book appointment" leads to the booking page, through signing in (B07, D19) | BR-08, BR-22 | PW13, PW14 | v0.4 |
+| P-77 | **Free times after signing in** (D19, B07; without sign-in until then): on the booking page, service, doctor (round photo) or any doctor, week strip (weekend and closed days disabled), morning and afternoon times. The practice page leads to sign-in or sign-up and back; choosing a time leads to the details at the first booking, then to the review with this time | BR-03, BR-09, BR-22 | PW13, PW14 → PW1 | v0.4 |
 | P-72 | Team: doctors with round photo, specialty and languages — only people who agreed in their own profile; the reception is shown as a team card without names | BR-24 | PW13, PW14 | v0.4 |
 | P-73 | Opening hours of the clinic (not the doctors' working hours) with today highlighted and special days (e.g. closed on 19 Nov for team training) | BR-22 | PW13, PW14 | v0.4 |
 | P-74 | Getting here and contact: link to a maps app (no embedded map), bus stop, parking, step-free access, phone, insurance and payment, e-mail with the hint "no medical details by e-mail" | BR-22 | PW13, PW14 | v0.4 |
@@ -304,7 +304,7 @@ App and portal in portrait (834 × 1194, iPad 11"), dashboard in landscape (1194
 6. Retention period for notes and files per market (medical documentation duties).
 7. ~~Web framework~~ — **decided 2026-11-01: Next.js** (ADR 0003).
 8. Page address: path (`medibooker.example/al-noor`, current design), subdomain per clinic, or the clinic's own domain (needs TLS certificates per domain). **Still open.**
-9. ~~Free times on the public page~~ — **decided 2026-11-01: free times are public** (PW13/PW14 "Free times", BR-22; `GET /availability` and `GET /slots` are public).
+9. ~~Free times on the public page~~ — **decided 2026-11-01: free times are public; changed on 2026-11-12 (D19): only after signing in, on the booking page (B07)**, until then (PW13/PW14 "Free times", BR-22; `GET /availability` and `GET /slots` are public).
 10. ~~Practice theme in the dashboard~~ — **decided 2026-11-01: yes**, on all surfaces of the clinic; the MediBooker logo stays teal (ADR 0002 accepted).
 11. ~~Custom colours~~ — **decided 2026-11-01: any colour, automatically adjusted for contrast** (ADR 0002).
 12. Legal notice and privacy policy per market: required content differs per country; the clinic provides it.

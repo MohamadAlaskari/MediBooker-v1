@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  getGetPublicAvailabilityQueryKey,
-  getGetPublicFreeTimesQueryKey,
+  getGetAvailabilityQueryKey,
+  getGetFreeTimesQueryKey,
   isApiError,
   useGetMyAppointment,
   useGetPublicPractice,
@@ -17,7 +17,7 @@ import { useState, type ReactNode } from 'react';
 import { Button, LinkButton } from '@/components/ui/button';
 import { FormError, PageHeading, useFocusOnArrival } from '../auth/form-parts';
 import { useWaitOut, WaitNote } from '../auth/wait-out';
-import { FreeTimesChooser, type ChosenTime } from '../practice-page/free-times/free-times-picker';
+import { FreeTimesChooser, type ChosenTime } from './free-times/free-times-picker';
 import { doctorsOf, fullNameOf } from '../practice-page/practice-view';
 import {
   formatOf,
@@ -259,7 +259,6 @@ export function ReschedulePage({ practiceId, appointmentId }: RescheduleProps): 
       </>
     );
   }
-  const { slug } = known;
   if (page.data === undefined) {
     return (
       <>
@@ -301,11 +300,11 @@ export function ReschedulePage({ practiceId, appointmentId }: RescheduleProps): 
           error={move.error}
           onOther={() => {
             if (isChoiceGone(move.error)) {
-              // Younger than 30 seconds, an answer would offer the same time again.
+              // The answers of before would offer the same time again.
               void queryClient.invalidateQueries({
-                queryKey: getGetPublicAvailabilityQueryKey(slug),
+                queryKey: getGetAvailabilityQueryKey(practiceId),
               });
-              void queryClient.invalidateQueries({ queryKey: getGetPublicFreeTimesQueryKey(slug) });
+              void queryClient.invalidateQueries({ queryKey: getGetFreeTimesQueryKey(practiceId) });
             }
             move.reset();
             setTarget(undefined);
@@ -347,7 +346,7 @@ export function ReschedulePage({ practiceId, appointmentId }: RescheduleProps): 
     <>
       {heading}
       <FreeTimesChooser
-        slug={slug}
+        practiceId={practiceId}
         locale={locale}
         settings={{ numberingSystem, hourCycle, timeZone }}
         today={today}

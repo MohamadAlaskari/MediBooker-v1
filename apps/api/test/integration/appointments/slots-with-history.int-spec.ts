@@ -3,10 +3,9 @@
  * The history needs the slot, so generation cannot remove it: it must neither stop the night's run
  * nor stay bookable. Against real databases, with slots from the seed's rules.
  */
-import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { SlotGenerationJob } from '../../../src/modules/scheduling/slot-generation.job.js';
-import { API, type Fixture, NOW, useBookingWorld } from './booking-world.js';
+import { type Fixture, NOW, useBookingWorld } from './booking-world.js';
 
 interface SlotRow {
   readonly id: string;
@@ -28,14 +27,12 @@ describe('slots that hold a cancelled appointment', () => {
 
   const offeredByTheDoctor = async (practice: Fixture, startsAt: string): Promise<boolean> => {
     const instant = Temporal.Instant.from(startsAt);
-    const response = await request(world.server())
-      .get(`${API}/public/practices/al-noor/slots`)
-      .query({
+    const response = await world
+      .freeTimes(await world.person(), practice, {
         serviceId: practice.serviceId,
         providerId: practice.providerId,
         date: instant.toZonedDateTimeISO('Asia/Riyadh').toPlainDate().toString(),
       })
-      .set('X-Forwarded-For', '203.0.113.20')
       .expect(200);
     const { times } = response.body as { times: { startsAt: string }[] };
     return times.some((time) => time.startsAt === instant.toString());

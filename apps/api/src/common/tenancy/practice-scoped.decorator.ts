@@ -11,24 +11,43 @@ export type PracticeScope = 'id' | 'slug';
  * Who may reach a practice named by `id` (02 §5). `patient`: a person with an index row and a patient
  * profile in the practice's database; with `confirmed` their account's address must be confirmed
  * too (BR-09), and that is said first, so that a person learns what to do. `join`: a confirmed
- * account, on a published practice, to create its own patient profile. `staff`: an active
- * membership of the practice in one of these roles, and a sign-in with both factors (A04).
+ * account, on a published practice, to create its own patient profile. `account`: a signed-in
+ * account with a confirmed address, on a published practice, without a row there (B07: the free
+ * times); signing up asks for no proof of the address, so without one it would be public. `staff`:
+ * an active membership of the practice in one of these roles, and a sign-in with both factors (A04).
+ * A route names exactly one of them; `confirmed` goes only with `patient`.
  */
 export interface PracticeScopedOptions {
   readonly patient?: true;
+  readonly account?: true;
   readonly confirmed?: true;
   readonly join?: true;
   readonly staff?: readonly [StaffRole, ...StaffRole[]];
 }
 
-export type PracticeAccess = 'patient' | 'confirmed-patient' | 'join' | 'staff';
+export type PracticeAccess = 'patient' | 'confirmed-patient' | 'account' | 'join' | 'staff';
 
 /** Every role of the practice: what a route names that all of its staff may reach. */
 export const ALL_STAFF_ROLES: readonly [StaffRole, ...StaffRole[]] = ['STAFF', 'DOCTOR', 'ADMIN'];
 
+/**
+ * The one rule a route names. Two would silently become one of them, which could be the weaker one
+ * (the security review of B07): so it throws, when the class is defined.
+ */
 function accessOf(options: PracticeScopedOptions): PracticeAccess | undefined {
+  const named = [
+    options.staff !== undefined,
+    options.join === true,
+    options.account === true,
+    options.patient === true,
+  ].filter(Boolean).length;
+  if (named > 1) throw new Error('a practice route names one access rule');
+  if (options.confirmed === true && options.patient !== true) {
+    throw new Error('confirmed goes with patient: join and account confirm by themselves');
+  }
   if (options.staff !== undefined) return 'staff';
   if (options.join === true) return 'join';
+  if (options.account === true) return 'account';
   if (options.patient !== true) return undefined;
   return options.confirmed === true ? 'confirmed-patient' : 'patient';
 }
@@ -74,6 +93,7 @@ export function practiceAccessOf(
   const access: unknown = Reflect.getMetadata(PRACTICE_ACCESS, handler);
   return access === 'patient' ||
     access === 'confirmed-patient' ||
+    access === 'account' ||
     access === 'join' ||
     access === 'staff'
     ? access

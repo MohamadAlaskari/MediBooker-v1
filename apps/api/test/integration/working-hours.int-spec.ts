@@ -73,9 +73,12 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
       code,
     }));
   const publicTimes = async (date: string): Promise<string[]> => {
-    const answer = await request(world.server())
-      .get(`${API}/public/practices/al-noor/slots`)
-      .query({ serviceId: world.alNoor().serviceId, providerId: world.alNoor().providerId, date })
+    const answer = await world
+      .freeTimes(await world.person(), world.alNoor(), {
+        serviceId: world.alNoor().serviceId,
+        providerId: world.alNoor().providerId,
+        date,
+      })
       .expect(200);
     return (answer.body as { times: { startsAt: string }[] }).times.map(({ startsAt }) =>
       Temporal.Instant.from(startsAt).toString(),

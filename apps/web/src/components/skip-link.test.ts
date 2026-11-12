@@ -31,7 +31,7 @@ describe('SkipLink', () => {
     },
   );
 
-  it.each(['', '#free-times', '#main'])('stays a plain link at %j', (hash) => {
+  it.each(['', '#book-online', '#main'])('stays a plain link at %j', (hash) => {
     expect(pressAt(hash)).toEqual({ leftAlone: true, focused: false });
   });
 });

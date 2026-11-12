@@ -1,6 +1,7 @@
 export * from './appointments/appointments';
 export * from './auth/auth';
 export * from './desk/desk';
+export * from './free-times/free-times';
 export * from './me/me';
 export * from './patients/patients';
 export * from './practice-setup/practice-setup';

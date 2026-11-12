@@ -93,6 +93,12 @@
       "callUs": "Call us",
       "languages": "We speak {languages}"
     },
+    "bookOnline": {
+      "title": "Book online",
+      "body": "Sign in to see our free times and book your appointment. New here? A free account takes a minute.",
+      "signIn": "Sign in",
+      "signUp": "Create account"
+    },
     "hours": {
       "title": "Opening hours",
       "today": "Today",
@@ -105,8 +111,6 @@
       "specialOpenLabel": "{date}: {from}–{to} ({label})"
     },
     "freeTimes": {
-      "title": "Free times",
-      "subtitle": "Pick a time that suits you. You confirm the booking after signing in.",
       "placeholder": "Please call us and we will find a time for you.",
       "timeZoneNote": "All times are local to the practice.",
       "service": "Service",
@@ -119,7 +123,7 @@
       "morning": "Morning",
       "afternoon": "Afternoon",
       "timeLabel": "{day}, {time}",
-      "hint": "Tap a time to continue. You sign in or create a free account next.",
+      "hint": "Tap a time to continue. You review the booking before it is made.",
       "loading": "Looking for free times…",
       "empty": "No free times in the next six weeks for this choice.",
       "error": "The free times could not be loaded.",
@@ -433,11 +437,9 @@
     },
     "book": {
       "title": "Book an appointment",
+      "chooseBody": "Choose a service, a doctor if you like, and a free time.",
       "loading": "Loading your booking",
       "notFound": "We could not find this practice.",
-      "noChoiceTitle": "No time chosen yet",
-      "noChoiceBody": "Choose a free time on the practice's page, and you come back here.",
-      "seeTimes": "See free times",
       "timeGone": "This time is no longer on offer. Please choose another one.",
       "doctorGoneTitle": "This doctor can no longer be chosen online",
       "doctorGoneBody": "Please choose a time again, with another doctor or with any doctor.",

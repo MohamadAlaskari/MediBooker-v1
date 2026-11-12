@@ -17,8 +17,9 @@ function answering(routes: Routes): typeof fetch {
     const entry = routes[url];
     if (entry === undefined) return Promise.reject(new Error(`No route for ${url}`));
     const route = typeof entry === 'function' ? entry() : entry;
+    // A 204 has no body at all, not even an empty one.
     return Promise.resolve(
-      new Response(route.body ?? '', {
+      new Response(route.status === 204 ? null : (route.body ?? ''), {
         status: route.status,
         ...(route.headers === undefined ? {} : { headers: route.headers }),
       }),
@@ -35,13 +36,26 @@ const mailSearchUrl = (mailUrl: string, locale: string): string =>
   `${mailUrl}/api/v1/search?query=${encodeURIComponent(`to:${mailAddress(locale)}`)}`;
 const mailFound = (locale: string) => ({
   status: 200,
-  body: `{"messages":[{"To":[{"Address":"${mailAddress(locale)}"}]}]}`,
+  body: `{"messages":[{"ID":"message-${locale}","To":[{"Address":"${mailAddress(locale)}"}]}]}`,
 });
 
-const freeTimesUrl = (apiUrl: string): string =>
-  `${apiUrl}/api/v1/public/practices/al-noor/availability?serviceId=${DEMO_SERVICE}`;
+/** The id of the demo practice, as its public page names it. */
+const PRACTICE_ID = '22222222-2222-4222-8222-222222222222';
+const DEMO_PRACTICE_ANSWER = { status: 200, body: `{"id":"${PRACTICE_ID}","slug":"al-noor"}` };
 
-const DEMO_PRACTICE_ANSWER = { status: 200, body: '{"slug":"al-noor"}' };
+/** Without a sign-in (D19), and the public route of before. */
+const closedTimesUrl = (apiUrl: string): string =>
+  `${apiUrl}/api/v1/practices/${PRACTICE_ID}/free-times?serviceId=${DEMO_SERVICE}&date=2026-11-16`;
+const oldPublicUrl = (apiUrl: string): string =>
+  `${apiUrl}/api/v1/public/practices/al-noor/availability?serviceId=${DEMO_SERVICE}`;
+/** Signed in, with the run's own account (B07). */
+const freeTimesUrl = (apiUrl: string): string =>
+  `${apiUrl}/api/v1/practices/${PRACTICE_ID}/availability?serviceId=${DEMO_SERVICE}`;
+const messageUrl = (mailUrl: string): string => `${mailUrl}/api/v1/message/message-en`;
+const MESSAGE = {
+  status: 200,
+  body: JSON.stringify({ Text: 'Confirm: http://localhost:3000/en/verify-email#token=abc-123_x' }),
+};
 
 function limitCountingDown(): () => Route {
   let remaining = 60;
@@ -81,6 +95,17 @@ function healthyRoutes(mode: 'dev' | 'prod'): Routes {
       body: `<url><loc>${webUrl}/en</loc></url>`,
     },
     [`${apiUrl}/api/v1/public/practices/al-noor`]: limitCountingDown(),
+    [closedTimesUrl(apiUrl)]: { status: 401 },
+    [oldPublicUrl(apiUrl)]: { status: 404 },
+    // Where the demo practice named no id, as the API answers: the guard first, then no such id.
+    [closedTimesUrl(apiUrl).replace(PRACTICE_ID, 'unbekannt')]: { status: 401 },
+    [freeTimesUrl(apiUrl).replace(PRACTICE_ID, 'unbekannt')]: { status: 404 },
+    [messageUrl(mailUrl)]: MESSAGE,
+    [`${apiUrl}/api/v1/auth/verify-email`]: { status: 204 },
+    [`${apiUrl}/api/v1/auth/login`]: {
+      status: 200,
+      body: '{"account":{},"tokens":{"accessToken":"synthetic-access"}}',
+    },
     [freeTimesUrl(apiUrl)]: { status: 200, body: '{"days":[{"hasFreeTimes":true}]}' },
     [`${apiUrl}/api/v1/public/practices/gibt-es-nicht`]: {
       status: 404,
@@ -200,7 +225,10 @@ describe('the checks of a healthy stack', () => {
   it('sends no test sign-up through a real mail server, which would send real e-mails', async () => {
     const checks = smokeChecks(STACKS.dev, { swaggerEnabled: false, catchesMail: false }, RUN_ID);
     expect(checks.filter(({ method }) => method === 'POST')).toEqual([]);
-    expect(checks.map(({ url }) => url).join(' ')).not.toContain('/api/v1/search');
+    const urls = checks.map(({ url }) => url).join(' ');
+    expect(urls).not.toContain('/api/v1/search');
+    expect(urls).not.toContain('/api/v1/message');
+    expect(urls).not.toContain('/auth/login');
     const results = await runChecks(checks, answering(healthyRoutes('dev')));
     expect(results.filter(({ ok }) => !ok)).toEqual([]);
   });
@@ -290,7 +318,8 @@ describe('what the smoke test catches', () => {
     const problems = await failuresWith('prod', {
       'http://localhost:8080/api/v1/public/practices/al-noor': { status: 429 },
     });
-    expect(new Set(problems)).toEqual(new Set(['Status 429 statt 200']));
+    // What needs the practice's id says so, and not that the proxy is wrong.
+    expect(new Set(problems)).toEqual(new Set(['Status 429 statt 200', 'Demo-Praxis fehlt']));
   });
 
   it('a proxy that keeps the request id of the visitor', async () => {
@@ -335,8 +364,66 @@ describe('what the smoke test catches', () => {
     expect(await failuresWith('prod', { [url]: page('<h1>x</h1>') })).toEqual(['Keine Suchdaten']);
   });
 
+  it('free times a visitor reaches without a sign-in, against D19', async () => {
+    expect(
+      await failuresWith('dev', { [closedTimesUrl(STACKS.dev.apiUrl)]: { status: 200 } }),
+    ).toEqual(['Status 200 statt 401']);
+  });
+
+  it('the public route of the free times, still there', async () => {
+    expect(
+      await failuresWith('prod', { [oldPublicUrl(STACKS.prod.apiUrl)]: { status: 200 } }),
+    ).toEqual(['Status 200 statt 404']);
+  });
+
+  it('asks for the free times by the id the demo practice names, signed in', async () => {
+    const fetchImpl = answering(healthyRoutes('dev'));
+    const results = await runChecks(smokeChecks(STACKS.dev, WITH_MAILPIT, RUN_ID), fetchImpl, 0);
+    expect(results.filter(({ ok }) => !ok)).toEqual([]);
+    // The checks ask by plain strings; what each call sent, by its address.
+    const sent = (address: string): RequestInit | undefined =>
+      vi.mocked(fetchImpl).mock.calls.find(([url]) => url === address)?.[1];
+    const bodyOf = (init: RequestInit | undefined): unknown =>
+      typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+    const { apiUrl } = STACKS.dev;
+    expect(sent(freeTimesUrl(apiUrl))?.headers).toEqual({
+      Authorization: 'Bearer synthetic-access',
+    });
+    expect(bodyOf(sent(`${apiUrl}/api/v1/auth/verify-email`))).toMatchObject({
+      token: 'abc-123_x',
+    });
+    expect(bodyOf(sent(`${apiUrl}/api/v1/auth/login`))).toMatchObject({
+      email: mailAddress('en'),
+      delivery: 'body',
+    });
+  });
+
+  it('a demo practice that names no id: its free times cannot be asked', async () => {
+    expect(
+      await failuresWith('dev', {
+        [`${STACKS.dev.apiUrl}/api/v1/public/practices/al-noor`]: {
+          status: 200,
+          body: '{"slug":"al-noor"}',
+        },
+      }),
+    ).toEqual(['Demo-Praxis fehlt', 'Demo-Praxis fehlt']);
+  });
+
+  it('a confirmation e-mail without its link, and a sign-in without a token', async () => {
+    expect(
+      await failuresWith('dev', {
+        [messageUrl(STACKS.dev.mailUrl)]: { status: 200, body: '{"Text":"no link"}' },
+      }),
+    ).toEqual(['Kein Link mit Token']);
+    expect(
+      await failuresWith('prod', {
+        [`${STACKS.prod.apiUrl}/api/v1/auth/login`]: { status: 200, body: '{"account":{}}' },
+      }),
+    ).toEqual(['Kein Zugangstoken']);
+  });
+
   it('a practice without free times, or an API that cannot say', async () => {
-    const url = freeTimesUrl('http://localhost:3001');
+    const url = freeTimesUrl(STACKS.dev.apiUrl);
     expect(
       await failuresWith('dev', {
         [url]: { status: 200, body: '{"days":[{"hasFreeTimes":false}]}' },
@@ -468,7 +555,7 @@ describe('what the smoke test catches', () => {
           body: '{"slug":"other"}',
         },
       }),
-    ).toEqual(['Falsche Praxis']);
+    ).toEqual(['Falsche Praxis', 'Demo-Praxis fehlt', 'Demo-Praxis fehlt']);
   });
 
   it('a service that is not healthy', async () => {

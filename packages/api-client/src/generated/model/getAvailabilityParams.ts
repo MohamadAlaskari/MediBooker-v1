@@ -5,9 +5,9 @@
  * OpenAPI spec version: 1
  */
 
-export type GetPublicAvailabilityParams = {
+export type GetAvailabilityParams = {
   serviceId: string;
-  /** A doctor: on the public routes one with a public profile */
+  /** A doctor: for a patient one with a public profile (BR-24) */
   providerId?: string;
   /** First day, in the practice's time zone; default: today */
   from?: string;

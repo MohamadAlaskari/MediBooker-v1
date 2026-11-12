@@ -22,6 +22,7 @@ import { formatOf, practiceById, textIn, whenParts } from './appointment-view';
 import { fanOutRetryDelay, MissingPractices, retryFanOut } from './appointments-page';
 import { downloadCalendarFile } from './calendar-file';
 import { CancelButton } from './cancel-button';
+import { bookHref } from './free-times/free-times-view';
 import {
   Card,
   LoadError,
@@ -344,9 +345,8 @@ export function HomePage({ slug, practiceHref }: HomePageProps): ReactNode {
   });
   const practices = useListMyPractices();
   const { arrival, said, onChanged } = useArrivals();
-  // A booking starts on the practice's page; where there are several, the list leads to each.
-  const bookHref =
-    practiceHref === undefined ? `/${locale}/appointments` : `${practiceHref}#free-times`;
+  // A booking starts on its own page (B07); where there are several practices, the list leads to each.
+  const booking = slug === undefined ? `/${locale}/appointments` : bookHref(locale, slug);
   const today =
     practice.data === undefined
       ? undefined
@@ -402,7 +402,7 @@ export function HomePage({ slug, practiceHref }: HomePageProps): ReactNode {
           today={today}
           focusOnArrival={arrival > 0}
         />
-        <LinkButton href={bookHref}>
+        <LinkButton href={booking}>
           <CalendarPlus aria-hidden data-icon="inline-start" />
           {t('home.book')}
         </LinkButton>

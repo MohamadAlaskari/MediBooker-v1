@@ -16,7 +16,7 @@ The roadmap first commits the removal of the v1 apps (L00), then builds the foun
 The user's decision of 2026-11-05. It replaces the order of the overview, whose numbers stay; "order is dependency" applies to this order.
 
 - Functional features first; a foundation item only when the next feature needs it. Related items may share one commit (`+` below). About one hour per item.
-- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (`22c0cd5`), the pages of A05 for patients (`8d12915`), the account profile of D16 (`b0e2f11`), a real mail server for the stacks (`dc6bd58`), the patient profiles of B01 (`ddf90dd`), booking through the API with B02 (`b9b2795`), the patient half of B03 (`447475e`), booking on the web with B04 (`628fd8e`), the file storage of F09 (`95e5b8e`), the user's request of 2026-11-07, one installation per practice with I01 (`f1af019`) and I02 (`7f2c8ac`), the user's decision of 2026-11-10 ([ADR 0016](../adr/0016-one-installation-per-practice.md)), the staff part of A04 that the dashboard needs (`d1aeeee`), the team's day of M05 with the staff half of B03 (`aadecdd`), the team's lists of M05 (`0ab8005`), booking for a patient of M05 (`09fc376`), the calendar of M05 (`e13b020`), the services, opening hours and special days of M02 (`07d766e`, W13's referral and buffer `deb541c`), the working hours of M04 (`594cf26`, `33f1616`), booking by duration and buffer (`438dcdc`), the team's override of BR-02 and RT-97's correction and copy (`6652af8`), the portal home of B06 (`3f7fbe4`, `cdcbacd`), `practice create` of A04 (this commit), then, by the user's order of 2026-11-12, every item but the mobile app first and the mobile app (F07, X08 to X10, A06, B05, N02, REL01) last. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
+- New order: P01+P02 (`b20f32c`), X01+X02 (`6bba58e`), F06 (`c80aa43`), X05+X03 (`099be7b`), the Docker part of F05 (`027e10f`, the user's request of 2026-11-06), X04+X06+X07+P03 (`8c1da1a`), the sitemap (`54c9140`), P04+P05+P06 (`c0dbca6`), the accounts and sessions of A01 with the account e-mails of A02 and A03 (`22c0cd5`), the pages of A05 for patients (`8d12915`), the account profile of D16 (`b0e2f11`), a real mail server for the stacks (`dc6bd58`), the patient profiles of B01 (`ddf90dd`), booking through the API with B02 (`b9b2795`), the patient half of B03 (`447475e`), booking on the web with B04 (`628fd8e`), the file storage of F09 (`95e5b8e`), the user's request of 2026-11-07, one installation per practice with I01 (`f1af019`) and I02 (`7f2c8ac`), the user's decision of 2026-11-10 ([ADR 0016](../adr/0016-one-installation-per-practice.md)), the staff part of A04 that the dashboard needs (`d1aeeee`), the team's day of M05 with the staff half of B03 (`aadecdd`), the team's lists of M05 (`0ab8005`), booking for a patient of M05 (`09fc376`), the calendar of M05 (`e13b020`), the services, opening hours and special days of M02 (`07d766e`, W13's referral and buffer `deb541c`), the working hours of M04 (`594cf26`, `33f1616`), booking by duration and buffer (`438dcdc`), the team's override of BR-02 and RT-97's correction and copy (`6652af8`), the portal home of B06 (`3f7fbe4`, `cdcbacd`), `practice create` of A04 (`70b7b21`), its session control and security e-mails (`74c0602`), free times only after signing in with B07 (this commit, the user's decision D19 of 2026-11-12), then, by the user's order of 2026-11-12, every item but the mobile app first and the mobile app (F07, X08 to X10, A06, B05, N02, REL01) last. The rest of F05 moves to just before OPS01; F07, X08, X09 and X10 move to just before A06.
 - Scope moves, each with its acceptance checks: X02's app-config endpoint → X08; `@PublicCache` → P05; ADR 0012 → X03; X03's mobile typecheck acceptance → F07; F06's web Dockerfile, compose `web` and `proxy` services and `images` job changes → F05; P03's checks that need F05 → F05.
 
 ## Overview
@@ -63,10 +63,11 @@ The user's decision of 2026-11-05. It replaces the order of the overview, whose 
 | 35b | F09 | File storage: port, Azure and Azurite | `feat(storage): add object storage port with Azure and Azurite` | - | done (`95e5b8e`) |
 | 35c | I01 | The installation's practice at the root of its domain | `feat(web): serve the installation's practice at the domain root` | - | done (`f1af019`) |
 | 35d | I02 | The practice's brand with "powered by MediBooker" | `feat(web): show the practice's brand on its pages and e-mails` | - | done (`7f2c8ac`) |
+| 35e | B07 | Free times only after signing in | `feat(web): show free times only after signing in` | D19 | done (this commit) |
 | 36 | B05 | Mobile booking | `feat(mobile): add booking flow, my appointments and offline cache` | D16 | planned |
 | 37 | M01 | Listing, practice page and theme settings | `feat(practice): add practice page and theme settings for admins` | D3 | planned |
 | 38 | M02 | Services, opening hours, special days | `feat(practice): manage services, opening hours and special days` | - | done (`07d766e`, `deb541c`) |
-| 39 | M03 | Team and public-profile consent | `feat(staff): manage team members and public-profile consent` | - | planned |
+| 39 | M03 | Team, roles and public-profile consent | `feat(staff): manage team members and public-profile consent` | D17, D18 | planned, in three parts: the roles of D17 with the team page W15; invitations (E09), doctors and the public-profile consent; the audit log W18 (D18) and support access |
 | 40 | M04 | Working hours and slots | `feat(scheduling): manage working hours, exceptions and slots` | - | part 1 done (`594cf26`, `33f1616`): working hours, absences, free times, blocking; part 2 done (`438dcdc`): booking by duration and buffer; part 3 done (`6652af8`): the team's override of BR-02, RT-97's correction and copy |
 | 41 | M05 | Dashboard and appointment handling | `feat(web): add dashboard today, calendar and appointment handling` | - | the team's day (W1), an appointment's details (W6) and the changes of the team done (`aadecdd`), the appointment list (W5) and the patients (W8) done (`0ab8005`), booking for a patient (W7) done (`09fc376`), the calendar (W2) done (`e13b020`): M05 complete |
 | 42 | N01 | Appointment e-mails and reminders | `feat(notifications): add appointment e-mails and reminders` | - | planned |
@@ -765,7 +766,7 @@ Acceptance:
 - The `Africa/Cairo` day range of 2027-04-30 is [2027-04-29T22:00Z, 2027-04-30T21:00Z).
 - 429 after the limit; `Cache-Control` is exactly `public, max-age=30`; responses match the OpenAPI schemas.
 
-As built (one commit with P04): the routes are `GET /api/v1/public/practices/{slug}/availability` and `…/slots`, `getPublicAvailability` and `getPublicFreeTimes`. `from` and `to` are optional: today and the 42nd day. A free time is only `{ startsAt }`, and several providers with the same start give one time. The first version also named a slot id; its security review showed that comparing two answers by it reveals the times and absences of a provider without a public profile, and that a withdrawal would not have taken effect (BR-24). So the booking of B02 takes `serviceId`, `startsAt` and optionally `providerId`, and picks the slot in its transaction, unlike the `slotId` of the sample in the `nestjs-feature` skill. `@PublicCache` and the limit of 60 requests per minute per route and address follow P02's way with `@Throttle`. The smoke test of the control menu checks that the demo practice has free times, the whole way from the rules through the job to the public route.
+As built (one commit with P04): the routes are `GET /api/v1/public/practices/{slug}/availability` and `…/slots`, `getPublicAvailability` and `getPublicFreeTimes`; since B07 `GET /api/v1/practices/{practiceId}/availability` and `…/free-times`, `getAvailability` and `getFreeTimes`, for a signed-in account with a confirmed address and kept by no cache. `from` and `to` are optional: today and the 42nd day. A free time is only `{ startsAt }`, and several providers with the same start give one time. The first version also named a slot id; its security review showed that comparing two answers by it reveals the times and absences of a provider without a public profile, and that a withdrawal would not have taken effect (BR-24). So the booking of B02 takes `serviceId`, `startsAt` and optionally `providerId`, and picks the slot in its transaction, unlike the `slotId` of the sample in the `nestjs-feature` skill. `@PublicCache` and the limit of 60 requests per minute per route and address follow P02's way with `@Throttle`; since B07 the answers are `no-store`. The smoke test of the control menu checks that the demo practice has free times, the whole way from the rules through the job to the route, since B07 signed in, and that the route refuses a visitor without a sign-in.
 
 ### P06 — Free times on the public page
 
@@ -1028,6 +1029,43 @@ As built (`3f7fbe4`, the check of its link `cdcbacd`): PW2 at `/{locale}/home` (
 
 From the security review (approved with fixes, no blocker or major), all four fixed: a 503 of the API is no proof that nothing happened, because a connection can also fail during the commit, so it now only makes the same press safe (`isSafeToRepeat`), and a cancel's dialog offers "Close" after it and reads the page again, as after an unknown outcome; the way back from the history named how many pages were on screen, which tells roughly how many visits a person has had and stayed in the browser's history, and now names the appointment itself instead, whose id the details' path holds already; signing out reaches a tab on the home too, as a test now shows; and a `mailto:` link is made only of a plain address (`mailtoHref`), on the home and on the practice page, because `?bcc=` in one would add recipients. Open: the `theme` cookie belongs in the practice's cookie notice, and the DPO confirms per market that it needs no consent as a setting the person asked for (ePrivacy Art. 5(3)); should a public page ever be cached, `data-theme` has to move to the client.
 
+### B07 — Free times only after signing in
+
+**Commit:** `feat(web): show free times only after signing in` · **Depends on:** D19 · **Owner:** main agent
+
+The user's decision of 2026-11-12 (D19): the first page shows no free times; a visitor signs in or signs up first, and the page has the buttons for both. It replaces the decision of 2026-11-01 that free times are public.
+
+As built (this commit):
+
+- **API.**
+  - The routes become `GET /api/v1/practices/{practiceId}/availability` and `…/free-times` (`getAvailability`, `getFreeTimes`, `FreeTimesController`). The public ones by slug answer 404.
+  - A new access rule `@PracticeScoped('id', { account: true, confirmed: true })`: any signed-in account of a published practice, without a row there. The caller is read before the registry, a practice without a publication answers 404 before the address, and an address not confirmed answers `EMAIL_NOT_VERIFIED`. No patient profile is needed: it still comes with the first booking.
+  - The answers are `no-store`, and the limit stays 60 a minute per route and address.
+  - DTOs and service lose the word "public": `AvailabilityDto`, `FreeTimesDto`, `FreeTimesService` with `PATIENT_AUDIENCE`. The team's W7 keeps its own routes.
+- **Web.**
+  - The practice's page keeps practice, services, team, hours and the way there for everyone and for search engines. In place of the free times it has "Book online" (`#book-online`), with Sign in and Create account, which lead back to the booking page in the fragment.
+  - The header has the same two buttons. "Book appointment" in the hero goes to `/{locale}/book/{slug}`, which the proxy sends through signing in.
+  - The booking page chooses its time itself: the chooser of P06, now in `features/portal/free-times`, asks by the practice's id; then the details at the first booking, the review, the booking.
+  - "Another time" and "Back to free times" stay on the page, and after a taken time they ask for the times again.
+  - The portal's navigation, the home and the list lead there.
+  - With that, the one exception to "no web storage" goes: `booking-choice.ts`, its lint exception and its clearing on signing in and out.
+- **Tests.**
+  - API: unit tests of the access rule; integration tests on real databases (401 without a sign-in, `EMAIL_NOT_VERIFIED`, 404 for a practice without a publication and for an unknown one, a confirmed account that is no patient yet, the old routes gone), and the integration tests that read a patient's free times now sign in for them.
+  - Web: unit tests of the booking page's steps.
+  - End to end: the chooser on the booking page, the practice page's buttons and that it asks for no times, the way through signing in, and the stub's routes.
+
+From the security review (approved with fixes, no blocker; one major), all fixed:
+- **Smoke test.** The control menu's smoke test still asked the public route, so CI's `images` job would have failed. It now proves D19 on the running stack: the demo practice's route answers 401 without a sign-in, and the public one 404. Where Mailpit takes the e-mail, the run's own synthetic account confirms its address, signs in and sees free times. There is no public route and no stored password.
+- **Cache.** `@PublicCache` now opens a shared cache only on a `@Public()` route under `/api/v1/public/`, as RT-12 says; elsewhere it keeps `no-store` and logs an error, with a unit test. The contract rows say `no-store`.
+- **Limits.** The team's free times (W7) count apart from the patients', and one patient account has at most two answers under way at once.
+- **Access rule.** It is exclusive: two rules, or `confirmed` without `patient`, throw, and `account` always wants a confirmed address. The route inventory finds an `id` route without a rule.
+- **Docs.** The stale lines in 03-web, 02-api, ADR 0005, the feature catalogue and the skills are fixed, and BR-24 names the residue of "any doctor".
+
+Open:
+- OPS01: no query strings of `/api/*` in proxy or CDN logs, now that a query of free times is tied to an account.
+- Figma follows the code: PW13 and PW14 get "Book online" instead of the free times, and PW5 the chooser first (ui-designer).
+- The app (B05) takes the same routes.
+
 ### B05 — Mobile booking, my appointments and offline cache
 
 **Commit:** `feat(mobile): add booking flow, my appointments and offline cache` · **Depends on:** D16 · **Owner:** mobile-engineer
@@ -1068,7 +1106,19 @@ Then, the user's decision of 2026-11-11 on the two fields of W13 that the domain
 
 ### M03 — Team members and public-profile consent
 
-**Commit:** `feat(staff): manage team members and public-profile consent` · **Depends on:** - · **Owner:** backend-engineer and web-engineer
+**Commit:** `feat(staff): manage team members and public-profile consent` · **Depends on:** D17, D18 · **Owner:** backend-engineer and web-engineer
+
+Decided on 2026-11-12 (D17, D18), and built in three parts:
+
+1. **The roles of D17 and the team page W15.**
+   - A membership has a base role, practice team (`STAFF`) or doctor (`DOCTOR`), and the add-on "practice management". A migration moves `ADMIN` to the practice team with practice management.
+   - Only practice management gives and changes roles, the add-on too. The last person with it keeps it and stays active. Each change is audited and the person gets an e-mail.
+   - The route guards name capabilities instead of the three roles. The operator's command and its menu entry set the first.
+   - W15 lists every member, filtered by doctors, the practice team and practice management: change a role, deactivate (every session ends), reset a lost second factor.
+2. **Invitations (E09), doctors and the public-profile consent:** the scope below.
+3. **The audit log W18 (D18) and support access.**
+   - W18 is for practice management only, read only. It filters by person, time, patient and action, has an export for the data protection officer, and shows no clinical content; opening it is audited too.
+   - Support access is the admin's invitation with a reason, a role and an expiry (ADR 0005 §9.4).
 
 Scope: `GET`/`POST`/`PATCH …/staff` (admin); `GET`/`PATCH /practices/{practiceId}/me/public-profile` (consent given and withdrawn only by the person, with the text version, audited, effective at once; a withdrawal also writes its revocation event for `revocation_journal`); admins can hide a profile; the team list shows support memberships with their expiry and lets the admin revoke them (A04); screens W15 and W16; the reception appears as a team card without names (current design, D14); photos wait for R02.
 

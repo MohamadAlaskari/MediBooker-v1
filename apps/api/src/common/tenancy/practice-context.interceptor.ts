@@ -63,7 +63,7 @@ interface PracticeScopedRequest {
  * A `{ patient: true }` route, with `confirmed` after a look at the account, first reads the membership index, so a caller without a row gets 404
  * and no client is opened, and then asks the practice database, which decides: a stale index row is
  * overruled there. A `{ join: true }` route needs a published practice and a confirmed account
- * (BR-09). A `{ staff: [...] }` route needs a sign-in with both factors first (`MFA_REQUIRED`,
+ * (BR-09), and so does an `{ account: true }` route, which reads the caller first. A `{ staff: [...] }` route needs a sign-in with both factors first (`MFA_REQUIRED`,
  * whatever the index says), then a STAFF index row, and then an active membership in the practice
  * database, whose role decides: another role is 403. The route's guard has verified the caller.
  *
@@ -142,15 +142,17 @@ export class PracticeContextInterceptor implements NestInterceptor {
       this.requireSecondFactor();
       await this.requireIndexRow(practiceId, 'STAFF');
     }
-    const resolution =
-      access === 'join'
-        ? await this.resolver.resolvePublished(practiceId)
-        : await this.resolver.resolve(practiceId, 'request');
+    const published = access === 'join' || access === 'account';
+    // A route for an account reads the caller first: a public route would have none.
+    if (access === 'account') this.actor();
+    const resolution = published
+      ? await this.resolver.resolvePublished(practiceId)
+      : await this.resolver.resolve(practiceId, 'request');
     if (resolution.answer === 'NOT_FOUND') throw new NotFoundException();
     if (resolution.answer === 'UNAVAILABLE') {
       throw this.unavailable(new PracticeUnavailableError(practiceId, resolution.reason), response);
     }
-    if (access === 'join') await this.requireConfirmedAccount();
+    if (published) await this.requireConfirmedAccount();
     return this.lease(resolution.route, 'request', response);
   }
 

@@ -4,10 +4,9 @@
  * tests which visitor addresses reached it.
  */
 import { createServer, type ServerResponse } from 'node:http';
-import type { PublicPracticeDto } from '@medibooker/api-client';
 import { problem, respond } from './answers.ts';
 import { deskAccessOf, handleAccounts, ownerOf } from './auth-stub.ts';
-import { freeStarts, handleBooking, isOffered, publicPracticeFor } from './booking-stub.ts';
+import { handleBooking, publicPracticeFor } from './booking-stub.ts';
 import { handleDeskBooking } from './desk-booking-stub.ts';
 import { handleDeskLists } from './desk-lists-stub.ts';
 import { handleDesk } from './desk-stub.ts';
@@ -17,15 +16,10 @@ import { PRACTICES } from './practices.ts';
 
 const LIST_PATH = '/api/v1/public/practices';
 const PATH = /^\/api\/v1\/public\/practices\/([^/]+)$/;
-const FREE_TIMES_PATH = /^\/api\/v1\/public\/practices\/([^/]+)\/(availability|slots)$/;
 // A Map and a type check: the slug comes from the URL, and `__proto__` is no practice.
 const PRACTICE_BY_SLUG = new Map(Object.entries(PRACTICES));
 const forwardedFor = new Set<string>();
 
-/** The stub's today; the practices say the same, so no test depends on the clock. */
-const TODAY = Date.UTC(2026, 10, 8);
-const DAY_MS = 86_400_000;
-const AVAILABILITY_DAYS = 42;
 const PRACTICE_RETRY_AFTER_SECONDS = '30';
 
 const LISTED = ['al-noor', 'ocean', 'closed'];
@@ -39,32 +33,6 @@ function list(response: ServerResponse, cursor: string | null): void {
     items: LISTED.slice(start, end).map((slug) => ({ slug })),
     nextCursor: end < LISTED.length ? String(end) : null,
   });
-}
-
-function freeTimes(
-  response: ServerResponse,
-  route: string | undefined,
-  practice: PublicPracticeDto,
-  owner: string | undefined,
-  searchParams: URLSearchParams,
-): void {
-  const providerId = searchParams.get('providerId');
-  if (!isOffered(owner, practice, searchParams.get('serviceId'), providerId)) {
-    problem(response, 'NOT_FOUND');
-    return;
-  }
-  const startsOf = (date: string): readonly string[] =>
-    freeStarts(owner, practice, date, providerId);
-  if (route === 'availability') {
-    const days = Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
-      const date = new Date(TODAY + offset * DAY_MS).toISOString().slice(0, 10);
-      return { date, hasFreeTimes: startsOf(date).length > 0 };
-    });
-    respond(response, 200, { days });
-    return;
-  }
-  const date = searchParams.get('date') ?? '';
-  respond(response, 200, { date, times: startsOf(date).map((startsAt) => ({ startsAt })) });
 }
 
 const server = createServer((request, response) => {
@@ -99,8 +67,7 @@ const server = createServer((request, response) => {
     list(response, searchParams.get('cursor'));
     return;
   }
-  const [, slugOfTimes = '', route] = FREE_TIMES_PATH.exec(pathname) ?? [];
-  const slug = PATH.exec(pathname)?.[1] ?? slugOfTimes;
+  const slug = PATH.exec(pathname)?.[1] ?? '';
   if (slug === 'broken') {
     problem(response, 'SERVICE_UNAVAILABLE', {}, { 'Retry-After': PRACTICE_RETRY_AFTER_SECONDS });
     return;
@@ -111,12 +78,7 @@ const server = createServer((request, response) => {
     return;
   }
   const language = request.headers['accept-language'] ?? 'ar';
-  const practice = answer(language);
-  if (slugOfTimes !== '') {
-    freeTimes(response, route, practice, owner, searchParams);
-    return;
-  }
-  respond(response, 200, publicPracticeFor(owner, practice));
+  respond(response, 200, publicPracticeFor(owner, answer(language)));
 });
 
 server.listen(Number(process.env.API_STUB_PORT ?? 3901), '127.0.0.1');

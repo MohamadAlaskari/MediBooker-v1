@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1
  */
 
-export interface PublicFreeTimeDto {
+export interface FreeTimeDto {
   /** An instant */
   startsAt: string;
 }

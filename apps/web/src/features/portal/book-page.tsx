@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  getGetAvailabilityQueryKey,
+  getGetFreeTimesQueryKey,
   isApiError,
   useBookAppointment,
   useGetMe,
@@ -10,11 +12,12 @@ import {
   type PublicPracticeDto,
   type PublicServiceDto,
 } from '@medibooker/api-client';
+import { isolate } from '@medibooker/i18n';
 import { bookAppointmentBodyPatientNoteMax } from '@medibooker/api-client/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CalendarPlus, Check } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, LinkButton } from '@/components/ui/button';
 import { TextAreaField } from '@/components/ui/text-field';
@@ -22,10 +25,11 @@ import { practiceFormat } from '@/lib/format';
 import { FormError, PageHeading, useFocusOnArrival } from '../auth/form-parts';
 import { ResendButton } from '../auth/resend-button';
 import { useWaitOut, WaitNote } from '../auth/wait-out';
-import { fullNameOf } from '../practice-page/practice-view';
+import { doctorsOf, fullNameOf } from '../practice-page/practice-view';
 import { isChoiceGone, noteToSend, whenParts } from './appointment-view';
-import { clearChoice, parseChoice, readRawChoice, type BookingChoice } from './booking-choice';
 import { downloadCalendarFile } from './calendar-file';
+import { FreeTimesChooser, type ChosenTime } from './free-times/free-times-picker';
+import { bookHref } from './free-times/free-times-view';
 import {
   AppointmentFacts,
   Card,
@@ -39,37 +43,22 @@ import { JoinStep, UpdateDetailsStep } from './practice-details-steps';
 
 const NOTE_FIELD = 'patientNote';
 
-function noChanges(): () => void {
-  return () => undefined;
-}
-
-/** What was chosen on the practice's page, in this tab. */
-function useBookingChoice(slug: string): BookingChoice | undefined {
-  const raw = useSyncExternalStore(noChanges, readRawChoice, () => null);
-  const choice = useMemo(() => parseChoice(raw, slug), [raw, slug]);
-  // What is too old or for another practice helps nobody here, and need not wait for the tab to close.
-  useEffect(() => {
-    if (raw !== null && choice === undefined) clearChoice();
-  }, [raw, choice]);
-  return choice;
-}
-
-/** Nothing to book as it stands: why, and the way to the practice's times. */
+/** Nothing to book as it stands: why, and the way back to the times. */
 function ChooseAgain({
-  timesHref,
   title,
   body,
+  onChooseAgain,
 }: {
-  readonly timesHref: string;
   readonly title: string;
   readonly body: string;
+  readonly onChooseAgain: () => void;
 }): ReactNode {
   const t = useTranslations('portal.book');
   return (
     <Alert className="gap-2">
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>{body}</AlertDescription>
-      <LinkButton href={timesHref}>{t('seeTimes')}</LinkButton>
+      <Button onPress={onChooseAgain}>{t('back')}</Button>
     </Alert>
   );
 }
@@ -149,17 +138,17 @@ export function Review({
   onNoteChange,
   onBooked,
   onIncomplete,
-  timesHref,
+  onChooseAgain,
 }: {
   readonly practice: PublicPracticeDto;
   readonly service: PublicServiceDto;
-  readonly choice: BookingChoice;
+  readonly choice: ChosenTime;
   readonly note: string;
   readonly onNoteChange: (note: string) => void;
   readonly onBooked: (appointment: AppointmentDto) => void;
   readonly onIncomplete: () => void;
-  /** The practice's free times, where its page is: the root of an installation (ADR 0016). */
-  readonly timesHref: string;
+  /** Back to the times; `stale` when the chosen one was taken, so that they are asked again. */
+  readonly onChooseAgain: (stale: boolean) => void;
 }): ReactNode {
   const t = useTranslations('portal');
   const freeTimes = useTranslations('practicePage.freeTimes');
@@ -174,13 +163,15 @@ export function Review({
     isApiError(book.error) && book.error.fieldErrors.some(({ field }) => field === NOTE_FIELD);
   const noteField = useFocusOnArrival<HTMLTextAreaElement>(noteIsWrong);
   // It takes the place of the button with the focus.
-  const otherTime = useFocusOnArrival<HTMLAnchorElement>(taken);
+  const otherTime = useFocusOnArrival<HTMLButtonElement>(taken);
   if (choice.providerId !== undefined && doctor === undefined) {
     return (
       <ChooseAgain
-        timesHref={timesHref}
         title={t('book.doctorGoneTitle')}
         body={t('book.doctorGoneBody')}
+        onChooseAgain={() => {
+          onChooseAgain(false);
+        }}
       />
     );
   }
@@ -218,9 +209,14 @@ export function Review({
         <div className="flex flex-col gap-2">
           <FormError error={book.error} fields={[NOTE_FIELD]} notFound={t('book.timeGone')} />
           {taken ? (
-            <LinkButton ref={otherTime} href={timesHref}>
+            <Button
+              ref={otherTime}
+              onPress={() => {
+                onChooseAgain(true);
+              }}
+            >
               {t('reschedule.other')}
-            </LinkButton>
+            </Button>
           ) : (
             <Button
               // Also while it waits out a Retry-After: that keeps the focus on it.
@@ -239,10 +235,7 @@ export function Review({
                     headers: { 'Idempotency-Key': key },
                   },
                   {
-                    onSuccess: (appointment) => {
-                      clearChoice();
-                      onBooked(appointment);
-                    },
+                    onSuccess: onBooked,
                     onError: (failure) => {
                       if (failure.code === 'PATIENT_PROFILE_INCOMPLETE') onIncomplete();
                     },
@@ -255,10 +248,15 @@ export function Review({
             </Button>
           )}
           <WaitNote seconds={wait} />
-          <LinkButton variant="outline" href={timesHref}>
+          <Button
+            variant="outline"
+            onPress={() => {
+              onChooseAgain(false);
+            }}
+          >
             <ArrowLeft aria-hidden data-icon="inline-start" className="rtl:rotate-180" />
             {t('book.back')}
-          </LinkButton>
+          </Button>
         </div>
         <ChangeNote
           hours={practice.cancellationDeadlineHours}
@@ -272,23 +270,20 @@ export function Review({
 
 type Step = 'review' | 'update-details';
 
-/** The booking of a time chosen on a practice's page: PW5 and PW6, and the details at the first time. */
-export function BookPage({
-  slug,
-  practiceHref,
-}: {
-  readonly slug: string;
-  /** Where the practice's page is, which only the server knows (ADR 0016). */
-  readonly practiceHref: string;
-}): ReactNode {
-  const timesHref = `${practiceHref}#free-times`;
+/**
+ * A booking, signed in from its start (B07): a time from the practice's free times, then PW5 and PW6,
+ * and the details at the first time. The choice stays in this page and in no storage.
+ */
+export function BookPage({ slug }: { readonly slug: string }): ReactNode {
   const t = useTranslations('portal.book');
+  const freeTimes = useTranslations('practicePage.freeTimes');
+  const services = useTranslations('practicePage.services');
   const locale = useLocale();
   const queryClient = useQueryClient();
   const me = useGetMe();
   const practice = useGetPublicPractice(slug);
   const practices = useListMyPractices();
-  const choice = useBookingChoice(slug);
+  const [choice, setChoice] = useState<ChosenTime>();
   const [booked, setBooked] = useState<AppointmentDto>();
   const [step, setStep] = useState<Step>('review');
   // Here and in no storage: a step about the person comes between, and a note can say what someone has.
@@ -302,10 +297,6 @@ export function BookPage({
   };
   const moved = arrival > 0;
   const service = practice.data?.services.find(({ id }) => id === choice?.serviceId);
-  const serviceGone = choice !== undefined && practice.data !== undefined && service === undefined;
-  useEffect(() => {
-    if (serviceGone) clearChoice();
-  }, [serviceGone]);
   if (me.isPending || practice.isPending || practices.isPending) {
     return (
       <>
@@ -342,8 +333,77 @@ export function BookPage({
   }
   if (booked !== undefined) return <Booked appointment={booked} practice={practice.data} />;
   const { id } = practice.data;
-  const canBook = me.data.emailVerified && choice !== undefined && service !== undefined;
-  if (canBook && !joined) {
+  if (!me.data.emailVerified) {
+    return (
+      <>
+        {heading}
+        <ConfirmEmail email={me.data.email} />
+      </>
+    );
+  }
+  // Also a service the practice no longer offers online: its time is chosen again.
+  if (choice === undefined || service === undefined) {
+    const format = practiceFormat(locale, practice.data);
+    const offers = practice.data.services.map(({ id: serviceId, name, durationMinutes }) => {
+      const duration = services('duration', {
+        count: durationMinutes,
+        minutes: format.number(durationMinutes),
+      });
+      return {
+        id: serviceId,
+        // Plain for React Aria's typeahead; isolated where it shows (B06).
+        label: freeTimes('serviceOption', { name: name ?? '', duration }),
+        display: freeTimes('serviceOption', { name: isolate(name ?? ''), duration }),
+      };
+    });
+    const { numberingSystem, hourCycle, timeZone, today, weekStart, team, phone } = practice.data;
+    return (
+      <>
+        <PageHeading
+          key={arrival}
+          title={t('title')}
+          body={t('chooseBody')}
+          focusOnArrival={moved}
+        />
+        {offers.length === 0 ? (
+          <p className="text-body-default text-text-primary">{freeTimes('placeholder')}</p>
+        ) : (
+          <FreeTimesChooser
+            practiceId={id}
+            locale={locale}
+            settings={{ numberingSystem, hourCycle, timeZone }}
+            today={today}
+            weekStart={weekStart}
+            services={offers}
+            doctors={doctorsOf(team)}
+            phone={phone}
+            // This page has no section heading above the chooser.
+            dayHeadingLevel="h2"
+            action={{
+              href: bookHref(locale, slug),
+              onChoose: (time, event) => {
+                event.preventDefault();
+                setChoice(time);
+                setNote('');
+                onPassed();
+              },
+            }}
+          />
+        )}
+      </>
+    );
+  }
+  const chooseAgain = (stale: boolean): void => {
+    if (stale) {
+      // The answers of before would offer the same time again.
+      void queryClient.invalidateQueries({ queryKey: getGetAvailabilityQueryKey(id) });
+      void queryClient.invalidateQueries({ queryKey: getGetFreeTimesQueryKey(id) });
+    }
+    setChoice(undefined);
+    setStep('review');
+    onPassed();
+  };
+  if (!joined) {
     // Join or review only from a list that loaded: a failure says nothing about who is a patient.
     if (practices.data === undefined) {
       return (
@@ -373,7 +433,7 @@ export function BookPage({
       );
     }
   }
-  if (canBook && step === 'update-details') {
+  if (step === 'update-details') {
     return (
       <NarrowForm>
         <UpdateDetailsStep
@@ -389,36 +449,30 @@ export function BookPage({
   return (
     <>
       {heading}
-      {!me.data.emailVerified ? (
-        <ConfirmEmail email={me.data.email} />
-      ) : !canBook ? (
-        <ChooseAgain timesHref={timesHref} title={t('noChoiceTitle')} body={t('noChoiceBody')} />
-      ) : (
-        <Review
-          practice={practice.data}
-          service={service}
-          choice={choice}
-          note={note}
-          timesHref={timesHref}
-          onNoteChange={setNote}
-          onBooked={(appointment) => {
-            // PW6 stays. A reload or the language switch now shows this appointment, and not a
-            // booking page without a choice, which could read as if nothing had been booked.
-            window.history.replaceState(
-              null,
-              '',
-              `/${locale}/appointments/${appointment.practiceId}/${appointment.id}`,
-            );
-            setBooked(appointment);
-          }}
-          onIncomplete={() => {
-            setStep('update-details');
-            // The answer says that what this page knows of the practice's rules is out of date, and
-            // the form must ask for what the practice asks now.
-            void practice.refetch();
-          }}
-        />
-      )}
+      <Review
+        practice={practice.data}
+        service={service}
+        choice={choice}
+        note={note}
+        onChooseAgain={chooseAgain}
+        onNoteChange={setNote}
+        onBooked={(appointment) => {
+          // PW6 stays. A reload or the language switch now shows this appointment, and not a
+          // booking page without a choice, which could read as if nothing had been booked.
+          window.history.replaceState(
+            null,
+            '',
+            `/${locale}/appointments/${appointment.practiceId}/${appointment.id}`,
+          );
+          setBooked(appointment);
+        }}
+        onIncomplete={() => {
+          setStep('update-details');
+          // The answer says that what this page knows of the practice's rules is out of date, and
+          // the form must ask for what the practice asks now.
+          void practice.refetch();
+        }}
+      />
     </>
   );
 }

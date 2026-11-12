@@ -36,7 +36,11 @@ import { TEST_ENV } from '../../../test/support/test-env.js';
 import { AppModule } from '../../app.module.js';
 import { API_VERSIONING } from '../../app.setup.js';
 import { parseEnv } from '../../config/env.schema.js';
-import { PracticeScoped, practiceScopeOf } from '../tenancy/practice-scoped.decorator.js';
+import {
+  PracticeScoped,
+  practiceAccessOf,
+  practiceScopeOf,
+} from '../tenancy/practice-scoped.decorator.js';
 import { ClsService } from 'nestjs-cls';
 import { Authenticator } from './actor.js';
 import { AuthenticationGuard } from './authentication.guard.js';
@@ -55,6 +59,7 @@ interface MappedRoute {
   path: string;
   isPublic: boolean;
   practiceScope: string | undefined;
+  practiceAccess: string | undefined;
   hasUnvalidatedInput: boolean;
 }
 
@@ -209,6 +214,7 @@ async function inventoryOf(imports: Imports): Promise<Inventory> {
                 path,
                 isPublic,
                 practiceScope,
+                practiceAccess: practiceAccessOf(handler),
                 hasUnvalidatedInput: hasUnvalidatedInput(metatype, prototype, name),
               });
               if (isPublic)
@@ -384,6 +390,18 @@ function slugScopesOutsidePublicPaths(routes: readonly MappedRoute[]): string[] 
     .map(({ handler }) => handler);
 }
 
+/**
+ * A practice route by its id names who may reach it: without a rule any signed-in account would,
+ * also at a practice without a publication (the security review of B07).
+ */
+function idScopesWithoutRule(routes: readonly MappedRoute[]): string[] {
+  return routes
+    .filter(
+      ({ practiceScope, practiceAccess }) => practiceScope === 'id' && practiceAccess === undefined,
+    )
+    .map(({ handler }) => handler);
+}
+
 @Controller('practices/:practiceId/things')
 class RuleBreakingController {
   @Public() // test-only: public outside the allowed paths, and under a practice without a scope
@@ -395,6 +413,12 @@ class RuleBreakingController {
   @PracticeScoped('slug') // test-only: the slug scope outside the public paths
   @Get('by-slug')
   bySlug(): void {
+    // a route handler's body does not matter here
+  }
+
+  @PracticeScoped('id') // test-only: a practice by its id, and no rule of who may reach it
+  @Get('anyone')
+  anyone(): void {
     // a route handler's body does not matter here
   }
 }
@@ -435,6 +459,7 @@ describe('the route rules (02 §11)', () => {
     expect(publicOutsideTheAllowedPaths(routes)).toEqual([]);
     expect(practicePathsWithoutScope(routes)).toEqual([]);
     expect(slugScopesOutsidePublicPaths(routes)).toEqual([]);
+    expect(idScopesWithoutRule(routes)).toEqual([]);
     expect(inputsWithoutValidation(routes)).toEqual([]);
   });
 
@@ -443,12 +468,13 @@ describe('the route rules (02 §11)', () => {
     expect(publicOutsideTheAllowedPaths(routes)).toEqual(['RuleBreakingController.open']);
     expect(practicePathsWithoutScope(routes)).toEqual(['RuleBreakingController.open']);
     expect(slugScopesOutsidePublicPaths(routes)).toEqual(['RuleBreakingController.bySlug']);
+    expect(idScopesWithoutRule(routes)).toEqual(['RuleBreakingController.anyone']);
     expect(inputsWithoutValidation(routes)).toEqual(['InputRulesController.untyped']);
   });
 });
 
 describe('public routes (02 §4)', () => {
-  it('are exactly sign-in and sign-up, the list of practices, the practice page, its free times and the two health probes: a new public route is a reviewed change to this list', async () => {
+  it('are exactly sign-in and sign-up, the list of practices, the practice page and the two health probes (its free times only since B07 with a sign-in): a new public route is a reviewed change to this list', async () => {
     expect(await inventoryOf([AppModule.forRoot(parseEnv(TEST_ENV))])).toMatchObject({
       publicRoutes: [
         { handler: 'AuthController.login', method: 'POST', path: '/api/v1/auth/login' },
@@ -489,16 +515,6 @@ describe('public routes (02 §4)', () => {
           handler: 'PublicPracticeController.getPublicPractice',
           method: 'GET',
           path: '/api/v1/public/practices/:slug',
-        },
-        {
-          handler: 'PublicFreeTimesController.getPublicAvailability',
-          method: 'GET',
-          path: '/api/v1/public/practices/:slug/availability',
-        },
-        {
-          handler: 'PublicFreeTimesController.getPublicFreeTimes',
-          method: 'GET',
-          path: '/api/v1/public/practices/:slug/slots',
         },
         { handler: 'HealthController.live', method: 'GET', path: '/health/live' },
         { handler: 'HealthController.ready', method: 'GET', path: '/health/ready' },

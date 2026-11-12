@@ -218,6 +218,19 @@ export function useBookingWorld(env: Readonly<Record<string, string>> = {}) {
     );
   };
 
+  /** The free times of a day as a signed-in patient sees them (B07). */
+  const freeTimes = (
+    who: Person,
+    fixture: Fixture,
+    query: Readonly<Record<string, string>>,
+  ): request.Test =>
+    send(
+      request(server())
+        .get(`${API}/practices/${fixture.practice.practiceId}/free-times`)
+        .query(query),
+      who,
+    );
+
   /** A time far enough ahead that BR-04's deadline of a day has not passed. */
   const changeableSlot = async (fixture: Fixture): Promise<Temporal.Instant> => {
     const startsAt = freshTime().add({ hours: 48 });
@@ -318,6 +331,7 @@ export function useBookingWorld(env: Readonly<Record<string, string>> = {}) {
     person,
     join,
     patient,
+    freeTimes,
     slotAt,
     freshTime,
     freshSlot,

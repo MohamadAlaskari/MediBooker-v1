@@ -5,7 +5,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { announceSignOut, onSessionChangeElsewhere } from '@/lib/session-broadcast';
-import { clearChoice } from '../portal/booking-choice';
 import { FormError } from './form-parts';
 
 /**
@@ -18,7 +17,6 @@ export function useSessionChangeElsewhere(): void {
   useEffect(
     () =>
       onSessionChangeElsewhere((change) => {
-        clearChoice();
         if (change === 'signed-out') window.location.replace(`/${locale}/sign-in`);
         else window.location.reload();
       }),
@@ -44,7 +42,6 @@ export function SignOutButton({ className }: { readonly className?: string }): R
             {
               onSuccess: () => {
                 announceSignOut();
-                clearChoice();
                 // A new document: nothing of this person stays in memory for whoever comes next.
                 window.location.replace(`/${locale}/sign-in`);
               },

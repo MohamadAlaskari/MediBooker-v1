@@ -21,21 +21,27 @@ import {
   practiceBookableWindow,
 } from './domain/slots.rules.js';
 import type {
-  PublicAvailabilityDto,
-  PublicAvailabilityQueryDto,
-  PublicFreeTimesDto,
-  PublicFreeTimesQueryDto,
-} from './public-free-times.dto.js';
+  AvailabilityDto,
+  AvailabilityQueryDto,
+  FreeTimesDto,
+  FreeTimesQueryDto,
+} from './free-times.dto.js';
 
 /** At most this many days in one question about availability (08 P05). */
 export const MAX_AVAILABILITY_DAYS = 42;
 
 /**
- * At most this many answers of free times are made at once per practice and instance; more are 429
- * with Retry-After. A public route, and each answer reads every slot of its range (security review
- * of M04 part 2).
+ * At most this many answers of free times are made at once per practice, audience and instance;
+ * more are 429 with Retry-After. Each answer reads every slot of its range (security review of M04
+ * part 2), and the patients' do not take the team's places (security review of B07).
  */
 export const FREE_TIMES_AT_ONCE = 4;
+
+/**
+ * And this many of one patient account at once, whatever its addresses: one person cannot take the
+ * practice's places. A page asks for the days and the times of one day, two at a time.
+ */
+export const FREE_TIMES_AT_ONCE_PER_ACCOUNT = 2;
 
 interface Offer {
   readonly serviceId: string;
@@ -47,6 +53,8 @@ interface Offer {
  * when to when they may book. Both see the same starts, without a slot id and without who has them.
  */
 export interface FreeTimesAudience {
+  /** Whose limit an answer counts against: the patients' and the team's are apart. */
+  readonly name: 'patients' | 'team';
   readonly services: Prisma.ServiceWhereInput;
   readonly providers: Prisma.StaffMemberWhereInput;
   readonly window: (
@@ -55,8 +63,9 @@ export interface FreeTimesAudience {
   ) => { readonly earliest: Temporal.Instant; readonly latest: Temporal.Instant };
 }
 
-/** The public page and the patients (BR-03, BR-08, BR-22, BR-24). */
-export const PUBLIC_AUDIENCE: FreeTimesAudience = {
+/** The patients, signed in (BR-03, BR-08, BR-22, BR-24). */
+export const PATIENT_AUDIENCE: FreeTimesAudience = {
+  name: 'patients',
   services: { active: true, isBookableOnline: true },
   providers: PUBLIC_PROVIDER,
   window: bookableWindow,
@@ -64,6 +73,7 @@ export const PUBLIC_AUDIENCE: FreeTimesAudience = {
 
 /** The team, booking for a patient (W7): every active service and doctor, from now on. */
 export const PRACTICE_AUDIENCE: FreeTimesAudience = {
+  name: 'team',
   services: { active: true },
   providers: { isProvider: true },
   window: practiceBookableWindow,
@@ -79,8 +89,9 @@ function laterOf(a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant {
  * practice, which this database does not know.
  */
 @Injectable()
-export class PublicFreeTimesService {
+export class FreeTimesService {
   private readonly running = new RunningLimit();
+  private readonly perAccount = new RunningLimit();
 
   constructor(
     @InjectTransactionHost('practice') private readonly txHost: PracticeTransactionHost,
@@ -89,9 +100,9 @@ export class PublicFreeTimesService {
   ) {}
 
   async availability(
-    query: PublicAvailabilityQueryDto,
-    audience: FreeTimesAudience = PUBLIC_AUDIENCE,
-  ): Promise<PublicAvailabilityDto> {
+    query: AvailabilityQueryDto,
+    audience: FreeTimesAudience = PATIENT_AUDIENCE,
+  ): Promise<AvailabilityDto> {
     const settings = await this.settings();
     const length = await this.assertOffered(query, audience);
     const { timeZone } = settings;
@@ -111,7 +122,7 @@ export class PublicFreeTimesService {
         ],
       });
     }
-    const starts = await this.atOnce(() =>
+    const starts = await this.atOnce(audience, () =>
       this.freeStarts(
         query,
         length,
@@ -128,13 +139,13 @@ export class PublicFreeTimesService {
   }
 
   async freeTimesOfDay(
-    query: PublicFreeTimesQueryDto,
-    audience: FreeTimesAudience = PUBLIC_AUDIENCE,
-  ): Promise<PublicFreeTimesDto> {
+    query: FreeTimesQueryDto,
+    audience: FreeTimesAudience = PATIENT_AUDIENCE,
+  ): Promise<FreeTimesDto> {
     const settings = await this.settings();
     const length = await this.assertOffered(query, audience);
     const date = Temporal.PlainDate.from(query.date);
-    const starts = await this.atOnce(() =>
+    const starts = await this.atOnce(audience, () =>
       this.freeStarts(
         query,
         length,
@@ -148,9 +159,14 @@ export class PublicFreeTimesService {
     };
   }
 
-  private atOnce<T>(work: () => Promise<T>): Promise<T> {
+  /** The account's own places first: what it cannot have takes none of the practice's. */
+  private atOnce<T>(audience: FreeTimesAudience, work: () => Promise<T>): Promise<T> {
     const { practice } = requirePracticeContext(this.cls);
-    return this.running.run(practice.id, FREE_TIMES_AT_ONCE, work);
+    const inPractice = (): Promise<T> =>
+      this.running.run(`${practice.id}:${audience.name}`, FREE_TIMES_AT_ONCE, work);
+    const actor = this.cls.get('actor');
+    if (audience.name === 'team' || actor === undefined) return inPractice();
+    return this.perAccount.run(actor.userId, FREE_TIMES_AT_ONCE_PER_ACCOUNT, inPractice);
   }
 
   private settings(): Promise<{

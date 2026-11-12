@@ -78,13 +78,6 @@ async function atHome(page: Page, locale: 'ar' | 'en'): Promise<void> {
   await expect(page.getByRole('main')).toContainText(messages[locale].portal.home.empty);
 }
 
-/** What a person chose on a practice's page, just now: only what ends a session removes it here. */
-async function keepAChoice(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    sessionStorage.setItem('medibooker.booking-choice', JSON.stringify({ savedAt: Date.now() }));
-  });
-}
-
 /** An account that exists, for whoever comes to sign in. */
 async function existingAccount(testInfo: TestInfo): Promise<string> {
   const email = newAddress(testInfo);
@@ -282,12 +275,10 @@ test.describe('the details of a person (D16)', () => {
     await page.getByRole('button', { name: account.keepAccount }).click();
     await expect(page.getByRole('heading', { name: account.title })).toBeVisible();
 
-    await keepAChoice(page);
     await page.getByRole('button', { name: account.wrongAddress }).click();
     await page.getByRole('button', { name: account.deleteAccount }).click();
     // Who mistyped wants to sign up again, not to sign in.
     await expect(page).toHaveURL(`/${locale}/sign-up`);
-    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
     await page.goto(`/${locale}/account`);
     await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in`));
   });
@@ -657,21 +648,7 @@ test.describe('signing out reaches every tab (08 B04)', () => {
     });
   }
 
-  test('a stored choice ends with it', async ({ page }, testInfo) => {
-    const locale = localeOf(testInfo);
-    await page.goto(`/${locale}/sign-in`);
-    await signIn(page, locale, await existingAccount(testInfo));
-    await atHome(page, locale);
-    await keepAChoice(page);
-    await page.getByRole('button', { name: texts(locale).account.signOut }).click();
-    await expect(page).toHaveURL(`/${locale}/sign-in`);
-    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
-  });
-
-  test('signing in elsewhere renews a tab left open, without what it kept', async ({
-    page,
-    context,
-  }, testInfo) => {
+  test('signing in elsewhere renews a tab left open', async ({ page, context }, testInfo) => {
     const locale = localeOf(testInfo);
     // Open since before anyone signed in, as on a shared computer: nothing has sent it away.
     const other = await context.newPage();
@@ -681,14 +658,12 @@ test.describe('signing out reaches every tab (08 B04)', () => {
     await page.goto(`/${locale}/sign-in`);
     await signIn(page, locale, email);
     await atHome(page, locale);
-    await keepAChoice(page);
 
     const renewed = page.waitForEvent('load');
     await signIn(other, locale, email);
     await atHome(other, locale);
     await renewed;
     await atHome(page, locale);
-    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
   });
 });
 

@@ -1,7 +1,7 @@
 import type { PublicPracticeDto } from '@medibooker/api-client';
 import type { ReactNode } from 'react';
 import { practiceFormat } from '@/lib/format';
-import { FreeTimesSection } from './free-times/free-times-section';
+import { BookOnlineSection } from './book-online-section';
 import { PracticeHeader } from './practice-header';
 import { PracticeHero } from './practice-hero';
 import { FindUsSection, PracticeFooter, ServicesSection, TeamSection } from './practice-sections';
@@ -18,8 +18,8 @@ export function PracticePage({ practice, locale }: PracticePageProps): ReactNode
     <>
       <PracticeHeader practice={practice} locale={locale} showHours={practice.openNow !== null} />
       <main id="main" tabIndex={-1}>
-        <PracticeHero practice={practice} format={format} />
-        <FreeTimesSection practice={practice} locale={locale} format={format} />
+        <PracticeHero practice={practice} locale={locale} format={format} />
+        <BookOnlineSection practice={practice} locale={locale} />
         <ServicesSection practice={practice} format={format} />
         <TeamSection practice={practice} format={format} />
         <FindUsSection practice={practice} format={format} />

@@ -4,9 +4,8 @@
  * row takes all of them; the lock wait is longer than the pool's two seconds, so that both show.
  */
 import { randomUUID } from 'node:crypto';
-import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { API, useBookingWorld } from './booking-world.js';
+import { useBookingWorld } from './booking-world.js';
 
 describe('booking while the practice is busy, on real PostgreSQL', () => {
   const world = useBookingWorld({
@@ -18,6 +17,8 @@ describe('booking while the practice is busy, on real PostgreSQL', () => {
   it('answers 503 with Retry-After to a waiting booking and to others, and a retry books', async () => {
     const practice = world.alNoor();
     const who = await world.person();
+    // Someone else, signed in, who only looks at the free times (B07).
+    const viewer = await world.person();
     const patientId = await world.join(who, practice);
     const startsAt = await world.freshSlot(practice);
     const body = { serviceId: practice.serviceId, startsAt: startsAt.toString() };
@@ -31,10 +32,10 @@ describe('booking while the practice is busy, on real PostgreSQL', () => {
       const waiting = world.book(who, practice, body, key).then((response) => response);
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const other = await request(world.server())
-        .get(`${API}/public/practices/al-noor/slots`)
-        .query({ serviceId: practice.serviceId, date: '2026-11-16' })
-        .set('X-Forwarded-For', '203.0.113.8');
+      const other = await world.freeTimes(viewer, practice, {
+        serviceId: practice.serviceId,
+        date: '2026-11-16',
+      });
       expect(other.status).toBe(503);
       expect(other.body).toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
       expect(other.headers['retry-after']).toBe('30');

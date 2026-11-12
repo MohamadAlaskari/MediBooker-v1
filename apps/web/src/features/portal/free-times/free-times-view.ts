@@ -1,4 +1,4 @@
-import { isoWeekdayOf } from '../practice-view';
+import { isoWeekdayOf } from '../../practice-page/practice-view';
 
 /**
  * What the free-times picker calculates, without React. Dates are ISO strings of the practice, in
@@ -71,8 +71,8 @@ export function nextRovingIndex(
 }
 
 /**
- * The way from a chosen time to the booking: the same for everyone, because the proxy sends a visitor
- * without a sign-in to signing in first, and back. The choice itself goes in `booking-choice.ts`.
+ * The booking page of a practice, where a signed-in person chooses a time and books it (B07). The
+ * proxy sends a visitor without a sign-in to signing in first, and back.
  */
 export function bookHref(locale: string, slug: string): string {
   return `/${locale}/book/${slug}`;

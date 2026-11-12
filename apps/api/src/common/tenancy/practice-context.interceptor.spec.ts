@@ -49,6 +49,11 @@ class Handlers {
   join(): void {
     // a route handler's body does not matter here
   }
+
+  @PracticeScoped('id', { account: true })
+  account(): void {
+    // a route handler's body does not matter here
+  }
 }
 
 /** The handlers as Nest's ExecutionContext.getHandler() returns them. */
@@ -57,6 +62,7 @@ const PLAIN: unknown = Reflect.get(Handlers.prototype, 'plain');
 const PATIENT: unknown = Reflect.get(Handlers.prototype, 'patient');
 const CONFIRMED_PATIENT: unknown = Reflect.get(Handlers.prototype, 'confirmedPatient');
 const JOIN: unknown = Reflect.get(Handlers.prototype, 'join');
+const ACCOUNT: unknown = Reflect.get(Handlers.prototype, 'account');
 
 interface Response {
   headersSent: boolean;
@@ -504,6 +510,63 @@ describe('PracticeContextInterceptor (02 §5)', () => {
       ).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(DomainException);
       expect(failure).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('an { account: true } route (B07)', () => {
+    it('serves a confirmed account of a published practice without any row there', async () => {
+      const { interceptor, resolver, index, findPatient, contextOf } = setUp();
+      index.capacitiesOf.mockResolvedValue([]);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(ACCOUNT),
+          handlerOf(() => defer(() => of(cls.get('practice')?.practice.id))),
+        ),
+      ).resolves.toBe(PRACTICE_A);
+      expect(resolver.resolvePublished).toHaveBeenCalledWith(PRACTICE_A);
+      expect(resolver.resolve).not.toHaveBeenCalled();
+      expect(index.capacitiesOf).not.toHaveBeenCalled();
+      expect(findPatient).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for a practice without a publication, before the address', async () => {
+      const { interceptor, index, connections, contextOf } = setUp({ answer: 'NOT_FOUND' });
+      index.isVerified.mockResolvedValue(false);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(ACCOUNT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+
+    it('refuses an account whose address is not confirmed, and opens no client (BR-09)', async () => {
+      const { interceptor, index, connections, contextOf } = setUp();
+      index.isVerified.mockResolvedValue(false);
+      await expect(
+        interceptAs(
+          interceptor,
+          contextOf(ACCOUNT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+      expect(connections.acquire).not.toHaveBeenCalled();
+    });
+
+    it('refuses a caller the guard did not verify, before the registry', async () => {
+      const { interceptor, resolver, connections, contextOf } = setUp();
+      await expect(
+        intercept(
+          interceptor,
+          contextOf(ACCOUNT),
+          handlerOf(() => of(1)),
+        ),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(resolver.resolvePublished).not.toHaveBeenCalled();
       expect(connections.acquire).not.toHaveBeenCalled();
     });
   });

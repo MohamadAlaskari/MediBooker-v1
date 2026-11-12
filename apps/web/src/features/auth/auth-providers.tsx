@@ -3,10 +3,9 @@
 import { createQueryClient } from '@medibooker/api-client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useLocale } from 'next-intl';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { I18nProvider } from 'react-aria-components';
 import { configureBrowserApiClient } from '@/lib/api.client';
-import { expireChoice } from '../portal/booking-choice';
 import { signInAgain } from './session-redirect';
 
 interface AuthProvidersProps {
@@ -30,10 +29,6 @@ export function AuthProviders({ children, signedIn = false }: AuthProvidersProps
         : {},
     );
   });
-  // A choice stored by an earlier page, in this tab: its minutes run on here.
-  useEffect(() => {
-    expireChoice();
-  }, []);
   return (
     // React Aria's own texts and arrow keys would otherwise follow the browser's language.
     <I18nProvider locale={locale}>

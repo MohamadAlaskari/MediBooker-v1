@@ -1,7 +1,7 @@
 import {
   ApiError,
   createTestQueryClient,
-  getGetPublicAvailabilityQueryKey,
+  getGetAvailabilityQueryKey,
 } from '@medibooker/api-client';
 import { messages } from '@medibooker/i18n';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { FreeTimesChooser } from './free-times-picker';
 
-const SLUG = 'al-noor';
+const PRACTICE = '30000000-0000-4000-8000-000000000001';
 const SERVICE = '10000000-0000-4000-8000-000000000001';
 const LINA = '20000000-0000-4000-8000-000000000001';
 const PHONE = '+966 11 000 0000';
@@ -27,7 +27,7 @@ function render(
     <NextIntlClientProvider locale="en" messages={messages.en} timeZone="UTC">
       <QueryClientProvider client={client}>
         <FreeTimesChooser
-          slug={SLUG}
+          practiceId={PRACTICE}
           locale="en"
           settings={{ numberingSystem: 'latn', hourCycle: 'h23', timeZone: 'Asia/Riyadh' }}
           today={FREE_DAY.date}
@@ -43,7 +43,7 @@ function render(
   );
 }
 
-const AVAILABILITY = getGetPublicAvailabilityQueryKey(SLUG, { serviceId: SERVICE });
+const AVAILABILITY = getGetAvailabilityQueryKey(PRACTICE, { serviceId: SERVICE });
 
 function withFreeDay(failure?: ApiError): QueryClient {
   const client = createTestQueryClient();
@@ -63,7 +63,7 @@ function chosenDoctor(html: string): string | undefined {
 }
 
 describe('FreeTimesChooser', () => {
-  it('starts on any doctor, as on a public page', () => {
+  it('starts on any doctor', () => {
     expect(chosenDoctor(render())).toBe(freeTimes.anyDoctor);
   });
 

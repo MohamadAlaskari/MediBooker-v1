@@ -50,9 +50,32 @@ function isHealthy({ status }: Answer): string | undefined {
 }
 
 const SEED_HINT = 'Menüpunkt "Demo-Praxen einspielen"';
+
+/**
+ * What a smoke run learns on its way, for the checks after it: they run one after the other. Ids
+ * and tokens of this run only; nothing of it is written anywhere.
+ */
+interface SmokeState {
+  practiceId: string | undefined;
+  messageId: string | undefined;
+  confirmToken: string | undefined;
+  accessToken: string | undefined;
+}
+
+/** The fields of a JSON answer, or undefined: an answer that is no object says nothing. */
+function fieldsOf(text: string): Readonly<Record<string, unknown>> | undefined {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 const CHOSEN_REQUEST_ID = '11111111-1111-4111-8111-111111111111';
 
-function demoPracticeCheck(stack: Stack): Check {
+function demoPracticeCheck(stack: Stack, state?: SmokeState): Check {
   return {
     name: 'Demo-Praxis',
     url: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}`,
@@ -60,7 +83,11 @@ function demoPracticeCheck(stack: Stack): Check {
     verify: (answer) => {
       const problem = hasStatus(200)(answer);
       if (problem !== undefined) return problem;
-      return answer.text.includes(`"slug":"${DEMO_PRACTICE}"`) ? undefined : 'Falsche Praxis';
+      const practice = fieldsOf(answer.text);
+      if (practice?.slug !== DEMO_PRACTICE) return 'Falsche Praxis';
+      // What the routes of a signed-in person name it by (B07).
+      if (state !== undefined && typeof practice.id === 'string') state.practiceId = practice.id;
+      return undefined;
     },
   };
 }
@@ -147,20 +174,106 @@ function practicePageCheck(stack: Stack): Check {
   };
 }
 
-/** The rules of the seed became slots: the whole way from the job to the public free times. */
-function freeTimesCheck(stack: Stack): Check {
-  return {
-    name: 'Demo-Praxis hat freie Termine',
-    url: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}/availability?serviceId=${DEMO_SERVICE}`,
-    hint: SEED_HINT,
-    verify: (answer) => {
-      const problem = hasStatus(200)(answer);
-      if (problem !== undefined) return problem;
-      return answer.text.includes('"hasFreeTimes":true')
-        ? undefined
-        : 'Kein Tag mit freien Terminen';
+/** A route of the demo practice that only a signed-in account reaches (B07). */
+function practiceRoute(stack: Stack, state: SmokeState, rest: string): string {
+  return `${stack.apiUrl}/api/v1/practices/${state.practiceId ?? 'unbekannt'}/${rest}`;
+}
+
+/**
+ * Free times only for a signed-in account (D19, B07): without one the demo practice's route answers
+ * 401, and the public route of before is gone. The URL is the one the demo practice named.
+ */
+function closedFreeTimesChecks(stack: Stack, state: SmokeState): readonly Check[] {
+  return [
+    {
+      name: 'Freie Termine nur mit Anmeldung (D19)',
+      get url() {
+        return practiceRoute(stack, state, `free-times?serviceId=${DEMO_SERVICE}&date=2026-11-16`);
+      },
+      hint: SEED_HINT,
+      verify: (answer) =>
+        state.practiceId === undefined ? 'Demo-Praxis fehlt' : hasStatus(401)(answer),
     },
-  };
+    {
+      name: 'Keine öffentliche Route für freie Termine',
+      url: `${stack.apiUrl}/api/v1/public/practices/${DEMO_PRACTICE}/availability?serviceId=${DEMO_SERVICE}`,
+      verify: hasStatus(404),
+    },
+  ];
+}
+
+/**
+ * The rules of the seed became slots: the whole way from the job to the free times, which the
+ * run's own account sees once it has confirmed its address and signed in (B07). Only where Mailpit
+ * takes the e-mail; the password is this run's, and the account a synthetic one.
+ */
+function signedInFreeTimesChecks(
+  stack: Stack,
+  state: SmokeState,
+  { email, password }: { readonly email: string; readonly password: string },
+): readonly Check[] {
+  return [
+    {
+      name: 'Bestätigungslink in der E-Mail',
+      get url() {
+        return `${stack.mailUrl}/api/v1/message/${state.messageId ?? 'unbekannt'}`;
+      },
+      verify: (answer) => {
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        const text = fieldsOf(answer.text)?.Text;
+        state.confirmToken =
+          typeof text === 'string' ? /#token=([A-Za-z0-9_-]+)/.exec(text)?.[1] : undefined;
+        return state.confirmToken === undefined ? 'Kein Link mit Token' : undefined;
+      },
+    },
+    {
+      name: 'Adresse bestätigt',
+      url: `${stack.apiUrl}/api/v1/auth/verify-email`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      get body() {
+        return JSON.stringify({ token: state.confirmToken, password });
+      },
+      verify: hasStatus(204),
+    },
+    {
+      name: 'Anmeldung',
+      url: `${stack.apiUrl}/api/v1/auth/login`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, delivery: 'body' }),
+      verify: (answer) => {
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        const tokens = fieldsOf(answer.text)?.tokens;
+        const accessToken =
+          typeof tokens === 'object' && tokens !== null
+            ? (tokens as Record<string, unknown>).accessToken
+            : undefined;
+        state.accessToken = typeof accessToken === 'string' ? accessToken : undefined;
+        return state.accessToken === undefined ? 'Kein Zugangstoken' : undefined;
+      },
+    },
+    {
+      name: 'Demo-Praxis hat freie Termine (angemeldet)',
+      get url() {
+        return practiceRoute(stack, state, `availability?serviceId=${DEMO_SERVICE}`);
+      },
+      get headers() {
+        return { Authorization: `Bearer ${state.accessToken ?? ''}` };
+      },
+      hint: SEED_HINT,
+      verify: (answer) => {
+        if (state.practiceId === undefined) return 'Demo-Praxis fehlt';
+        const problem = hasStatus(200)(answer);
+        if (problem !== undefined) return problem;
+        return answer.text.includes('"hasFreeTimes":true')
+          ? undefined
+          : 'Kein Tag mit freien Terminen';
+      },
+    },
+  ];
 }
 
 /** From the registry, with the address of the site: an image knows it only at run time (RT-30). */
@@ -178,9 +291,24 @@ function sitemapCheck(stack: Stack): Check {
   };
 }
 
-/** The whole way of an account e-mail: the sign-up, its outbox and the mail server. */
-function accountEmailChecks(stack: Stack, runId: string, locale: string): readonly Check[] {
-  const email = `smoke-${runId}-${locale}@example.test`;
+/** The account a smoke run signs up with, in one language: synthetic, its password this run's. */
+function smokeAccount(
+  runId: string,
+  locale: string,
+): { readonly email: string; readonly password: string } {
+  return { email: `smoke-${runId}-${locale}@example.test`, password: randomUUID() };
+}
+
+/**
+ * The whole way of an account e-mail: the sign-up, its outbox and the mail server. With a state, the
+ * e-mail's id goes on to the checks that confirm the address.
+ */
+function accountEmailChecks(
+  stack: Stack,
+  { email, password }: { readonly email: string; readonly password: string },
+  locale: string,
+  state?: SmokeState,
+): readonly Check[] {
   return [
     {
       name: `Registrierung nimmt an (${locale})`,
@@ -189,7 +317,7 @@ function accountEmailChecks(stack: Stack, runId: string, locale: string): readon
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        password: randomUUID(),
+        password,
         locale,
         privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       }),
@@ -203,7 +331,13 @@ function accountEmailChecks(stack: Stack, runId: string, locale: string): readon
       verify: (answer) => {
         const problem = hasStatus(200)(answer);
         if (problem !== undefined) return problem;
-        return answer.text.includes(email) ? undefined : 'Keine E-Mail im Mailpit';
+        if (!answer.text.includes(email)) return 'Keine E-Mail im Mailpit';
+        if (state !== undefined) {
+          const [message] =
+            (fieldsOf(answer.text)?.messages as { ID?: unknown }[] | undefined) ?? [];
+          state.messageId = typeof message?.ID === 'string' ? message.ID : undefined;
+        }
+        return undefined;
       },
     },
   ];
@@ -325,10 +459,17 @@ export function smokeChecks(
   { swaggerEnabled, catchesMail }: SmokeOptions,
   runId = String(Date.now()),
 ): readonly Check[] {
+  const state: SmokeState = {
+    practiceId: undefined,
+    messageId: undefined,
+    confirmToken: undefined,
+    accessToken: undefined,
+  };
+  const english = smokeAccount(runId, 'en');
   return [
     ...probeChecks(stack),
-    demoPracticeCheck(stack),
-    freeTimesCheck(stack),
+    demoPracticeCheck(stack, state),
+    ...closedFreeTimesChecks(stack, state),
     rootRedirectCheck(stack),
     pageCheck(stack, 'ar', 'rtl'),
     practicePageCheck(stack),
@@ -336,7 +477,11 @@ export function smokeChecks(
     pageCheck(stack, 'en', 'ltr'),
     problemCheck(stack),
     ...(catchesMail
-      ? [...accountEmailChecks(stack, runId, 'ar'), ...accountEmailChecks(stack, runId, 'en')]
+      ? [
+          ...accountEmailChecks(stack, smokeAccount(runId, 'ar'), 'ar'),
+          ...accountEmailChecks(stack, english, 'en', state),
+          ...signedInFreeTimesChecks(stack, state, english),
+        ]
       : []),
     ...(stack.mode === 'dev'
       ? [

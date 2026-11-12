@@ -3,7 +3,7 @@ Status: Accepted — 2026-11-01 (decided by the client)
 
 ## Context
 
-The web app has three parts: the public practice page (no sign-in), the patient portal and the clinic dashboard. The public page must be readable by search engines in Arabic and English, shows free times without sign-in and must render in the practice's colour theme without a flash of the default theme (ADR 0002). Portal and dashboard are signed-in applications with live updates. React and TypeScript were already confirmed; the open choice was a Vite single-page app or Next.js.
+The web app has three parts: the public practice page (no sign-in), the patient portal and the clinic dashboard. The public page must be readable by search engines in Arabic and English, shows free times without sign-in (until B07; since then only after signing in, D19) and must render in the practice's colour theme without a flash of the default theme (ADR 0002). Portal and dashboard are signed-in applications with live updates. React and TypeScript were already confirmed; the open choice was a Vite single-page app or Next.js.
 
 ## Decision
 

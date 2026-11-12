@@ -117,10 +117,9 @@ describe('booking for a patient on real databases (08 M05, W7)', () => {
         )
         .expect(200);
       expect(days.body).toEqual({ days: [{ date, hasFreeTimes: true }] });
-      // A patient keeps the lead time: the public page does not offer it.
-      const offered = await request(world.server())
-        .get(`${API}/public/practices/${SLUG}/slots`)
-        .query({ serviceId: practice.serviceId, date })
+      // A patient keeps the lead time: a patient's free times do not offer it.
+      const offered = await world
+        .freeTimes(await world.person(), practice, { serviceId: practice.serviceId, date })
         .expect(200);
       expect(JSON.stringify(offered.body)).not.toContain(soon.toString());
     });

@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AvailabilityDto,
   BookDeskAppointmentHeaders,
   CancelAsPracticeDto,
   DeskAppointmentDto,
@@ -41,14 +42,13 @@ import type {
   DeskPatientRowDto,
   DeskPatientSearchDto,
   DeskWeekDto,
+  FreeTimesDto,
   GetDeskAvailabilityParams,
   GetDeskDayParams,
   GetDeskFreeTimesParams,
   GetDeskWeekParams,
   PatientDto,
-  ProblemDetailsDto,
-  PublicAvailabilityDto,
-  PublicFreeTimesDto
+  ProblemDetailsDto
 } from '../../model';
 
 import { apiFetch } from '../../../http/fetcher';
@@ -727,9 +727,9 @@ export const useMarkAppointmentNoShow = <TError = ErrorType<ProblemDetailsDto>,
  * @summary Days with free times for the team (W7): every active service and doctor, from now on
  */
 export const getDeskAvailability = async (practiceId: string,
-    params: GetDeskAvailabilityParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicAvailabilityDto> => {
+    params: GetDeskAvailabilityParams, options?: Parameters<typeof apiFetch>[1]): Promise<AvailabilityDto> => {
 
-  return apiFetch<PublicAvailabilityDto>(getGetDeskAvailabilityUrl(practiceId,params),
+  return apiFetch<AvailabilityDto>(getGetDeskAvailabilityUrl(practiceId,params),
   {
     ...options,
     method: 'GET'
@@ -1057,9 +1057,9 @@ export const getGetDeskFreeTimesUrl = (practiceId: string,
  * @summary The free times of one day for the team (W7)
  */
 export const getDeskFreeTimes = async (practiceId: string,
-    params: GetDeskFreeTimesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PublicFreeTimesDto> => {
+    params: GetDeskFreeTimesParams, options?: Parameters<typeof apiFetch>[1]): Promise<FreeTimesDto> => {
 
-  return apiFetch<PublicFreeTimesDto>(getGetDeskFreeTimesUrl(practiceId,params),
+  return apiFetch<FreeTimesDto>(getGetDeskFreeTimesUrl(practiceId,params),
   {
     ...options,
     method: 'GET'

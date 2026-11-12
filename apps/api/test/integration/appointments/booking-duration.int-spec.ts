@@ -63,9 +63,8 @@ describe('booking by duration and buffer on real databases (BR-27)', () => {
   const offered = async (starts: readonly Temporal.Instant[]): Promise<string[]> => {
     const fixture: Fixture = world.alNoor();
     const first = starts[0] ?? Temporal.Now.instant();
-    const answer = await request(world.server())
-      .get(`${API}/public/practices/al-noor/slots`)
-      .query({
+    const answer = await world
+      .freeTimes(await world.person(), fixture, {
         serviceId: fixture.serviceId,
         providerId: fixture.providerId,
         date: first.toZonedDateTimeISO(RIYADH).toPlainDate().toString(),

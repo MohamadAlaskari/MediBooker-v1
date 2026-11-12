@@ -10,8 +10,8 @@ import type {
   DeskWeekSlotDto,
   DeskNewPatientDto,
   DeskPatientRowDto,
-  PublicAvailabilityDto,
-  PublicFreeTimesDto,
+  AvailabilityDto,
+  FreeTimesDto,
   ScheduleSlotDto,
 } from '@medibooker/api-client';
 import { bodyOf, type FieldProblem, problem, respond } from './answers.ts';
@@ -105,7 +105,7 @@ export function changeSlot(
   };
 }
 
-function availabilityAnswer(owner: string): PublicAvailabilityDto {
+function availabilityAnswer(owner: string): AvailabilityDto {
   const free = new Set(freeStartsOf(owner).map(dayInRiyadh));
   return {
     days: Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
@@ -115,7 +115,7 @@ function availabilityAnswer(owner: string): PublicAvailabilityDto {
   };
 }
 
-function freeTimesAnswer(owner: string, date: string): PublicFreeTimesDto {
+function freeTimesAnswer(owner: string, date: string): FreeTimesDto {
   return {
     date,
     times: freeStartsOf(owner)

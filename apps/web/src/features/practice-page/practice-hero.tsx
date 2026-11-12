@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { LinkButton } from '@/components/ui/button';
 import type { PracticeFormat } from '@/lib/format';
+import { bookHref } from '../portal/free-times/free-times-view';
 import {
   openingRowsOf,
   openStatusOf,
@@ -98,8 +99,15 @@ function OpeningHoursCard({ practice, format }: PracticeHeroProps): ReactNode {
   );
 }
 
-/** The first screen: who the practice is, whether it is open and how to reach it (PW13). */
-export function PracticeHero({ practice, format }: PracticeHeroProps): ReactNode {
+/**
+ * The first screen: who the practice is, whether it is open and how to reach it (PW13). Booking
+ * starts on its own page, which signs a visitor in first (B07).
+ */
+export function PracticeHero({
+  practice,
+  locale,
+  format,
+}: PracticeHeroProps & { readonly locale: string }): ReactNode {
   const t = useTranslations('practicePage.hero');
   const showHours = practice.openNow !== null;
   return (
@@ -132,7 +140,7 @@ export function PracticeHero({ practice, format }: PracticeHeroProps): ReactNode
             </li>
           </ul>
           <div className="mt-6 flex flex-wrap gap-3">
-            <LinkButton href="#free-times">
+            <LinkButton href={bookHref(locale, practice.slug)}>
               <CalendarPlus aria-hidden data-icon="inline-start" />
               {t('bookAppointment')}
             </LinkButton>

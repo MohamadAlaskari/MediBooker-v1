@@ -13,7 +13,6 @@ import { useState, type ReactNode } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button, LinkButton } from '@/components/ui/button';
 import { announceSignOut } from '@/lib/session-broadcast';
-import { clearChoice } from '../portal/booking-choice';
 import { AppearanceSetting } from './appearance-setting';
 import { FormError, PageHeading } from './form-parts';
 import { ResendButton } from './resend-button';
@@ -85,7 +84,6 @@ function DeleteUnconfirmed(): ReactNode {
           remove.mutate(undefined, {
             onSuccess: () => {
               announceSignOut();
-              clearChoice();
               window.location.replace(`/${locale}/sign-up`);
             },
           });

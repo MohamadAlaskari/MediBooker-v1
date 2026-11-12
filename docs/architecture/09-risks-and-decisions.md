@@ -12,6 +12,17 @@ State on 2026-11-04, after the client's decision for one PostgreSQL database per
 | 4 | **Order:** the API skeleton (F03) before CI (F02). | U2 and U3 are needed before F02, which now follows F03. Both were done before the F02 push: U3 on 2026-11-04, U2 on 2026-11-05. |
 | 5 | **U11 resolved** by the main agent from the conversation record: the user named NestJS, Next.js and React Native (React) as the stack and never explicitly confirmed pnpm workspaces + Turborepo, PostgreSQL + Prisma, Expo, or the generated OpenAPI client + TanStack Query. | The `CLAUDE.md` rows Monorepo, Database / ORM, Mobile toolchain and Data fetching stay Proposed, which makes them the default; ADR 0006 claims no client confirmation for them (corrected in F01). |
 
+## Decisions recorded on 2026-11-12
+
+| # | Decision | Effect |
+|---|---|---|
+| 1 | **Order:** every item but the mobile app first, the mobile app last. | The roadmap's order: M03 (with W18), M01 and W17, then N01, RT01, R01 to R03, FA01, PR01, OPS02, N03, OPS01, and last F07, X08 to X10, A06, B05, N02, REL01. |
+| 2 | **D11 to D15 decided:** the recommendations. | D11: the DPO delivers a table per market, which becomes configuration; nothing medical is deleted before. D12: A. D13: A and A. D14: A. D15: A. |
+| 3 | **OPS01:** provider-neutral, a deployment over SSH to the installation's own server. | D9's provider stays open; OPS01 does not wait for it. |
+| 4 | **N03:** the SMS port now, the provider later. | D10's SMS provider stays open; N03 builds the port and a development adapter. |
+| 5 | **D8** stays open. | PR01 and OPS01 still name it. |
+| 6 | **D17 to D19 decided** (team roles, the audit log, free times after signing in), below. | M03 builds D17 and D18; B07 builds D19. The receptionists' reading of clinical notes (D13) is a practice setting, "no" by default, as recommended. |
+
 ## 1. Risks
 
 ### 1.1 One database per practice
@@ -95,14 +106,17 @@ U1 asked the user to rotate the credential or drop the database. On 2026-11-04 t
 | D2 | Caching of the public practice page | decided 2026-11-06: A, not cached | P03 |
 | D3 | Address of the public practice page | client | M01 |
 | D16 | Where patients enter their personal details: decided on 2026-11-06, option B | the user | A05 |
-| D14 | Reception staff on the public page | client | not blocking; M03 builds option A |
+| D14 | Reception staff on the public page | decided on 2026-11-12 by the user: A | not blocking; M03 builds option A |
 | D10 | E-mail, push, SMS and error-tracking providers | client with the DPO | N02, N03 |
-| D13 | Sharing and reading of clinical notes | client | R01 |
+| D13 | Sharing and reading of clinical notes | decided on 2026-11-12 by the user: A and A (receptionists: a practice setting, "no" by default) | R01 |
 | D9 | Hosting provider and region | client with the DPO | R02, OPS01 |
-| D15 | Patient uploads | client | R02 |
-| D12 | Age of majority and guardian rules | client's counsel | FA01 |
+| D15 | Patient uploads | decided on 2026-11-12 by the user: A | R02 |
+| D12 | Age of majority and guardian rules | decided on 2026-11-12 by the user: A, with defaults from counsel per market | FA01 |
 | D8 | First market, data residency and legal roles | client with the DPO | PR01, OPS01 |
-| D11 | Retention periods | client's DPO | PR01 |
+| D11 | Retention periods | decided on 2026-11-12 by the user: the recommendation; the values from the client's DPO | PR01 |
+| D17 | Team roles | decided on 2026-11-12 by the user: a base role and "practice management" | M03 |
+| D18 | Who reads the audit log | decided on 2026-11-12 by the user: practice management only, with an export for the DPO | M03 (W18) |
+| D19 | Free times without signing in | decided on 2026-11-12 by the user: only after signing in | B07 |
 | D6 | Mobile app identity | client | REL01 |
 | D7 | How the app chooses the deployment | client | a second market |
 
@@ -286,6 +300,29 @@ Product features P-02 (name, date of birth, phone) and P-03 (insurance with opti
 **Recommendation: A.**
 
 **Decision of 2026-11-06, by the user: B.** One entry at sign-up in an account profile, against the recommendation. The screens 10–11 stay in the sign-up and the Figma flow stays as it is. What follows for the API and the protection of a mistyped address is in [A05](08-roadmap.md#a05--web-authentication-flows), and the risk for the data protection officer in RT-90.
+
+### D17. Team roles
+
+The user's question of 2026-11-12: how employees and doctors are managed, whether they need different roles, and who sees and does what. Until then a membership had one of three roles, STAFF, DOCTOR or ADMIN. An owner who is a doctor could not be both, because a link to a doctor needs the role DOCTOR, and ADMIN mixed the running of the practice with access to clinical content.
+
+- A. The three roles, and an admin may also be a doctor.
+- B. A base role, **practice team** (reception, medical assistants) or **doctor**, and an add-on right **practice management** (services, team, settings, the audit log, exports).
+- C. Every right per person.
+
+**Recommendation: B.** **Decision of 2026-11-12, by the user: B.** Only practice management gives or changes roles, the add-on included. At least one person keeps practice management: the last can neither lose it nor be deactivated. The operator sets the first, as today. Each change of a role writes an audit row, and the person gets an e-mail. M03 builds it with the team page W15: every member, filtered by doctors, the practice team and practice management, with invitations, roles and deactivation.
+
+### D18. Who reads the audit log
+
+- A. Practice management, read only, filtered by person, time, patient and action, with an export for the data protection officer.
+- B. A, and a read-only role "data protection".
+
+**Recommendation: A.** **Decision of 2026-11-12, by the user: A.** The view shows who did what to which record and when, never clinical content; opening it is audited too. Technical logs, servers, backups and updates stay with the operator, and hold no patient data. Built as W18 with M03.
+
+### D19. Free times without signing in
+
+Decided on 2026-11-01: free times are public on the practice's page (BR-22).
+
+**Decision of 2026-11-12, by the user:** the first page shows no free times; a visitor signs in or signs up first, and the page has the buttons for both. B07 builds it: the page keeps the practice, its services, team and hours for everyone, and search engines, and the free times answer only a signed-in account with a confirmed address. Its cost: who only wants to see whether a time is free must sign up first. A practice that wants its times public again gets a setting with M01.
 
 ### Other open product questions
 

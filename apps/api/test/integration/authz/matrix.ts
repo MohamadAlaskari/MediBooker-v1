@@ -36,6 +36,9 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   rescheduleAppointment: { account: 404 },
   listMyAppointmentsInPractice: { account: 404 },
   listMyAppointments: { account: 200 },
+  // The free times (B07): any confirmed account, of a published practice; this one is unknown.
+  getAvailability: { account: 404 },
+  getFreeTimes: { account: 404 },
   // The practice's desk (M05): a sign-in with the password only is MFA_REQUIRED before anything else.
   getDeskDay: { account: 403 },
   getDeskAppointment: { account: 403 },
@@ -88,6 +91,4 @@ export const PUBLIC_OPERATIONS: readonly string[] = [
   'secureAccount',
   'listPublicPractices',
   'getPublicPractice',
-  'getPublicAvailability',
-  'getPublicFreeTimes',
 ];

@@ -30,6 +30,7 @@ import {
   whenParts,
 } from './appointment-view';
 import { CancelButton } from './cancel-button';
+import { bookHref } from './free-times/free-times-view';
 import {
   LoadError,
   Loading,
@@ -205,7 +206,7 @@ function BookLinks({ practices }: { readonly practices: readonly MyPracticeDto[]
         <LinkButton
           key={id}
           variant="outline"
-          href={`/${locale}/${slug ?? ''}#free-times`}
+          href={bookHref(locale, slug ?? '')}
           // A practice's name can be longer than a phone is wide, in one word too.
           className="max-w-full py-2 text-start wrap-anywhere whitespace-normal"
         >

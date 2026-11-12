@@ -25,16 +25,13 @@ import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
 import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
 import { PatientDto } from '../patients/patients.dto.js';
+import { PRACTICE_AUDIENCE, FreeTimesService } from '../scheduling/free-times.service.js';
 import {
-  PRACTICE_AUDIENCE,
-  PublicFreeTimesService,
-} from '../scheduling/public-free-times.service.js';
-import {
-  PublicAvailabilityDto,
-  PublicAvailabilityQueryDto,
-  PublicFreeTimesDto,
-  PublicFreeTimesQueryDto,
-} from '../scheduling/public-free-times.dto.js';
+  AvailabilityDto,
+  AvailabilityQueryDto,
+  FreeTimesDto,
+  FreeTimesQueryDto,
+} from '../scheduling/free-times.dto.js';
 import { IDEMPOTENCY_HEADER } from './appointments.controller.js';
 import { DeskPatients } from './desk-patients.js';
 import {
@@ -96,26 +93,24 @@ export class DeskController {
   constructor(
     private readonly desk: DeskService,
     private readonly patients: DeskPatients,
-    private readonly freeTimes: PublicFreeTimesService,
+    private readonly freeTimes: FreeTimesService,
   ) {}
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
   @ApiOperation({
     summary: 'Days with free times for the team (W7): every active service and doctor, from now on',
   })
-  @ApiOkResponse({ type: PublicAvailabilityDto })
+  @ApiOkResponse({ type: AvailabilityDto })
   @Get('availability')
-  async getDeskAvailability(
-    @Query() query: PublicAvailabilityQueryDto,
-  ): Promise<PublicAvailabilityDto> {
+  async getDeskAvailability(@Query() query: AvailabilityQueryDto): Promise<AvailabilityDto> {
     return this.freeTimes.availability(query, PRACTICE_AUDIENCE);
   }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
   @ApiOperation({ summary: 'The free times of one day for the team (W7)' })
-  @ApiOkResponse({ type: PublicFreeTimesDto })
+  @ApiOkResponse({ type: FreeTimesDto })
   @Get('free-times')
-  async getDeskFreeTimes(@Query() query: PublicFreeTimesQueryDto): Promise<PublicFreeTimesDto> {
+  async getDeskFreeTimes(@Query() query: FreeTimesQueryDto): Promise<FreeTimesDto> {
     return this.freeTimes.freeTimesOfDay(query, PRACTICE_AUDIENCE);
   }
 

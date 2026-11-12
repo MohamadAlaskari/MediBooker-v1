@@ -1,6 +1,6 @@
 import { GetPublicPracticeResponse } from '@medibooker/api-client/zod';
 import { isolate, messages } from '@medibooker/i18n';
-import type { BrowserContext, Locator, Page, Request } from '@playwright/test';
+import type { BrowserContext, Locator, Page, Request, TestInfo } from '@playwright/test';
 import {
   appointmentsOf,
   booked,
@@ -40,7 +40,6 @@ import { expect, expectAccessible, expectAccessibleAtBothWidths, test } from './
 
 const STUB = `http://127.0.0.1:${String(API_STUB_PORT)}`;
 const PHONE = '+966 11 000 0000';
-const CHOICE_KEY = 'medibooker.booking-choice';
 /** The first day of the next week, and the one time its doctor has then. */
 const NEXT_WEEK_FIRST_TIME = '2026-11-15T06:00:00Z';
 const NEXT_WEEK_DOCTOR_TIME = '2026-11-15T06:30:00Z';
@@ -155,16 +154,11 @@ async function inAnotherTab(
   await other.close();
 }
 
-async function storeChoice(page: Page, choice: Readonly<Record<string, string>>): Promise<void> {
-  await page.evaluate(
-    ([key, value]) => {
-      sessionStorage.setItem(
-        key ?? '',
-        JSON.stringify({ ...(JSON.parse(value ?? '{}') as object), savedAt: Date.now() }),
-      );
-    },
-    [CHOICE_KEY, JSON.stringify(choice)],
-  );
+/** Signed in, on the booking page of the installation's practice, with its free times (B07). */
+async function atTheTimes(page: Page, locale: Locale, testInfo: TestInfo): Promise<void> {
+  await signedIn(page, locale, newAddress(testInfo));
+  await page.goto(`/${locale}/book/al-noor`);
+  await expect(morningTimes(page, locale).first()).toBeVisible();
 }
 
 /** Presses Tab until this element has the focus: what a keyboard reaches. */
@@ -216,8 +210,6 @@ test.describe('booking on the web (08 B04)', () => {
     const [appointment] = await appointmentsOf(email);
     expect(appointment?.patientNote).toBe('Synthetic note');
     await expect(page.getByText('Synthetic note')).toHaveCount(0);
-    // The choice is over with the booking.
-    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
 
     await toList(page, locale);
     const row = rowsOf(page, locale);
@@ -313,10 +305,13 @@ test.describe('booking on the web (08 B04)', () => {
     await pressConfirm(page, locale);
     await expect(page.getByRole('main').getByRole('alert')).toHaveText(errors.SLOT_NOT_AVAILABLE);
     await expect(page.getByRole('button', { name: portal.book.confirm })).toHaveCount(0);
-    const otherTime = page.getByRole('link', { name: portal.reschedule.other });
+    const otherTime = page.getByRole('button', { name: portal.reschedule.other });
     await expect(otherTime).toBeFocused();
     await otherTime.click();
-    await expect(page).toHaveURL(`/${locale}#free-times`);
+    // Back to the times on the same page, which asks for them again.
+    await expect(page).toHaveURL(`/${locale}/book/al-noor`);
+    await expect(page.getByText(portal.book.chooseBody)).toBeVisible();
+    await expect(pageHeading(page)).toBeFocused();
   });
 
   test('a double press books one appointment', async ({ page }, testInfo) => {
@@ -533,33 +528,35 @@ test.describe('booking on the web (08 B04)', () => {
     });
   }
 
-  test('without a choice, says how to make one', async ({ page }, testInfo) => {
+  test('starts with the free times of the practice, on this page (B07)', async ({
+    page,
+  }, testInfo) => {
     const locale = localeOf(testInfo);
     const { portal } = messages[locale];
-    await signedIn(page, locale, newAddress(testInfo));
-    await page.goto(`/${locale}/book/al-noor`);
-    await expect(page.getByText(portal.book.noChoiceTitle)).toBeVisible();
-    await expect(page.getByRole('link', { name: portal.book.seeTimes })).toHaveAttribute(
-      'href',
-      `/${locale}#free-times`,
-    );
+    await atTheTimes(page, locale, testInfo);
+    await expect(pageHeading(page)).toHaveText(portal.book.title);
+    await expect(page.getByText(portal.book.chooseBody)).toBeVisible();
+    await expectAccessibleAtBothWidths(page, 'the free times on the booking page');
   });
 
-  test('a visitor comes back to the chosen time after signing in', async ({ page }, testInfo) => {
+  test('a visitor signs in first, and comes back to the booking page', async ({
+    page,
+  }, testInfo) => {
     const locale = localeOf(testInfo);
-    const { auth } = messages[locale];
     const email = newAddress(testInfo);
     await register(email, locale);
     await confirm(email);
 
-    await chooseTime(page, locale);
-    await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in#next=`));
+    await page.goto(`/${locale}/book/al-noor`);
+    await expect(page).toHaveURL(
+      `/${locale}/sign-in#next=${encodeURIComponent(`/${locale}/book/al-noor`)}`,
+    );
     await enterSignIn(page, locale, email);
     await expect(page).toHaveURL(`/${locale}/book/al-noor`);
-    await expect(page.getByLabel(auth.details.firstName, { exact: true })).toBeVisible();
+    await expect(morningTimes(page, locale).first()).toBeVisible();
   });
 
-  test('an address not confirmed yet: asks for that first, and keeps the choice', async ({
+  test('an address not confirmed yet: asks for that first, before any time', async ({
     page,
   }, testInfo) => {
     const locale = localeOf(testInfo);
@@ -570,16 +567,16 @@ test.describe('booking on the web (08 B04)', () => {
     await enterSignIn(page, locale, email);
     await expect(page).toHaveURL(`/${locale}/home`);
 
-    await chooseTime(page, locale);
+    await page.goto(`/${locale}/book/al-noor`);
     await expect(page.getByText(portal.book.confirmEmailTitle)).toBeVisible();
-    await expect(page.getByLabel(auth.details.firstName, { exact: true })).toHaveCount(0);
+    await expect(morningTimes(page, locale)).toHaveCount(0);
     await expectAccessibleAtBothWidths(page, 'the notice to confirm the address');
 
     await page.goto(`/${locale}/verify-email#token=${await confirmationOf(email)}`);
     await page.getByLabel(auth.passwordLabel, { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: auth.verifyEmail.submit }).click();
     await expect(page.getByRole('heading', { name: auth.verifyEmail.doneTitle })).toBeVisible();
-    await page.goto(`/${locale}/book/al-noor`);
+    await chooseTime(page, locale);
     await expect(page.getByLabel(auth.details.firstName, { exact: true })).toBeVisible();
   });
 
@@ -670,9 +667,7 @@ test.describe('booking on the web (08 B04)', () => {
     const locale = localeOf(testInfo);
     const { auth, portal } = messages[locale];
     await signedIn(page, locale, newAddress(testInfo));
-    await page.goto(`/${locale}/asks-little`);
-    await openDay(page, locale);
-    await pickTime(page, locale, 0);
+    await chooseTime(page, locale, { slug: 'asks-little' });
     await expect(page).toHaveURL(`/${locale}/book/asks-little`);
     await enterPerson(page, locale);
     await expect(page.getByRole('radio', { name: auth.details.PUBLIC })).toBeChecked();
@@ -785,17 +780,23 @@ test.describe('booking on the web (08 B04)', () => {
     const locale = localeOf(testInfo);
     const { auth, portal } = messages[locale];
     const { details } = auth;
+    const name = isolate(nameOf('al-noor', locale));
     await signedIn(page, locale, newAddress(testInfo));
-    await chooseTime(page, locale);
-    await expect(page.getByLabel(details.firstName, { exact: true })).toBeVisible();
+    await page.goto(`/${locale}/book/al-noor`);
+    await expect(morningTimes(page, locale).first()).toBeVisible();
     expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('BODY');
+    // The time had the focus, and the details take its place (B07): their heading takes it.
+    await openDay(page, locale);
+    await pickTime(page, locale, 0);
+    await expect(
+      page.getByRole('heading', { name: filled(portal.join.title, { practice: name }) }),
+    ).toBeFocused();
 
     await page.getByLabel(details.firstName, { exact: true }).fill('Sami');
     await page.getByLabel(details.lastName, { exact: true }).fill('Beispiel');
     await page.getByLabel(details.dateOfBirth, { exact: true }).fill('1990-04-12');
     const firstStep = await page.getByRole('button', { name: details.continue }).elementHandle();
     await page.getByRole('button', { name: details.continue }).click();
-    const name = isolate(nameOf('al-noor', locale));
     await expect(
       page.getByRole('heading', { name: filled(portal.join.insuranceTitle, { practice: name }) }),
     ).toBeFocused();
@@ -865,87 +866,19 @@ test.describe('booking on the web (08 B04)', () => {
     await signedIn(page, locale, email);
     await chooseTime(page, locale);
     await joinPractice(page, locale);
-    const chosen = await page.evaluate((key) => sessionStorage.getItem(key), CHOICE_KEY);
     await pressConfirm(page, locale);
     await expectBooked(page, locale);
 
-    // As after reloading the page when the answer got lost: a new attempt, with a new key.
-    await page.evaluate(
-      ([key, value]) => {
-        sessionStorage.setItem(key ?? '', value ?? '');
-      },
-      [CHOICE_KEY, chosen],
-    );
-    await page.goto(`/${locale}/book/al-noor`);
+    // A page that still offers it, as an answer of before would: a new attempt, with a new key.
+    await page.route('**/free-times*', async (route) => {
+      const date = new URL(route.request().url()).searchParams.get('date') ?? '';
+      await route.fulfill({ json: { date, times: [{ startsAt: NEXT_WEEK_FIRST_TIME }] } });
+    });
+    await chooseTime(page, locale);
     await pressConfirm(page, locale);
     await expect(page.getByRole('main').getByRole('alert')).toHaveText(errors.APPOINTMENT_OVERLAP);
     await expect(page.getByRole('button', { name: portal.book.confirm })).toHaveCount(0);
     expect(await appointmentsOf(email)).toHaveLength(1);
-  });
-
-  test('a choice lasts as long as a sign-in takes, and then is gone', async ({
-    page,
-  }, testInfo) => {
-    const locale = localeOf(testInfo);
-    const { portal } = messages[locale];
-    await signedIn(page, locale, newAddress(testInfo));
-    await chooseTime(page, locale);
-    await expect(page).toHaveURL(`/${locale}/book/al-noor`);
-    await page.evaluate((key) => {
-      const choice = JSON.parse(sessionStorage.getItem(key) ?? '{}') as { savedAt: number };
-      const old = choice.savedAt - 16 * 60 * 1000;
-      sessionStorage.setItem(key, JSON.stringify({ ...choice, savedAt: old }));
-    }, CHOICE_KEY);
-    await page.reload();
-    await expect(page.getByText(portal.book.noChoiceTitle)).toBeVisible();
-    await expect.poll(() => page.evaluate(() => sessionStorage.length)).toBe(0);
-  });
-
-  test('signing out in another tab clears a choice on a public page too', async ({
-    page,
-    context,
-  }, testInfo) => {
-    const locale = localeOf(testInfo);
-    const { auth, portal } = messages[locale];
-    await signedIn(page, locale, newAddress(testInfo));
-    await page.goto(`/${locale}`);
-    await page.evaluate((key) => {
-      sessionStorage.setItem(key, '{}');
-    }, CHOICE_KEY);
-
-    const other = await context.newPage();
-    await other.goto(`/${locale}/appointments`);
-    await expect(other.getByRole('main')).toContainText(portal.list.noPractices);
-    await other.getByRole('button', { name: auth.account.signOut }).click();
-    await expect(other).toHaveURL(`/${locale}/sign-in`);
-    await other.close();
-    await expect.poll(() => page.evaluate(() => sessionStorage.length)).toBe(0);
-  });
-
-  test('signing in in another tab clears a choice on a public page too', async ({
-    page,
-    context,
-  }, testInfo) => {
-    const locale = localeOf(testInfo);
-    await page.goto(`/${locale}`);
-    await expect(page.locator('#free-times [data-a11y-ignore]')).toBeAttached();
-    await page.evaluate((key) => {
-      sessionStorage.setItem(key, '{}');
-    }, CHOICE_KEY);
-
-    await signedIn(await context.newPage(), locale, newAddress(testInfo));
-    await expect.poll(() => page.evaluate(() => sessionStorage.length)).toBe(0);
-  });
-
-  test('a page removes a stored choice whose minutes are over', async ({ page }, testInfo) => {
-    const locale = localeOf(testInfo);
-    await page.goto(`/${locale}`);
-    await page.evaluate((key) => {
-      sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now() - 16 * 60 * 1000 }));
-    }, CHOICE_KEY);
-    await page.reload();
-    await expect(page.locator('#free-times [data-a11y-ignore]')).toBeAttached();
-    await expect.poll(() => page.evaluate(() => sessionStorage.length)).toBe(0);
   });
 
   test('the pages of a person are never stored', async ({ page }, testInfo) => {
@@ -1087,35 +1020,6 @@ test.describe('booking on the web (08 B04)', () => {
     expect(await appointmentsOf(email)).toEqual([]);
   });
 
-  test('a stored choice of a service or a doctor that is gone', async ({ page }, testInfo) => {
-    const locale = localeOf(testInfo);
-    const { portal } = messages[locale];
-    await signedIn(page, locale, newAddress(testInfo));
-    await chooseTime(page, locale);
-    await joinPractice(page, locale);
-    const startsAt = NEXT_WEEK_FIRST_TIME;
-
-    await storeChoice(page, {
-      slug: 'al-noor',
-      serviceId: '10000000-0000-4000-8000-00000000dead',
-      startsAt,
-    });
-    await page.goto(`/${locale}/book/al-noor`);
-    await expect(page.getByText(portal.book.noChoiceTitle)).toBeVisible();
-    await expect.poll(() => page.evaluate(() => sessionStorage.length)).toBe(0);
-
-    await storeChoice(page, {
-      slug: 'al-noor',
-      serviceId: SERVICE_ID,
-      startsAt,
-      providerId: '20000000-0000-4000-8000-00000000dead',
-    });
-    await page.goto(`/${locale}/book/al-noor`);
-    await expect(page.getByText(portal.book.doctorGoneTitle)).toBeVisible();
-    await expect(page.getByRole('button', { name: portal.book.confirm })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: portal.book.seeTimes })).toBeVisible();
-  });
-
   /** What a press can answer about a choice: its own words, no Confirm, and the way to the times. */
   const choiceGone: readonly {
     readonly name: string;
@@ -1154,7 +1058,7 @@ test.describe('booking on the web (08 B04)', () => {
       await pressConfirm(page, locale);
       await expect(page.getByRole('main').getByRole('alert')).toHaveText(text(locale));
       await expect(page.getByRole('button', { name: portal.book.confirm })).toHaveCount(0);
-      await expect(page.getByRole('link', { name: portal.reschedule.other })).toBeFocused();
+      await expect(page.getByRole('button', { name: portal.reschedule.other })).toBeFocused();
       expect(await appointmentsOf(email)).toEqual([]);
     });
   }
@@ -1198,7 +1102,8 @@ test.describe('booking on the web (08 B04)', () => {
     await chooseTime(page, locale);
     await joinPractice(page, locale);
     await hook('practices-limited', { email, times: '1' });
-    await page.reload();
+    // A new page: its list of practices fails, which the times do not need, but the next step does.
+    await chooseTime(page, locale);
 
     await expect(pageHeading(page)).toHaveText(portal.book.title);
     await expect(page.getByRole('main').getByRole('alert')).toHaveText(errors.RATE_LIMITED);
@@ -1281,7 +1186,7 @@ test.describe('booking on the web (08 B04)', () => {
     ).toHaveCount(0);
   });
 
-  test('a session over at the last press: signs in, and comes back to the same time', async ({
+  test('a session over at the last press: signs in, and comes back to the booking page', async ({
     page,
   }, testInfo) => {
     const locale = localeOf(testInfo);
@@ -1290,8 +1195,6 @@ test.describe('booking on the web (08 B04)', () => {
     await signedIn(page, locale, email);
     await chooseTime(page, locale);
     await joinPractice(page, locale);
-    const when = page.getByRole('main').getByRole('listitem').nth(1);
-    const chosen = await when.textContent();
 
     await hook('end-sessions', { email });
     await pressConfirm(page, locale);
@@ -1300,15 +1203,16 @@ test.describe('booking on the web (08 B04)', () => {
     );
     await enterSignIn(page, locale, email);
     await expect(page).toHaveURL(`/${locale}/book/al-noor`);
-    await expect(page.getByRole('heading', { name: portal.book.reviewTitle })).toBeVisible();
-    await expect(when).toHaveText(chosen ?? '');
+    // The choice stays in no storage (B07): it is made again, and nothing was booked.
+    await expect(page.getByText(portal.book.chooseBody)).toBeVisible();
+    expect(await appointmentsOf(email)).toEqual([]);
   });
 
-  test('a session over during the details: signs in, and comes back to them', async ({
+  test('a session over during the details: signs in, and comes back to the booking page', async ({
     page,
   }, testInfo) => {
     const locale = localeOf(testInfo);
-    const { auth, portal } = messages[locale];
+    const { portal } = messages[locale];
     const email = newAddress(testInfo);
     await signedIn(page, locale, email);
     await chooseTime(page, locale);
@@ -1320,7 +1224,7 @@ test.describe('booking on the web (08 B04)', () => {
     await expect(page).toHaveURL(new RegExp(`/${locale}/sign-in#next=`));
     await enterSignIn(page, locale, email);
     await expect(page).toHaveURL(`/${locale}/book/al-noor`);
-    await expect(page.getByLabel(auth.details.firstName, { exact: true })).toBeVisible();
+    await expect(page.getByText(portal.book.chooseBody)).toBeVisible();
   });
 
   test('a session over before a move: signs in, and comes back to the times', async ({
@@ -1920,9 +1824,20 @@ test.describe('the keyboard and the focus (08 B04)', () => {
     const free = practicePage.freeTimes;
     const email = newAddress(testInfo);
 
-    // The picker, before signing in.
-    await page.goto(`/${locale}`);
-    const section = page.locator('#free-times');
+    // A field, on signing in.
+    await register(email, locale);
+    await confirm(email);
+    await page.goto(`/${locale}/sign-in`);
+    await expect(page.getByRole('button', { name: auth.signIn.submit })).toBeEnabled();
+    const field = page.getByLabel(auth.emailLabel, { exact: true });
+    await tabTo(page, field);
+    await expectRing(field);
+    await enterSignIn(page, locale, email);
+    await expect(page).toHaveURL(`/${locale}/home`);
+
+    // The picker, on the booking page (B07).
+    await page.goto(`/${locale}/book/al-noor`);
+    const section = page.getByRole('main');
     const time = section.getByRole('group', { name: free.morning }).getByRole('link').first();
     await expect(time).toBeVisible();
     const service = section.getByRole('button', { name: /Check-up/ });
@@ -1945,17 +1860,7 @@ test.describe('the keyboard and the focus (08 B04)', () => {
     await expectRing(option);
     await page.keyboard.press('Escape');
 
-    // A field, on signing in, then what the review and the list have.
-    await register(email, locale);
-    await confirm(email);
-    await page.goto(`/${locale}/sign-in`);
-    await expect(page.getByRole('button', { name: auth.signIn.submit })).toBeEnabled();
-    const field = page.getByLabel(auth.emailLabel, { exact: true });
-    await tabTo(page, field);
-    await expectRing(field);
-    await enterSignIn(page, locale, email);
-    await expect(page).toHaveURL(`/${locale}/home`);
-
+    // Then what the review and the list have.
     await chooseTime(page, locale);
     await joinPractice(page, locale);
     const note = page.getByLabel(portal.book.noteLabel);
@@ -2020,7 +1925,7 @@ test.describe('the keyboard and the focus (08 B04)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
-    await page.goto(`/${locale}`);
+    await atTheTimes(page, locale, testInfo);
     const next = page.getByRole('button', { name: free.nextWeek });
     const previous = page.getByRole('button', { name: free.previousWeek });
     await expect(next).toBeEnabled();
@@ -2137,7 +2042,7 @@ test.describe('the picker on a phone (08 B04)', () => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
     await page.setViewportSize({ width: 360, height: 740 });
-    await page.goto(`/${locale}`);
+    await atTheTimes(page, locale, testInfo);
     await measure(page, locale);
     expect(await stripScrolls(page.getByRole('radiogroup', { name: free.days }))).toBe(false);
     await expectAccessible(page, 'the picker at 360 px');
@@ -2149,7 +2054,7 @@ test.describe('the picker on a phone (08 B04)', () => {
     const locale = localeOf(testInfo);
     const free = messages[locale].practicePage.freeTimes;
     await page.setViewportSize({ width: 320, height: 700 });
-    await page.goto(`/${locale}`);
+    await atTheTimes(page, locale, testInfo);
     await measure(page, locale);
     const strip = page.getByRole('radiogroup', { name: free.days });
     expect(await stripScrolls(strip)).toBe(true);
@@ -2186,7 +2091,7 @@ test.describe('the picker on a phone (08 B04)', () => {
       await route.fulfill({ json: { days } });
     });
     await page.setViewportSize({ width: 320, height: 700 });
-    await page.goto(`/${locale}`);
+    await atTheTimes(page, locale, testInfo);
     await page.getByRole('button', { name: free.nextWeek }).click();
     await expect(
       page.getByRole('radiogroup', { name: free.days }).getByRole('radio', { disabled: false }),
@@ -2394,6 +2299,31 @@ test.describe('the stub answers as the API does, route by route (08 B04)', () =>
     const { call, email } = await aSession();
     await hook('staff-row', { email, practiceId: PRACTICE_ID });
     await expectRefused(call('GET', `${THE_PRACTICE}/me/patients`), 403, 'FORBIDDEN');
+  });
+
+  test('the free times want a confirmed address, and no public route is left (B07)', async () => {
+    const times = `${THE_PRACTICE}/free-times?serviceId=${SERVICE_ID}&date=2026-11-15`;
+    const days = `${THE_PRACTICE}/availability?serviceId=${SERVICE_ID}`;
+    for (const path of [times, days]) {
+      await expectRefused(fetch(`${STUB}${path}`), 401, 'UNAUTHENTICATED');
+    }
+    const unconfirmed = await aSession({ confirmed: false });
+    await expectRefused(unconfirmed.call('GET', times), 403, 'EMAIL_NOT_VERIFIED');
+    await expectRefused(
+      (await aSession()).call('GET', `/api/v1/practices/${KEY}/free-times`),
+      404,
+      'NOT_FOUND',
+    );
+    // No patient there yet: a confirmed account is enough.
+    const { call } = await aSession();
+    const answer = await call('GET', times);
+    expect(answer.status).toBe(200);
+    expect(((await answer.json()) as { times: unknown[] }).times.length).toBeGreaterThan(0);
+    expect((await call('GET', days)).status).toBe(200);
+    for (const route of ['slots', 'availability']) {
+      const old = await fetch(`${STUB}/api/v1/public/practices/al-noor/${route}`);
+      expect(old.status).toBe(404);
+    }
   });
 
   test('a booking and a join want a confirmed address', async () => {

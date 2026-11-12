@@ -817,7 +817,7 @@ function myPractices(person: Person): readonly MyPracticeDto[] {
 const WRITES: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** What the guards of a route ask of a person: `@PracticeScoped` on the API's controllers. */
-type Access = 'patient' | 'confirmed-patient' | 'join';
+type Access = 'patient' | 'confirmed-patient' | 'join' | 'confirmed-account';
 
 interface Route {
   readonly method: string;
@@ -834,6 +834,34 @@ const A_RESCHEDULE = new RegExp(`^${PRACTICE}/appointments/([^/]+)/reschedule$`)
 const THE_PATIENTS = new RegExp(`^${PRACTICE}/me/patients$`);
 const A_PATIENT = new RegExp(`^${PRACTICE}/me/patients/([^/]+)$`);
 const THE_LIST = new RegExp(`^${PRACTICE}/me/appointments$`);
+const THE_DAYS = new RegExp(`^${PRACTICE}/availability$`);
+const THE_TIMES = new RegExp(`^${PRACTICE}/free-times$`);
+
+/** The first day of the free times: the stub's today, which the practices say too. */
+const FIRST_DAY = Date.UTC(2026, 10, 8);
+const AVAILABILITY_DAYS = 42;
+
+/** `FreeTimesController` (B07): the days with free times, or the times of one day. */
+function freeTimes({ owner, practice, searchParams, response }: Call, days: boolean): void {
+  const providerId = searchParams.get('providerId');
+  if (!isOffered(owner, practice, searchParams.get('serviceId'), providerId)) {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  const startsOf = (date: string): readonly string[] =>
+    freeStarts(owner, practice, date, providerId);
+  if (days) {
+    respond(response, 200, {
+      days: Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
+        const date = new Date(FIRST_DAY + offset * DAY_MS).toISOString().slice(0, 10);
+        return { date, hasFreeTimes: startsOf(date).length > 0 };
+      }),
+    });
+    return;
+  }
+  const date = searchParams.get('date') ?? '';
+  respond(response, 200, { date, times: startsOf(date).map((startsAt) => ({ startsAt })) });
+}
 
 const ROUTES: readonly Route[] = [
   { method: 'POST', path: THE_APPOINTMENTS, access: 'confirmed-patient', run: book },
@@ -845,6 +873,22 @@ const ROUTES: readonly Route[] = [
   { method: 'GET', path: A_PATIENT, access: 'patient', run: readPatient },
   { method: 'PATCH', path: A_PATIENT, access: 'patient', run: updatePatient },
   { method: 'GET', path: THE_LIST, access: 'patient', run: listInPractice },
+  {
+    method: 'GET',
+    path: THE_DAYS,
+    access: 'confirmed-account',
+    run: (call) => {
+      freeTimes(call, true);
+    },
+  },
+  {
+    method: 'GET',
+    path: THE_TIMES,
+    access: 'confirmed-account',
+    run: (call) => {
+      freeTimes(call, false);
+    },
+  },
 ];
 
 /** `PracticeContextInterceptor`, in its order: what stands before a route of a practice. */
@@ -857,12 +901,14 @@ function whyNotServed(
   if (!UUID.test(practiceId)) return { code: 'NOT_FOUND' };
   const id = practiceId.toLowerCase();
   if (access === 'confirmed-patient' && !isVerified(owner)) return { code: 'EMAIL_NOT_VERIFIED' };
+  // A published practice is enough here: no row in it yet.
+  const published = access === 'join' || access === 'confirmed-account';
   // No row: not there. Only another capacity there: forbidden.
-  if (access !== 'join' && !person.patients.has(id)) {
+  if (!published && !person.patients.has(id)) {
     return { code: person.staffAt.has(id) ? 'FORBIDDEN' : 'NOT_FOUND' };
   }
   if (practiceById(id) === undefined) return { code: 'NOT_FOUND' };
-  if (access === 'join' && !isVerified(owner)) return { code: 'EMAIL_NOT_VERIFIED' };
+  if (published && !isVerified(owner)) return { code: 'EMAIL_NOT_VERIFIED' };
   return undefined;
 }
 
@@ -1066,7 +1112,7 @@ export function publicPracticeFor(
 }
 
 /** `assertOffered`: a service or a doctor gone from the public page answers 404 for its free times. */
-export function isOffered(
+function isOffered(
   owner: string | undefined,
   practice: PublicPracticeDto,
   serviceId: string | null,
@@ -1079,7 +1125,7 @@ export function isOffered(
 }
 
 /** The free times of a day, as far as this person knows: what is taken or their own is not free. */
-export function freeStarts(
+function freeStarts(
   owner: string | undefined,
   practice: PublicPracticeDto,
   date: string,
