@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderAccountEmail } from './account-email.js';
+import { isolated, renderAccountEmail } from './account-email.js';
 
 const WEB = 'https://site.example';
 const PRACTICE = 'Al Noor Medical Centre';
@@ -34,7 +34,7 @@ describe('renderAccountEmail', () => {
 
   it('speaks in the name of the practice whose account it is (ADR 0016), escaped', () => {
     expect(renderAccountEmail('PASSWORD_RESET', 'en', WEB, 't', PRACTICE).text).toContain(
-      'your account at Al Noor Medical Centre',
+      `your account at ${isolated(PRACTICE)}`,
     );
     expect(renderAccountEmail('PASSWORD_RESET', 'ar', WEB, 't', 'مركز النور الطبي').text).toContain(
       'مركز النور الطبي',
@@ -43,6 +43,15 @@ describe('renderAccountEmail', () => {
     expect(html).toContain('&lt;b&gt;Praxis&lt;/b&gt;');
     expect(html).not.toContain('MediBooker');
     expect(text).not.toContain('MediBooker');
+  });
+
+  it('isolates the name, so that it cannot turn the rest of the line', () => {
+    const fsi = String.fromCodePoint(0x2068);
+    const pdi = String.fromCodePoint(0x2069);
+    const turning = `Praxis ${String.fromCodePoint(0x202e)}xof`;
+    const { text, html } = renderAccountEmail('PASSWORD_RESET', 'ar', WEB, 't', turning);
+    expect(text).toContain(`${fsi}${turning}${pdi}`);
+    expect(html).toContain(`${fsi}${turning}${pdi}`);
   });
 
   it('holds no tracking and loads nothing', () => {

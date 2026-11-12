@@ -55,7 +55,7 @@
 | `db:seed` | `tsx prisma/seed.ts`: provisions the two seed practices as `medibooker_provisioner`, registers their slugs and keeps `practice_template` current (§9); from P01 it also writes synthetic data | F04 |
 | `generate` | `node dist/openapi/generate.js` | X02 |
 | `slots:generate` | slot generation for one practice and a date range | P04 |
-| `cli` | `node dist/cli.js <command>`: operator commands `practice:create` and `practice:invite-admin` | A04 |
+| `cli` | `node dist/cli/<name>.js`: operator commands that need the API's modules (`staff-role`, the first admin of ADR 0016; `send-test-mail`; `check-storage`). A practice is created by `medibooker-db practice create` (§6), and its first admin comes from `staff-role`, so there is no `practice:invite-admin` | A04 |
 
 Creating, migrating, moving and removing databases is not the API's job: the lifecycle CLI `medibooker-db` in `apps/db-migrate` does it (§6). The root scripts `db:migrate` and `db:reset` call it (`migrate all`, `reset-local`).
 
@@ -231,6 +231,7 @@ The cache is a `Map` (insertion order gives the LRU) with reference counts; no l
 | `migrate practices [--practice <id>]` | the migration runner (ADR 0005 §6) | F04 |
 | `migrate all` | both, in this order; stops after a failed platform migration | F04 |
 | `provision <practiceId> --market <CC> [--cluster <id>]`; from P01 also `--time-zone <iana> --default-locale <locale>` | provisioning (ADR 0005 §5.3) | F04 |
+| `practice create --slug <slug> --name-ar <name> --name-en <name> --market <CC> [--cluster <id>] [--time-zone <iana>] [--default-locale <locale>]` | the practice of a new installation (ADR 0016): under its own advisory lock (`RUNNER_BUSY` for a second run) it picks a new practice or completes one an earlier run reserved, makes sure both secrets resolve, reserves the registry row with its address name and names in one transaction, and provisions as `provision` does; the page stays unpublished until M01. Refusals: `SLUG_NOT_ALLOWED`, `SLUG_TAKEN`, `PRACTICE_EXISTS`, `PRACTICE_MARKET_MISMATCH`, `INVALID_ARGUMENTS` | A04 |
 | `verify [--practice <id>]` | schema drift and database ACL per practice (ADR 0005 §6.7) | F04 |
 | `roles reconcile [--practice <id>]` | applies the connection limits and role settings to every practice's roles | F04 |
 | `reset-local` | as the cluster superuser (`DATABASE_ADMIN_URL`): drops the local practice databases, `practice_template` and the practice roles, recreates the platform database as `01-cluster.sh` does and applies the platform migrations; refused unless `APP_ENV` is `local` or `ci` | F04 |
@@ -240,7 +241,7 @@ The cache is a `Map` (insertion order gives the LRU) with reference counts; no l
 Every command:
 
 - writes `platform_audit_events` before and after it runs (outcomes `STARTED`, then `SUCCEEDED` or `FAILED` with the error code), as `platform_owner`, with the operator principal from the task's cloud identity (locally `local:<OS user>`) and the approval reference (ADR 0005 §5.2). Until OPS01 supplies that identity, every command refuses to run outside `APP_ENV` `local` and `ci` with `OPERATOR_IDENTITY_UNAVAILABLE`;
-- captures the Prisma CLI's output and prints only JSON lines on stdout: one per practice (`practiceId`, `from`, `to`, `durationMs`, `errorCode`) and a summary (`command`, `practices`, `failed`, `durationMs`, `errorCode`; invalid variables by name in `invalidKeys`, never with their values). The raw output goes to the task's in-region log at debug level, never to CI logs ([07 §6](07-docker-ci-cd.md#6-image-publishing-and-the-deploy-placeholder));
+- captures the Prisma CLI's output and prints only JSON lines on stdout: one per practice (`practiceId`, `from`, `to`, `durationMs`, `errorCode`) and a summary (`command`, `practices`, `failed`, `durationMs`, `errorCode`; invalid variables by name in `invalidKeys`, never with their values; `practice create` also names `practiceId` and `slug`). The raw output goes to the task's in-region log at debug level, never to CI logs ([07 §6](07-docker-ci-cd.md#6-image-publishing-and-the-deploy-placeholder));
 - exits with 0 when everything succeeded, 1 when the command or any practice failed, and 2 when `verify` finds drift or a wrong ACL (`SCHEMA_DRIFT`, `DATABASE_ACL_INVALID`; 2 wins over 1) and for a wrong command line (`INVALID_ARGUMENTS`, printed with the usage);
 - reports stable error codes only (`ERROR_CODES` in `src/lib/errors.ts`): they are printed, stored in `practices.migration_error_code` and `platform_audit_events.error_code`, and alerted on by OPS01, so a code keeps its meaning once released;
 - logs practice and cluster ids only, never a host, user, connection string, secret reference or password.

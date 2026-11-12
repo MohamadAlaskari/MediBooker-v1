@@ -17,6 +17,15 @@ export type Command =
       readonly timeZone: string | undefined;
       readonly defaultLocale: string | undefined;
     }
+  | {
+      readonly kind: 'practice-create';
+      readonly slug: string;
+      readonly names: { readonly ar: string; readonly en: string };
+      readonly market: string;
+      readonly clusterId: string | undefined;
+      readonly timeZone: string | undefined;
+      readonly defaultLocale: string | undefined;
+    }
   | { readonly kind: 'verify'; readonly practiceId: string | undefined }
   | { readonly kind: 'roles-reconcile'; readonly practiceId: string | undefined }
   | { readonly kind: 'reset-local' };
@@ -25,6 +34,7 @@ export const USAGE = [
   'medibooker-db migrate platform|all',
   'medibooker-db migrate practices [--practice <id>]',
   'medibooker-db provision <practiceId> --market <CC> [--cluster <id>] [--time-zone <IANA>] [--default-locale <locale>]',
+  'medibooker-db practice create --slug <slug> --name-ar <name> --name-en <name> --market <CC> [--cluster <id>] [--time-zone <IANA>] [--default-locale <locale>]',
   'medibooker-db verify [--practice <id>]',
   'medibooker-db roles reconcile [--practice <id>]',
   'medibooker-db reset-local',
@@ -39,6 +49,9 @@ const OPTIONS = {
   cluster: { type: 'string' },
   'time-zone': { type: 'string' },
   'default-locale': { type: 'string' },
+  slug: { type: 'string' },
+  'name-ar': { type: 'string' },
+  'name-en': { type: 'string' },
 } as const;
 
 type OptionName = keyof typeof OPTIONS;
@@ -50,6 +63,8 @@ export function commandName(command: Command): string {
       return `migrate ${command.target}`;
     case 'roles-reconcile':
       return 'roles reconcile';
+    case 'practice-create':
+      return 'practice create';
     case 'provision':
     case 'verify':
     case 'reset-local':
@@ -106,6 +121,30 @@ function interpret(
     return {
       kind: 'provision',
       practiceId: argument.toLowerCase(),
+      market,
+      clusterId: cluster,
+      timeZone,
+      defaultLocale,
+    };
+  }
+  if (
+    verb === 'practice' &&
+    argument === 'create' &&
+    rest.length === 0 &&
+    allows('slug', 'name-ar', 'name-en', 'market', 'cluster', 'time-zone', 'default-locale')
+  ) {
+    const { slug, 'name-ar': nameAr, 'name-en': nameEn, market, cluster } = values;
+    const { 'time-zone': timeZone, 'default-locale': defaultLocale } = values;
+    // The slug and the names are judged by the command, which answers why (SLUG_NOT_ALLOWED).
+    if (slug === undefined || nameAr === undefined || nameEn === undefined) return undefined;
+    if (market === undefined || !MARKET.test(market)) return undefined;
+    if (cluster !== undefined && !isClusterId(cluster)) return undefined;
+    if (timeZone !== undefined && !isTimeZone(timeZone)) return undefined;
+    if (defaultLocale !== undefined && !LOCALE.test(defaultLocale)) return undefined;
+    return {
+      kind: 'practice-create',
+      slug,
+      names: { ar: nameAr, en: nameEn },
       market,
       clusterId: cluster,
       timeZone,

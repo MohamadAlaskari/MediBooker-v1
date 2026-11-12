@@ -183,6 +183,19 @@ export function writeMailServer(stack: Stack, root: string, mailbox: Mailbox | u
   );
 }
 
+/** The form of a practice's address name, as medibooker-db judges it (`apps/db-migrate/src/lib/slugs.ts`). */
+const PRACTICE_SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+
+/**
+ * Names the practice the stack's API and web serve (ADR 0016), for example after "Praxis anlegen".
+ * Only a value of that form reaches the file, which also holds the database's passwords: nothing
+ * else could start a line of its own there.
+ */
+export function writePracticeSlug(stack: Stack, root: string, slug: string): void {
+  if (!PRACTICE_SLUG.test(slug)) throw new Error('not the address name of a practice');
+  updateEnvFile(stack, root, { PRACTICE_SLUG: slug });
+}
+
 /** What the menu says when the API's parser refuses a string. Never a part of the string. */
 const AZURE_STRING_PROBLEMS: Readonly<Record<AzureConnectionProblem, string>> = {
   not_a_connection_string: 'Das ist kein Connection String.',

@@ -17,6 +17,19 @@ const TEMPLATES: Readonly<
   PASSWORD_RESET: { texts: 'reset', page: 'reset-password' },
 };
 
+/** FIRST STRONG ISOLATE and POP DIRECTIONAL ISOLATE, as numbers: no such character in this file. */
+const FSI = String.fromCodePoint(0x2068);
+const PDI = String.fromCodePoint(0x2069);
+
+/**
+ * A name the practice chose, isolated from the sentence around it: Latin in Arabic and the other
+ * way round keep their order, and the name cannot turn the rest of the line (the security review
+ * of A04 part 2a).
+ */
+export function isolated(text: string): string {
+  return `${FSI}${text}${PDI}`;
+}
+
 function escaped(text: string): string {
   return text
     .replaceAll('&', '&amp;')
@@ -47,7 +60,7 @@ export function renderAccountEmail(
   const body = t(`${texts}.body`);
   const action = t(`${texts}.action`);
   const validity = t('validity');
-  const footer = t('footer', { practice: practiceName });
+  const footer = t('footer', { practice: isolated(practiceName) });
   const { bg, text } = createColorTheme('light');
   const direction = getDirection(locale);
   const paragraph = `margin:0 0 16px;font:16px/24px sans-serif;color:${text.secondary}`;

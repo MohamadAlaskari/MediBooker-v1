@@ -186,6 +186,37 @@ describe('medibooker', () => {
       expect(out).toContain('staff-role.js admin@example.test');
     });
 
+    it('asks for a new practice, creates it with medibooker-db and names it in .env', () => {
+      const { out } = run(
+        ['--dry-run'],
+        '1\npractice-create\nAl-Shifa\nعيادة الشفاء\nAl Shifa Clinic\nsa\nAsia/Riyadh\n\nj\nq\n',
+      );
+      expect(out).toContain('Kürzel der Praxis');
+      expect(out).toContain(
+        'run --rm migrate node src/cli.ts practice create --slug al-shifa --name-ar عيادة الشفاء --name-en Al Shifa Clinic --market SA --time-zone Asia/Riyadh --default-locale ar',
+      );
+      expect(out).toContain('.env: PRACTICE_SLUG=al-shifa setzen');
+    });
+
+    it('reads every answer of a direct call from one input, the last one too', () => {
+      const { code, out } = run(
+        ['prod', 'practice-create', '--dry-run'],
+        'al-shifa\nعيادة الشفاء\nAl Shifa Clinic\nSA\nAsia/Riyadh\nar\nj\n',
+      );
+      expect(code).toBe(0);
+      expect(out).toContain('--profile operator run --rm practice practice create --slug al-shifa');
+      expect(out).toContain('.env.prod: PRACTICE_SLUG=al-shifa setzen');
+    });
+
+    it('creates no practice from answers that cannot be one', () => {
+      const { out, err } = run(
+        ['--dry-run'],
+        '1\npractice-create\nal-shifa\nعيادة الشفاء\nAl Shifa Clinic\nSAU\nAsia/Riyadh\nar\nq\n',
+      );
+      expect(err).toContain('Unvollständig');
+      expect(out).not.toContain('practice create --slug');
+    });
+
     it('goes back to Mailpit', () => {
       const { code, out } = run(['dev', 'mail-off', '--dry-run']);
       expect(code).toBe(0);

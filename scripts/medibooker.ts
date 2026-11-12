@@ -31,6 +31,7 @@ import {
   mailServerOf,
   storageAccountOf,
   writeMailServer,
+  writePracticeSlug,
   writeStorageAccount,
 } from './lib/control/env-files.ts';
 import { lineReader, type LineReader } from './lib/control/lines.ts';
@@ -147,6 +148,98 @@ async function addressOf(session: Session, question: string): Promise<string | u
   return undefined;
 }
 
+/** A new practice as the menu asks for it (A04); `medibooker-db practice create` judges it. */
+interface PracticeAnswers {
+  readonly slug: string;
+  readonly nameAr: string;
+  readonly nameEn: string;
+  readonly market: string;
+  readonly timeZone: string;
+  readonly locale: string;
+}
+
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Asks for a new practice; undefined when the user stops or an answer cannot be one. */
+async function practiceOf(session: Session): Promise<PracticeAnswers | undefined> {
+  return withLines(session, async (lines) => {
+    const ask = async (question: string) => (await lines.ask(question))?.trim() ?? '';
+    const slug = (
+      await ask('Kürzel der Praxis, z. B. praxis-mueller (Enter = abbrechen): ')
+    ).toLowerCase();
+    if (slug === '') return undefined;
+    const nameAr = await ask('Name auf Arabisch: ');
+    const nameEn = await ask('Name auf Englisch: ');
+    const market = (await ask('Markt, zwei Buchstaben wie SA oder DE: ')).toUpperCase();
+    const timeZone = await ask('Zeitzone, z. B. Asia/Riyadh oder Europe/Berlin: ');
+    const locale = (await ask('Standardsprache ar oder en [ar]: ')).toLowerCase() || 'ar';
+    if (
+      nameAr === '' ||
+      nameEn === '' ||
+      !/^[A-Z]{2}$/.test(market) ||
+      !isTimeZone(timeZone) ||
+      !['ar', 'en'].includes(locale)
+    ) {
+      console.error(
+        style.red(
+          'Unvollständig: beide Namen, ein Markt aus zwei Buchstaben, eine IANA-Zeitzone, ar oder en.',
+        ),
+      );
+      return undefined;
+    }
+    return { slug, nameAr, nameEn, market, timeZone, locale };
+  });
+}
+
+function practiceArguments(practice: PracticeAnswers): readonly string[] {
+  return [
+    '--slug',
+    practice.slug,
+    '--name-ar',
+    practice.nameAr,
+    '--name-en',
+    practice.nameEn,
+    '--market',
+    practice.market,
+    '--time-zone',
+    practice.timeZone,
+    '--default-locale',
+    practice.locale,
+  ];
+}
+
+/**
+ * After a new practice: names it in the stack's environment file, if the user wants. API and web
+ * read it when they are created, so "Starten" brings it; the page stays hidden until its admin
+ * publishes it.
+ */
+async function offerPracticeSlug(stack: Stack, session: Session, slug: string): Promise<void> {
+  const answer = session.assumeYes
+    ? 'j'
+    : await withLines(session, (lines) =>
+        lines.ask(`PRACTICE_SLUG in ${stack.envFile} auf ${slug} setzen? [j/N] `),
+      );
+  if (!/^(j|ja|y|yes)$/i.test(answer?.trim() ?? '')) {
+    console.log(`Später: PRACTICE_SLUG=${slug} in ${stack.envFile}, dann "Starten".`);
+    return;
+  }
+  if (session.dryRun) {
+    console.log(style.dim(`${stack.envFile}: PRACTICE_SLUG=${slug} setzen`));
+    return;
+  }
+  writePracticeSlug(stack, ROOT, slug);
+  console.log(
+    `${stack.envFile}: PRACTICE_SLUG=${slug}. Jetzt "Starten", damit API und Web sie zeigen.`,
+  );
+}
+
 /** False where a secret would show while it is typed, which it then says. */
 function canHideInput(secret: string): boolean {
   // Git Bash's own terminal hands a program a pipe, and itself shows what is typed.
@@ -251,6 +344,20 @@ function removeStorage(stack: Stack, session: Session): number {
 async function runStep(step: Step, stack: Stack, session: Session): Promise<number> {
   switch (step.kind) {
     case 'compose': {
+      if (step.practice === true) {
+        // One reader for every question of this step: a direct call reads them from one input.
+        return withLines(session, async (lines) => {
+          const asking: Session = { ...session, lines };
+          const practice = await practiceOf(asking);
+          if (practice === undefined) return CANCELLED;
+          const code = await runDocker(
+            composeArguments(stack, step, undefined, practiceArguments(practice)),
+            asking,
+          );
+          if (code === 0) await offerPracticeSlug(stack, asking, practice.slug);
+          return code;
+        });
+      }
       if (step.recipient === true || step.account === true) {
         const question =
           step.account === true

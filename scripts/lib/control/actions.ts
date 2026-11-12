@@ -13,6 +13,8 @@ export type Step =
       readonly recipient?: true;
       /** Appends the address the user names to the arguments: of an account. */
       readonly account?: true;
+      /** Asks for a new practice and appends it: address name, names, market, time zone, language. */
+      readonly practice?: true;
     }
   | { readonly kind: 'docker'; readonly args: readonly string[] }
   | {
@@ -374,6 +376,30 @@ function practiceActions(stack: Stack): readonly Action[] {
         },
       ],
     },
+    {
+      // The practice of a new installation (A04): provisioned like the demo practices, but empty
+      // and unpublished. The production stack needs the provisioner, which only `practice` has.
+      id: 'practice-create',
+      group: GROUP_PRACTICE,
+      label: 'Praxis anlegen (Kürzel, Namen, Markt, Zeitzone, Sprache)',
+      failureHint:
+        'SLUG_NOT_ALLOWED: 3 bis 40 Zeichen aus a-z, 0-9 und Bindestrich, kein reserviertes Wort. SLUG_TAKEN: das Kürzel hat oder hatte eine andere Praxis. PRACTICE_EXISTS: diese Praxis ist schon angelegt. INVALID_ARGUMENTS: Namen mit 2 bis 120 Zeichen.',
+      steps: [
+        stack.mode === 'dev'
+          ? {
+              kind: 'compose',
+              profiles: profilesOf(stack),
+              args: ['run', '--rm', 'migrate', 'node', 'src/cli.ts', 'practice', 'create'],
+              practice: true,
+            }
+          : {
+              kind: 'compose',
+              profiles: ['operator'],
+              args: ['run', '--rm', 'practice', 'practice', 'create'],
+              practice: true,
+            },
+      ],
+    },
   ];
 }
 
@@ -405,6 +431,8 @@ export function composeArguments(
   stack: Stack,
   step: Extract<Step, { kind: 'compose' }>,
   service?: string,
+  /** Further arguments at the end, each one word: `--name-ar` and its value with spaces. */
+  extra: readonly string[] = [],
 ): readonly string[] {
   // A shell is one extra word after the service: `exec api sh`.
   const shell = step.service === 'required' ? ['sh'] : [];
@@ -417,5 +445,6 @@ export function composeArguments(
     ...(step.profiles ?? []).flatMap((profile) => ['--profile', profile]),
     ...step.args,
     ...(service === undefined ? [] : [service, ...shell]),
+    ...extra,
   ];
 }

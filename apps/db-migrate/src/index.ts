@@ -5,6 +5,11 @@
  * harness share with them. Test helpers are in `@medibooker/db-migrate/testing`.
  */
 export { migrate, type MigrateOptions } from './commands/migrate.ts';
+export {
+  practiceCreate,
+  type PracticeCreateOptions,
+  type PracticeCreateResult,
+} from './commands/practice-create.ts';
 export { provision, type ProvisionOptions, type ProvisionResult } from './commands/provision.ts';
 export { reconcileRoles, type ReconcileRolesOptions } from './commands/roles-reconcile.ts';
 export { resetLocal, type ResetLocalOptions } from './commands/reset-local.ts';

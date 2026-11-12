@@ -70,6 +70,25 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # The operator's "Praxis anlegen" (A04), only on request: medibooker-db of the migrate image,
+  # with the provisioner role that creating a practice's database needs and `migrate` does not have.
+  practice:
+    <<: *hardening
+    image: medibooker-api-migrate:local
+    # Built with `migrate`; never pulled from anywhere. Without arguments it does nothing (exit 2).
+    pull_policy: never
+    command: ['practice', 'create']
+    profiles: [operator]
+    mem_limit: 1g
+    networks: [data]
+    environment:
+      <<: *cluster-env
+      PLATFORM_MIGRATION_URL: postgresql://platform_owner:${PLATFORM_OWNER_PASSWORD}@db:5432/medibooker_platform
+      PROVISIONER_DATABASE_URL: postgresql://medibooker_provisioner:${PROVISIONER_PASSWORD}@db:5432/postgres
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   api:
     <<: *hardening
     image: medibooker-api:local

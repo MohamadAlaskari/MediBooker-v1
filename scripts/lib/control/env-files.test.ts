@@ -15,6 +15,7 @@ import {
   storageAccountOf,
   withEnvValues,
   writeMailServer,
+  writePracticeSlug,
   writeStorageAccount,
 } from './env-files.ts';
 import { STACKS } from './stacks.ts';
@@ -55,6 +56,27 @@ describe('productionEnvFile', () => {
       ),
     ).toBe('false');
   });
+});
+
+describe('writePracticeSlug', () => {
+  it('sets the practice of the stack and keeps every other line', () => {
+    writeFileSync(path.join(root, '.env.prod'), 'POSTGRES_PASSWORD=abc\nPRACTICE_SLUG=al-noor\n');
+    writePracticeSlug(STACKS.prod, root, 'al-shifa');
+    expect(readFileSync(path.join(root, '.env.prod'), 'utf8')).toBe(
+      'POSTGRES_PASSWORD=abc\nPRACTICE_SLUG=al-shifa\n',
+    );
+  });
+
+  it.each(['al-shifa\nSMTP_URL=smtp://evil', 'Al-Shifa', 'al shifa', 'ab', ''])(
+    'writes nothing that is no address name: %j',
+    (slug) => {
+      writeFileSync(path.join(root, '.env'), 'POSTGRES_PASSWORD=abc\n');
+      expect(() => {
+        writePracticeSlug(STACKS.dev, root, slug);
+      }).toThrow();
+      expect(readFileSync(path.join(root, '.env'), 'utf8')).toBe('POSTGRES_PASSWORD=abc\n');
+    },
+  );
 });
 
 describe('ensureEnvFile', () => {

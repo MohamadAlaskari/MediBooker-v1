@@ -39,6 +39,9 @@ export const ERROR_CODES = [
   'PRACTICE_CLUSTER_MISMATCH',
   'PRACTICE_IDENTITY_MISMATCH',
   'PROVISIONING_STOPPED',
+  // practice create: an address name that is malformed or reserved, or one another practice has
+  'SLUG_NOT_ALLOWED',
+  'SLUG_TAKEN',
   'CLUSTER_NOT_FOUND',
   'CLUSTER_REQUIRED',
   'CLUSTER_DISABLED',

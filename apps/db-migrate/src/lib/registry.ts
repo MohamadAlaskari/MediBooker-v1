@@ -1,6 +1,6 @@
 import type { Client } from 'pg';
 import type { ClusterRecord, Endpoint } from './cluster.ts';
-import type { ErrorCode } from './errors.ts';
+import { ToolError, type ErrorCode } from './errors.ts';
 
 /**
  * The platform registry as medibooker-db reads and writes it, always as platform_owner: only the
@@ -102,6 +102,78 @@ export async function insertPractice(
     'INSERT INTO practices (id, market) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
     [practiceId, market],
   );
+}
+
+/** The practice an address name belongs to, now or before (retired); undefined for a free one. */
+export async function readSlug(
+  platform: Client,
+  slug: string,
+): Promise<{ readonly practiceId: string; readonly retired: boolean } | undefined> {
+  const result = await platform.query<{ practice_id: string; retired: boolean }>(
+    'SELECT practice_id, retired_at IS NOT NULL AS retired FROM practice_slugs WHERE slug = $1',
+    [slug],
+  );
+  const row = result.rows[0];
+  return row === undefined ? undefined : { practiceId: row.practice_id, retired: row.retired };
+}
+
+export interface PracticeReservation {
+  readonly practiceId: string;
+  readonly market: string;
+  readonly slug: string;
+  /** Per locale, for example `{ ar, en }`. */
+  readonly name: Readonly<Record<string, string>>;
+}
+
+/**
+ * Before `practice create` provisions: the registry row (PROVISIONING), its address name and its
+ * name in one transaction. A rerun after a crash finds the practice by its name and completes it;
+ * a name that meanwhile belongs to another practice is SLUG_TAKEN, also when two runs race.
+ */
+export async function reservePractice(
+  platform: Client,
+  { practiceId, market, slug, name }: PracticeReservation,
+): Promise<void> {
+  await platform.query('BEGIN');
+  try {
+    await insertPractice(platform, practiceId, market);
+    await platform.query(
+      'INSERT INTO practice_slugs (slug, practice_id) VALUES ($1, $2) ON CONFLICT (slug) DO NOTHING',
+      [slug, practiceId],
+    );
+    const owner = await readSlug(platform, slug);
+    if (owner?.practiceId !== practiceId || owner.retired) throw new ToolError('SLUG_TAKEN');
+    // Again under the row's lock: a run that finished in the meantime must not be provisioned anew.
+    const state = await platform.query<{ status: string; market: string }>(
+      'SELECT status, market FROM practices WHERE id = $1 FOR UPDATE',
+      [practiceId],
+    );
+    const row = state.rows[0];
+    if (row === undefined) throw new ToolError('PRACTICE_NOT_FOUND');
+    if (row.status !== 'PROVISIONING') throw new ToolError('PRACTICE_EXISTS');
+    if (row.market !== market) throw new ToolError('PRACTICE_MARKET_MISMATCH');
+    const named = await platform.query(
+      'UPDATE practices SET name = $2, updated_at = now() WHERE id = $1',
+      [practiceId, name],
+    );
+    if (named.rowCount !== 1) throw new ToolError('PRACTICE_NOT_FOUND');
+    await platform.query('COMMIT');
+  } catch (error) {
+    await platform.query('ROLLBACK').catch(() => undefined);
+    // A practice that took its current name at the same moment.
+    if (codeOf(error) === '23505') throw new ToolError('SLUG_TAKEN');
+    throw error;
+  }
+}
+
+/** The `code` of a pg error, for the one SQLSTATE this file names. */
+function codeOf(error: unknown): string | undefined {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+    ? error.code
+    : undefined;
 }
 
 /** Step 2: the cluster and the database name, set once. */

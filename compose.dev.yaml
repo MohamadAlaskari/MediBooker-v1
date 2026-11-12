@@ -99,8 +99,9 @@ services:
       OPENAPI_UI_ENABLED: 'true'
       TRUST_PROXY_HOPS: 0
       PUBLIC_WEB_URL: http://localhost:3000
-      # The installation's practice, whose name the account e-mails carry (ADR 0016).
-      PRACTICE_SLUG: al-noor
+      # The installation's practice, whose name the account e-mails carry (ADR 0016); the demo
+      # practice unless .env names another (menu: "Praxis anlegen").
+      PRACTICE_SLUG: ${PRACTICE_SLUG:-al-noor}
       # Mailpit, unless .env names a real mail server (menu: "Mailserver eintragen").
       SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
       MAIL_FROM: ${MAIL_FROM:-MediBooker <no-reply@medibooker.invalid>}
@@ -188,8 +189,8 @@ services:
       API_INTERNAL_URL: http://api:3001
       PUBLIC_SITE_URL: http://localhost:3000
       # The practice of this installation, at the root of the site (ADR 0016); the other demo
-      # practices stay at their own paths.
-      PRACTICE_SLUG: al-noor
+      # practices stay at their own paths. The demo practice unless .env names another.
+      PRACTICE_SLUG: ${PRACTICE_SLUG:-al-noor}
     ports:
       - 127.0.0.1:3000:3000
     depends_on:

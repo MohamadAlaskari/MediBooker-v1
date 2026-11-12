@@ -30,6 +30,9 @@ export interface SummaryLine {
   /** `migrate platform`: the platform schema version before and after. */
   readonly from?: string | null;
   readonly to?: string | null;
+  /** `practice create`: the practice it created or completed, and its address name. */
+  readonly practiceId?: string;
+  readonly slug?: string;
   /** ENVIRONMENT_INVALID: the names of the invalid variables, never their values. */
   readonly invalidKeys?: readonly string[];
   /** INVALID_ARGUMENTS: how to call the command. */

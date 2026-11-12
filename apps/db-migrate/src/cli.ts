@@ -7,6 +7,7 @@
  * Usage: node apps/db-migrate/src/cli.ts <command> (Node's type stripping, no build).
  */
 import { migrate } from './commands/migrate.ts';
+import { practiceCreate } from './commands/practice-create.ts';
 import { provision } from './commands/provision.ts';
 import { reconcileRoles } from './commands/roles-reconcile.ts';
 import { resetLocal } from './commands/reset-local.ts';
@@ -91,6 +92,23 @@ async function main(args: readonly string[]): Promise<ExitCode> {
       const result = await provision({
         ...base,
         practiceId: command.practiceId,
+        market: command.market,
+        clusterId: command.clusterId,
+        timeZone: command.timeZone,
+        defaultLocale: command.defaultLocale,
+        provisionerUrl: env.provisionerUrl,
+        markets: env.markets,
+        connectionLimits: env.connectionLimits,
+        migrationTimeoutMs: env.migrationTimeoutMs,
+        migrationLockRetries: env.migrationLockRetries,
+      });
+      return result.exitCode;
+    }
+    case 'practice-create': {
+      const result = await practiceCreate({
+        ...base,
+        slug: command.slug,
+        names: command.names,
         market: command.market,
         clusterId: command.clusterId,
         timeZone: command.timeZone,

@@ -132,16 +132,47 @@ describe('the commands', () => {
     ]);
   });
 
-  it('make an account the admin through the running API, on both stacks, as the last entry', () => {
+  it('make an account the admin through the running API, on both stacks', () => {
     expect(composeCommands('dev', 'staff-admin')).toEqual([
       'compose --env-file .env -f compose.dev.yaml --profile app exec api node dist/cli/staff-role.js',
     ]);
     expect(composeCommands('prod', 'staff-admin')).toEqual([
       'compose --env-file .env.prod -f compose.prod.yaml exec api node dist/cli/staff-role.js',
     ]);
+  });
+
+  it('create a practice with medibooker-db, as the provisioner, as the last entries', () => {
+    expect(composeCommands('dev', 'practice-create')).toEqual([
+      'compose --env-file .env -f compose.dev.yaml --profile app run --rm migrate node src/cli.ts practice create',
+    ]);
+    expect(composeCommands('prod', 'practice-create')).toEqual([
+      'compose --env-file .env.prod -f compose.prod.yaml --profile operator run --rm practice practice create',
+    ]);
     for (const mode of ['dev', 'prod'] as const) {
-      expect(actionsOf(STACKS[mode]).at(-1)?.id).toBe('staff-admin');
+      expect(
+        actionsOf(STACKS[mode])
+          .slice(-2)
+          .map(({ id }) => id),
+      ).toEqual(['staff-admin', 'practice-create']);
     }
+  });
+
+  it('appends further arguments as single words, spaces included', () => {
+    const step = { kind: 'compose', args: ['run', '--rm', 'practice'] } as const;
+    expect(
+      composeArguments(STACKS.prod, step, undefined, ['--name-en', 'Al Shifa Clinic']),
+    ).toEqual([
+      'compose',
+      '--env-file',
+      '.env.prod',
+      '-f',
+      'compose.prod.yaml',
+      'run',
+      '--rm',
+      'practice',
+      '--name-en',
+      'Al Shifa Clinic',
+    ]);
   });
 
   it.each(['mail-setup', 'mail-off'])(
