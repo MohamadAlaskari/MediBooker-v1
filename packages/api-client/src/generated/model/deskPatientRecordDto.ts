@@ -8,6 +8,8 @@ import type { DeskAppointmentRowDto } from './deskAppointmentRowDto';
 import type { DeskPatientDetailsDto } from './deskPatientDetailsDto';
 
 export interface DeskPatientRecordDto {
+  /** The profile belongs to an account, whose person keeps it; false for one the practice keeps, which the team corrects */
+  hasAccount: boolean;
   /** The practice's hour cycle, for showing the times */
   hourCycle: string;
   /**

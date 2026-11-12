@@ -24,6 +24,8 @@ export const DESK_AUDIT = {
   COMPLETE: 'appointment.complete',
   NO_SHOW: 'appointment.no_show',
   CANCEL: 'appointment.cancel_by_practice',
+  /** Part of a patient's copy of their data (Art. 15, RT-97). */
+  export: 'appointment.export',
 } as const;
 
 /** What a row of the desk reads of an appointment: never the note, never a reason. */

@@ -7,7 +7,7 @@
 
 export interface CancelAsPracticeDto {
   /**
-     * Why the practice cancels, for the team only. It can be health data: stored encrypted, never logged
+     * Why the practice cancels: not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged
      * @minLength 1
      * @maxLength 500
      * @pattern ^(?=[\s\S]*[^\s\u{200C}\u{200D}])(?:[^\p{C}\p{Zl}\p{Zp}]|[\n\u{200C}\u{200D}])+$

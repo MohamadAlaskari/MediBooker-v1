@@ -405,6 +405,9 @@ model Patient {
   /// class: personal (null for a child without an account, FA01, and for a patient the team keeps
   /// without an account, W7)
   userId                   String?             @map("user_id") @db.Uuid
+  /// class: personal (the team member's account that added a profile without an account, W7; null
+  /// for a profile of an account, RT-97)
+  addedById                String?             @map("added_by_id") @db.Uuid
   /// class: personal
   relationship             PatientRelationship @default(SELF)
   /// class: personal
@@ -516,6 +519,8 @@ model Appointment {
   cancelledById         String?           @map("cancelled_by_id") @db.Uuid
   /// class: health (only a cancel by the practice has one, BR-04; sealed like the note; CHECK in the migration)
   cancelReasonEncrypted String?           @map("cancel_reason_encrypted")
+  /// class: health (why the team booked past the practice's limit, BR-02; sealed like the note)
+  limitOverrideReasonEncrypted String?    @map("limit_override_reason_encrypted")
   /// class: health (when the team checked the patient in, BR-11; set exactly for CHECKED_IN and COMPLETED)
   checkedInAt           DateTime?         @map("checked_in_at") @db.Timestamptz(3)
   /// class: health (when the team completed the visit, BR-11; set exactly for COMPLETED)

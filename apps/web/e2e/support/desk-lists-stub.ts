@@ -10,10 +10,13 @@ import type {
   DeskAppointmentPageDto,
   DeskAppointmentSearchDto,
   DeskCatalogDto,
+  DeskPatientChangeDto,
+  DeskPatientExportDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
   DeskPatientRowDto,
   DeskPatientSearchDto,
+  PatientDto,
 } from '@medibooker/api-client';
 import { bodyOf, problem, respond } from './answers.ts';
 import {
@@ -154,11 +157,115 @@ function recordOf(appointment: Appointment): DeskPatientRecordDto {
   const row = rowOf(appointment);
   const coming = row.status === 'BOOKED' && Date.parse(row.startsAt) > Date.parse(NOW);
   return {
-    patient: details.patient,
+    // A profile the practice keeps has no account, and so no address.
+    patient: { ...details.patient, email: appointment.bookedOnline ? details.patient.email : null },
+    hasAccount: appointment.bookedOnline,
     insuranceNumberEnd: appointment.insuranceType === 'SELF_PAY' ? null : '6789',
     upcoming: coming ? [row] : [],
     recent: coming ? [] : [row],
     ...SETTINGS,
+  };
+}
+
+/** The appointments of one patient of the stub's day, the first of which names them. */
+function appointmentsOfPatient(owner: string, patientId: string | undefined): Appointment[] {
+  return [...dayOf(owner).values()].filter(
+    (appointment) => rowOf(appointment).patient.id === patientId,
+  );
+}
+
+/**
+ * The team corrects a patient the practice keeps (RT-97): its names and insurance type in every
+ * appointment of the stub's day; one of an account is PATIENT_HAS_ACCOUNT, as the API answers.
+ */
+async function changePatient(
+  owner: string,
+  patientId: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  const input = await bodyOf<DeskPatientChangeDto>(request);
+  const theirs = appointmentsOfPatient(owner, patientId);
+  const first = theirs[0];
+  if (first === undefined) {
+    problem(response, 'NOT_FOUND');
+    return;
+  }
+  if (first.bookedOnline) {
+    problem(response, 'PATIENT_HAS_ACCOUNT');
+    return;
+  }
+  const empty = (['firstName', 'lastName'] as const).filter((field) => input[field] === '');
+  if (empty.length > 0) {
+    problem(response, 'VALIDATION_FAILED', {
+      errors: empty.map((field) => ({ field, code: 'REQUIRED' as const })),
+    });
+    return;
+  }
+  const day = dayOf(owner);
+  for (const appointment of theirs) {
+    day.set(appointment.id, {
+      ...appointment,
+      firstName: input.firstName ?? appointment.firstName,
+      lastName: input.lastName ?? appointment.lastName,
+      insuranceType: input.insuranceType ?? appointment.insuranceType,
+    });
+  }
+  const changed = { ...first, ...day.get(first.id) };
+  const answer: PatientDto = {
+    id: patientId,
+    firstName: changed.firstName,
+    lastName: changed.lastName,
+    dateOfBirth: '1990-04-12',
+    phone: input.phone === undefined ? '+966 50 000 0000' : input.phone,
+    insuranceType: changed.insuranceType,
+    insuranceProvider: changed.insuranceType === 'SELF_PAY' ? null : 'Synthetic Insurance',
+    insuranceNumberEnd: changed.insuranceType === 'SELF_PAY' ? null : '6789',
+  };
+  respond(response, 200, answer);
+}
+
+/** The person's copy (Art. 15), for an admin only, as the API answers it. */
+function exportOf(appointments: readonly Appointment[]): DeskPatientExportDto | undefined {
+  const first = appointments[0];
+  if (first === undefined) return undefined;
+  const { patient } = recordOf(first);
+  return {
+    exportedAt: NOW,
+    timeZone: SETTINGS.timeZone,
+    patient: {
+      id: patient.id,
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      dateOfBirth: patient.dateOfBirth,
+      phone: patient.phone,
+      insuranceType: patient.insuranceType,
+      insuranceProvider: patient.insuranceProvider,
+      insuranceNumber: patient.insuranceType === 'SELF_PAY' ? null : '123456789',
+      hasAccount: first.bookedOnline,
+      createdAt: '2026-11-01T15:00:00Z',
+      updatedAt: '2026-11-01T15:00:00Z',
+    },
+    appointments: appointments.map((appointment) => {
+      const details = detailsOf(appointment);
+      return {
+        id: details.id,
+        serviceName: details.serviceName,
+        providerName: details.providerName,
+        startsAt: details.startsAt,
+        endsAt: details.endsAt,
+        status: details.status,
+        bookedAt: details.bookedAt,
+        bookedOnline: details.bookedOnline,
+        checkedInAt: details.checkedInAt,
+        completedAt: details.completedAt,
+        cancelledAt: details.cancelledAt,
+        patientNote: details.patientNote,
+        cancelReason: details.cancelReason,
+        limitOverrideReason: details.limitOverrideReason,
+        rescheduledFromId: null,
+      };
+    }),
   };
 }
 
@@ -172,6 +279,7 @@ const PRACTICE_DESK = String.raw`^\/api\/v1\/practices\/[^/]+\/desk`;
 const SEARCH_PATH = new RegExp(`${PRACTICE_DESK}\\/(appointments|patients)\\/search$`);
 const CATALOG_PATH = new RegExp(`${PRACTICE_DESK}\\/catalog$`);
 const RECORD_PATH = new RegExp(`${PRACTICE_DESK}\\/patients\\/([^/]+)$`);
+const EXPORT_PATH = new RegExp(`${PRACTICE_DESK}\\/patients\\/([^/]+)\\/export$`);
 
 async function answerSearch(
   list: string,
@@ -203,10 +311,24 @@ export function handleDeskLists(
   const search = SEARCH_PATH.exec(pathname)?.[1];
   const isCatalog = CATALOG_PATH.test(pathname);
   const record = search === undefined ? RECORD_PATH.exec(pathname)?.[1] : undefined;
-  if (search === undefined && !isCatalog && record === undefined) return false;
+  const exported = EXPORT_PATH.exec(pathname)?.[1];
+  if (search === undefined && !isCatalog && record === undefined && exported === undefined) {
+    return false;
+  }
   const who = access();
   if ('refusal' in who) {
     problem(response, who.refusal);
+    return true;
+  }
+  if (exported !== undefined) {
+    const copy = exportOf(appointmentsOfPatient(who.email, exported));
+    if (request.method !== 'GET' || copy === undefined) problem(response, 'NOT_FOUND');
+    else if (who.role !== 'ADMIN') problem(response, 'FORBIDDEN');
+    else respond(response, 200, copy);
+    return true;
+  }
+  if (record !== undefined && request.method === 'PATCH') {
+    void changePatient(who.email, record, request, response);
     return true;
   }
   if (request.method !== (search === undefined ? 'GET' : 'POST')) {

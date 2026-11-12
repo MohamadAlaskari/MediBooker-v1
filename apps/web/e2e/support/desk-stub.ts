@@ -206,6 +206,7 @@ export function detailsOf(appointment: Appointment): DeskAppointmentDto {
     bookedAt: '2026-11-01T15:00:00Z',
     patientNote: appointment.patientNote,
     cancelReason: appointment.cancelReason,
+    limitOverrideReason: null,
     ...SETTINGS,
   };
 }

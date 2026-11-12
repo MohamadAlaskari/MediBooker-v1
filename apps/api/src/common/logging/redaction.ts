@@ -24,6 +24,8 @@ const SENSITIVE_FIELDS = [
   'insuranceNumber',
   'patientNote',
   'cancelReason',
+  'limitOverrideReason',
+  'insuranceProvider',
 ] as const;
 
 /**

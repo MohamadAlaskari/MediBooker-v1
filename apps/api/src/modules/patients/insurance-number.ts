@@ -14,6 +14,11 @@ export function insuranceNumberIndexOf(
   return keys.keyedHash(practiceId, 'insurance-number', number);
 }
 
+/** What a sealed number is bound to: its patient's row and its field. */
+function insuranceNumberContextOf(patientId: string): string {
+  return `patient:${patientId}:insurance-number`;
+}
+
 /** The number under this practice's key, bound to its patient's row, its end, and its index. */
 export async function sealedInsuranceNumber(
   keys: PracticeKeys,
@@ -29,9 +34,19 @@ export async function sealedInsuranceNumber(
     insuranceNumberEncrypted: await keys.encrypt(
       practiceId,
       number,
-      `patient:${patientId}:insurance-number`,
+      insuranceNumberContextOf(patientId),
     ),
     insuranceNumberEnd: insuranceNumberEnd(number),
     insuranceNumberIndex: await insuranceNumberIndexOf(keys, practiceId, number),
   };
+}
+
+/** The whole number again, only for the person's copy of their data (Art. 15, RT-97). */
+export function openedInsuranceNumber(
+  keys: PracticeKeys,
+  practiceId: string,
+  patientId: string,
+  sealed: string,
+): Promise<string> {
+  return keys.decrypt(practiceId, sealed, insuranceNumberContextOf(patientId));
 }

@@ -34,6 +34,8 @@ import type {
   DeskCatalogDto,
   DeskDayDto,
   DeskNewPatientDto,
+  DeskPatientChangeDto,
+  DeskPatientExportDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
   DeskPatientRowDto,
@@ -43,6 +45,7 @@ import type {
   GetDeskDayParams,
   GetDeskFreeTimesParams,
   GetDeskWeekParams,
+  PatientDto,
   ProblemDetailsDto,
   PublicAvailabilityDto,
   PublicFreeTimesDto
@@ -80,7 +83,7 @@ export const getBookDeskAppointmentUrl = (practiceId: string,) => {
 }
 
 /**
- * @summary Book a free time for a patient of the practice (W7); the row as the desk shows it
+ * @summary Book a free time for a patient of the practice (W7), past the limit of BR-02 with a reason; the row as the desk shows it
  */
 export const bookDeskAppointment = async (practiceId: string,
     deskBookingDto: DeskBookingDto,
@@ -148,7 +151,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type BookDeskAppointmentMutationVariables = {practiceId: string;data: DeskBookingDto;headers: BookDeskAppointmentHeaders}
 
     /**
- * @summary Book a free time for a patient of the practice (W7); the row as the desk shows it
+ * @summary Book a free time for a patient of the practice (W7), past the limit of BR-02 with a reason; the row as the desk shows it
  */
 export const useBookDeskAppointment = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bookDeskAppointment>>, TError,BookDeskAppointmentMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
@@ -1455,6 +1458,204 @@ export function useGetDeskPatient<TData = Awaited<ReturnType<typeof getDeskPatie
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDeskPatientQueryOptions(practiceId,patientId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getChangeDeskPatientUrl = (practiceId: string,
+    patientId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/patients/${patientId}`
+}
+
+/**
+ * @summary Correct a patient without an account (RT-97); one of an account is 409 PATIENT_HAS_ACCOUNT; audited
+ */
+export const changeDeskPatient = async (practiceId: string,
+    patientId: string,
+    deskPatientChangeDto: DeskPatientChangeDto, options?: Parameters<typeof apiFetch>[1]): Promise<PatientDto> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PatientDto>(getChangeDeskPatientUrl(practiceId,patientId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deskPatientChangeDto)
+  }
+);}
+
+
+
+
+
+export const getChangeDeskPatientMutationKey = () => ['changeDeskPatient'] as const;
+
+export const getChangeDeskPatientMutationOptions = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDeskPatient>>, TError,ChangeDeskPatientMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeDeskPatient>>, TError,ChangeDeskPatientMutationVariables, TContext> => {
+
+const mutationKey = getChangeDeskPatientMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeDeskPatient>>, ChangeDeskPatientMutationVariables> = (props) => {
+          const {practiceId,patientId,data} = props ?? {};
+
+          return  changeDeskPatient(practiceId,patientId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeDeskPatientMutationResult = NonNullable<Awaited<ReturnType<typeof changeDeskPatient>>>
+    export type ChangeDeskPatientMutationBody = DeskPatientChangeDto
+    export type ChangeDeskPatientMutationError = ErrorType<ProblemDetailsDto>
+    export type ChangeDeskPatientMutationVariables = {practiceId: string;patientId: string;data: DeskPatientChangeDto}
+
+    /**
+ * @summary Correct a patient without an account (RT-97); one of an account is 409 PATIENT_HAS_ACCOUNT; audited
+ */
+export const useChangeDeskPatient = <TError = ErrorType<ProblemDetailsDto>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeDeskPatient>>, TError,ChangeDeskPatientMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof changeDeskPatient>>,
+        TError,
+        ChangeDeskPatientMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeDeskPatientMutationOptions(options), queryClient);
+    }
+    export const getExportDeskPatientUrl = (practiceId: string,
+    patientId: string,) => {
+
+
+
+
+  return `/api/v1/practices/${practiceId}/desk/patients/${patientId}/export`
+}
+
+/**
+ * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited
+ */
+export const exportDeskPatient = async (practiceId: string,
+    patientId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DeskPatientExportDto> => {
+
+  return apiFetch<DeskPatientExportDto>(getExportDeskPatientUrl(practiceId,patientId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportDeskPatientQueryKey = (practiceId: string,
+    patientId: string,) => {
+    return [
+    `/api/v1/practices/${practiceId}/desk/patients/${patientId}/export`
+    ] as const;
+    }
+
+
+export const getExportDeskPatientQueryOptions = <TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportDeskPatientQueryKey(practiceId,patientId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportDeskPatient>>> = ({ signal }) => exportDeskPatient(practiceId,patientId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: practiceId !== null && practiceId !== undefined && patientId !== null && patientId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ExportDeskPatientQueryResult = NonNullable<Awaited<ReturnType<typeof exportDeskPatient>>>
+export type ExportDeskPatientQueryError = ErrorType<ProblemDetailsDto>
+
+
+export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDeskPatient>>,
+          TError,
+          Awaited<ReturnType<typeof exportDeskPatient>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportDeskPatient>>,
+          TError,
+          Awaited<ReturnType<typeof exportDeskPatient>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited
+ */
+
+export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(
+ practiceId: string,
+    patientId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportDeskPatient>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getExportDeskPatientQueryOptions(practiceId,patientId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

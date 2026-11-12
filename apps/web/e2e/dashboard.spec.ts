@@ -521,6 +521,98 @@ test.describe('booking for a patient (08 M05, W7)', () => {
   });
 });
 
+test.describe('the team’s care for its patients (08 M04 part 3)', () => {
+  /** The record of a patient of the stub's day, found in W8. */
+  async function openRecord(page: Page, locale: Locale, name: string) {
+    const d = desk(locale);
+    await page.getByRole('link', { name: d.shell.patients }).click();
+    await page.getByLabel(d.patients.search, { exact: true }).fill(name.split(' ')[0] ?? name);
+    await page
+      .getByRole('table')
+      .getByRole('button', { name: new RegExp(name) })
+      .click();
+    return page.getByRole('dialog').filter({ hasText: d.patients.kicker });
+  }
+
+  test('books past the limit of upcoming appointments only with a reason (BR-02)', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    const record = await openRecord(page, locale, 'Omar Beispiel');
+    // Only an admin hands out a patient's copy.
+    await expect(record.getByRole('button', { name: d.patients.export })).toHaveCount(0);
+    const bookAt = async (time: RegExp) => {
+      await record.getByRole('button', { name: d.book.openFor }).click();
+      const dialog = page.getByRole('dialog', { name: d.book.title });
+      await dialog.getByRole('button', { name: new RegExp(d.book.chooseService) }).click();
+      await page
+        .getByRole('option', { name: new RegExp(locale === 'ar' ? 'فحص عام' : 'Check-up') })
+        .click();
+      await dialog
+        .getByRole('radiogroup', { name: d.book.days })
+        .getByRole('radio', { disabled: false })
+        .first()
+        .click();
+      await dialog.getByRole('radio', { name: time }).click();
+      await dialog.getByRole('button', { name: d.book.confirm }).click();
+      return dialog;
+    };
+    // Omar has one appointment to come: a second one is within the stub practice's limit of two.
+    await expect(await bookAt(/12:00/)).toBeHidden();
+    const third = await bookAt(/12:30/);
+    await expect(third.getByRole('alert')).toContainText(
+      d.book.errors.BOOKING_LIMIT_REACHED.replace(/\s*\(\{maxFutureAppointments\}\).*$/u, ''),
+    );
+    await expect(third).toContainText(d.book.overrideHint);
+    await third.getByRole('button', { name: d.book.bookAnyway }).click();
+    await expect(third).toContainText(d.book.required);
+    await third
+      .getByLabel(d.book.overrideReason, { exact: true })
+      .fill('Synthetic reason: a follow-up the doctor asked for.');
+    await third.getByRole('button', { name: d.book.bookAnyway }).click();
+    await expect(third).toBeHidden();
+    await expect(record.getByRole('status')).toContainText('Omar Beispiel');
+  });
+
+  test('lets the team correct a patient the practice keeps, and an admin export the copy', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'ADMIN');
+    const d = desk(locale);
+    const details = texts(locale).details;
+    const record = await openRecord(page, locale, 'Omar Beispiel');
+    await record.getByRole('button', { name: d.patients.edit }).click();
+    const form = record.getByRole('form', { name: d.patients.editTitle });
+    await expect(form.getByLabel(details.lastName)).toHaveValue('Beispiel');
+    await form.getByLabel(details.lastName).fill('');
+    await form.getByRole('button', { name: d.patients.save }).click();
+    await expect(form).toContainText(d.book.required);
+    await form.getByLabel(details.lastName).fill('Beispielmann');
+    await form.getByRole('button', { name: d.patients.save }).click();
+    await expect(form).toBeHidden();
+    await expect(record.getByRole('status')).toContainText(d.patients.saved);
+    await expect(record.getByRole('heading', { name: /Omar Beispielmann/ })).toBeVisible();
+    // The person's copy (GDPR Art. 15): a file for the admin, who checks it before handing it over.
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      record.getByRole('button', { name: d.patients.export }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^patient-[0-9a-f-]+\.json$/u);
+    await expect(record.getByRole('status')).toContainText(d.patients.exported);
+  });
+
+  test('offers no correction of a profile its person keeps through an account', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    const record = await openRecord(page, locale, 'سارة مثال');
+    await expect(record.getByRole('button', { name: d.book.openFor })).toBeVisible();
+    await expect(record.getByRole('button', { name: d.patients.edit })).toHaveCount(0);
+  });
+});
+
 test.describe('the calendar (08 M05, W2)', () => {
   test('shows a doctor’s week with booked, free and blocked times, and opens an appointment', async ({
     page,

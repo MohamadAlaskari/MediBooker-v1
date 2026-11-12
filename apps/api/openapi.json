@@ -381,7 +381,7 @@
       "CancelAsPracticeDto": {
         "properties": {
           "cancelReason": {
-            "description": "Why the practice cancels, for the team only. It can be health data: stored encrypted, never logged",
+            "description": "Why the practice cancels: not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged",
             "maxLength": 500,
             "minLength": 1,
             "pattern": "^(?=[\\s\\S]*[^\\s\\u{200C}\\u{200D}])(?:[^\\p{C}\\p{Zl}\\p{Zp}]|[\\n\\u{200C}\\u{200D}])+$",
@@ -529,6 +529,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "limitOverrideReason": {
+            "description": "Why the team booked it past the practice's limit (BR-02); null for any other",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "numberingSystem": {
             "description": "The practice's digits, for showing the times",
             "type": "string"
@@ -607,6 +614,7 @@
           "bookedAt",
           "patientNote",
           "cancelReason",
+          "limitOverrideReason",
           "timeZone",
           "numberingSystem",
           "hourCycle"
@@ -857,6 +865,13 @@
       },
       "DeskBookingDto": {
         "properties": {
+          "limitOverrideReason": {
+            "description": "Book although the patient has the most upcoming appointments the practice allows (BR-02): why. Not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged; the booking past the limit is audited apart. Kept only when the limit is reached",
+            "maxLength": 500,
+            "minLength": 1,
+            "pattern": "^(?=[\\s\\S]*[^\\s\\u{200C}\\u{200D}])(?:[^\\p{C}\\p{Zl}\\p{Zp}]|[\\n\\u{200C}\\u{200D}])+$",
+            "type": "string"
+          },
           "patientId": {
             "format": "uuid",
             "type": "string"
@@ -1057,7 +1072,58 @@
       "DeskNewPatientDto": {
         "properties": {
           "confirmDuplicate": {
-            "description": "Add although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart",
+            "description": "Go on although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart",
+            "type": "boolean"
+          },
+          "dateOfBirth": {
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "firstName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$",
+            "type": "string"
+          },
+          "insuranceNumber": {
+            "description": "Left out, the known one stays; the format depends on the practice and its market",
+            "pattern": "^[\\p{L}\\p{Nd}][\\p{L}\\p{Nd} ./-]{5,39}$",
+            "type": "string"
+          },
+          "insuranceProvider": {
+            "maxLength": 100,
+            "pattern": "^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$",
+            "type": "string"
+          },
+          "insuranceType": {
+            "enum": [
+              "PUBLIC",
+              "PRIVATE",
+              "SELF_PAY"
+            ],
+            "type": "string"
+          },
+          "lastName": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^(?=.*\\S)[^\\p{Cc}\\p{Bidi_Control}]+$",
+            "type": "string"
+          },
+          "phone": {
+            "pattern": "^\\+?(?=(?:[ ()-]*\\p{Nd}){6})[\\p{Nd} ()-]{6,20}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DeskPatientChangeDto": {
+        "properties": {
+          "confirmDuplicate": {
+            "description": "Go on although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart",
             "type": "boolean"
           },
           "dateOfBirth": {
@@ -1195,6 +1261,224 @@
         ],
         "type": "object"
       },
+      "DeskPatientExportAppointmentDto": {
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "bookedOnline": {
+            "description": "Booked by the patient online; false when the practice booked it",
+            "type": "boolean"
+          },
+          "cancelReason": {
+            "description": "Why the practice cancelled",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkedInAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endsAt": {
+            "description": "The end of the visit (BR-27)",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitOverrideReason": {
+            "description": "Why the team booked it past the practice's limit (BR-02)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "patientNote": {
+            "description": "What the patient wrote",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerName": {
+            "description": "The doctor, named only with a public profile (BR-24), as the patient's own view names them",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rescheduledFromId": {
+            "description": "BR-05",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceName": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The name of the service per locale",
+            "type": "object"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "BOOKED",
+              "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "serviceName",
+          "providerName",
+          "startsAt",
+          "endsAt",
+          "status",
+          "bookedAt",
+          "bookedOnline",
+          "checkedInAt",
+          "completedAt",
+          "cancelledAt",
+          "patientNote",
+          "cancelReason",
+          "limitOverrideReason",
+          "rescheduledFromId"
+        ],
+        "type": "object"
+      },
+      "DeskPatientExportDto": {
+        "properties": {
+          "appointments": {
+            "description": "Every appointment of the patient, the earliest first",
+            "items": {
+              "$ref": "#/components/schemas/DeskPatientExportAppointmentDto"
+            },
+            "type": "array"
+          },
+          "exportedAt": {
+            "description": "When the copy was made, by the clock of the API",
+            "format": "date-time",
+            "type": "string"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/DeskPatientExportProfileDto"
+          },
+          "timeZone": {
+            "description": "The practice's IANA time zone, in which to show the times",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportedAt",
+          "timeZone",
+          "patient",
+          "appointments"
+        ],
+        "type": "object"
+      },
+      "DeskPatientExportProfileDto": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "format": "date",
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "hasAccount": {
+            "description": "The profile belongs to an account; false for one the practice keeps, whose details the team took down",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "insuranceNumber": {
+            "description": "The whole number, for this copy",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "insuranceProvider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "insuranceType": {
+            "enum": [
+              "PUBLIC",
+              "PRIVATE",
+              "SELF_PAY"
+            ],
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "dateOfBirth",
+          "phone",
+          "insuranceType",
+          "insuranceProvider",
+          "insuranceNumber",
+          "hasAccount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "DeskPatientPageDto": {
         "properties": {
           "hourCycle": {
@@ -1242,6 +1526,10 @@
       },
       "DeskPatientRecordDto": {
         "properties": {
+          "hasAccount": {
+            "description": "The profile belongs to an account, whose person keeps it; false for one the practice keeps, which the team corrects",
+            "type": "boolean"
+          },
           "hourCycle": {
             "description": "The practice's hour cycle, for showing the times",
             "type": "string"
@@ -1281,6 +1569,7 @@
         },
         "required": [
           "patient",
+          "hasAccount",
           "insuranceNumberEnd",
           "upcoming",
           "recent",
@@ -1640,6 +1929,7 @@
           "CONFLICT",
           "ALREADY_JOINED",
           "PATIENT_MAY_EXIST",
+          "PATIENT_HAS_ACCOUNT",
           "MFA_ALREADY_ENABLED",
           "SLOT_NOT_AVAILABLE",
           "SLOT_HAS_APPOINTMENT",
@@ -5636,7 +5926,7 @@
             "bearer": []
           }
         ],
-        "summary": "Book a free time for a patient of the practice (W7); the row as the desk shows it",
+        "summary": "Book a free time for a patient of the practice (W7), past the limit of BR-02 with a reason; the row as the desk shows it",
         "tags": [
           "desk"
         ]
@@ -7240,6 +7530,252 @@
           }
         ],
         "summary": "One patient with what is to come and what was; the read is audited",
+        "tags": [
+          "desk"
+        ]
+      },
+      "patch": {
+        "operationId": "changeDeskPatient",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeskPatientChangeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Correct a patient without an account (RT-97); one of an account is 409 PATIENT_HAS_ACCOUNT; audited",
+        "tags": [
+          "desk"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/desk/patients/{patientId}/export": {
+      "get": {
+        "operationId": "exportDeskPatient",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskPatientExportDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited",
         "tags": [
           "desk"
         ]

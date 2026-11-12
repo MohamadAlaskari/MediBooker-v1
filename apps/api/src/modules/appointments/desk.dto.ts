@@ -61,6 +61,20 @@ export class DeskBookingDto {
   @IsOptional()
   @IsUUID('all')
   readonly providerId?: string;
+
+  @ApiPropertyOptional({
+    minLength: 1,
+    maxLength: MAX_NOTE_LENGTH,
+    pattern: NOTE_TEXT.source,
+    description:
+      "Book although the patient has the most upcoming appointments the practice allows (BR-02): why. Not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged; the booking past the limit is audited apart. Kept only when the limit is reached",
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MAX_NOTE_LENGTH)
+  @Matches(NOTE_TEXT)
+  readonly limitOverrideReason?: string;
 }
 
 /**
@@ -72,12 +86,19 @@ export class DeskBookingDto {
 export class DeskNewPatientDto extends PatientDetailsDto {
   @ApiPropertyOptional({
     description:
-      'Add although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart',
+      'Go on although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart',
   })
   @IsOptional()
   @IsBoolean()
   readonly confirmDuplicate?: boolean;
 }
+
+/**
+ * The team corrects a patient without an account (RT-97, GDPR Art. 16): what is left out stays, a
+ * null phone removes it, and the insurance is checked against the practice's rules when it changes.
+ * A change that makes the profile match another patient asks first, as an add does.
+ */
+export class DeskPatientChangeDto extends DeskNewPatientDto {}
 
 /** Why the practice cancels (BR-04). The patient is not told the reason. */
 export class CancelAsPracticeDto {
@@ -86,7 +107,7 @@ export class CancelAsPracticeDto {
     maxLength: MAX_NOTE_LENGTH,
     pattern: NOTE_TEXT.source,
     description:
-      'Why the practice cancels, for the team only. It can be health data: stored encrypted, never logged',
+      "Why the practice cancels: not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged",
   })
   @IsString()
   @MinLength(1)
@@ -279,6 +300,13 @@ export class DeskAppointmentDto extends DeskAppointmentRowDto {
   @ApiProperty({ nullable: true, type: 'string', description: 'Only for a cancel by the practice' })
   readonly cancelReason!: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: 'string',
+    description: "Why the team booked it past the practice's limit (BR-02); null for any other",
+  })
+  readonly limitOverrideReason!: string | null;
+
   @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
   readonly timeZone!: string;
 
@@ -465,6 +493,12 @@ export class DeskPatientPageDto {
 export class DeskPatientRecordDto {
   @ApiProperty({ type: DeskPatientDetailsDto })
   readonly patient!: DeskPatientDetailsDto;
+
+  @ApiProperty({
+    description:
+      'The profile belongs to an account, whose person keeps it; false for one the practice keeps, which the team corrects',
+  })
+  readonly hasAccount!: boolean;
 
   @ApiProperty({
     nullable: true,
@@ -693,4 +727,128 @@ export class DeskWeekDto {
 
   @ApiProperty({ description: "The practice's hour cycle, for showing the times" })
   readonly hourCycle!: string;
+}
+
+/** An appointment of the patient as the practice keeps it, for the person's copy (Art. 15). */
+export class DeskPatientExportAppointmentDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly id!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'The name of the service per locale',
+  })
+  readonly serviceName!: Readonly<Record<string, string>>;
+
+  @ApiProperty({
+    nullable: true,
+    type: 'string',
+    description:
+      "The doctor, named only with a public profile (BR-24), as the patient's own view names them",
+  })
+  readonly providerName!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly startsAt!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'The end of the visit (BR-27)' })
+  readonly endsAt!: string;
+
+  @ApiProperty({ enum: APPOINTMENT_STATUSES })
+  readonly status!: AppointmentStatusName;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly bookedAt!: string;
+
+  @ApiProperty({ description: 'Booked by the patient online; false when the practice booked it' })
+  readonly bookedOnline!: boolean;
+
+  @ApiProperty({ format: 'date-time', nullable: true, type: 'string' })
+  readonly checkedInAt!: string | null;
+
+  @ApiProperty({ format: 'date-time', nullable: true, type: 'string' })
+  readonly completedAt!: string | null;
+
+  @ApiProperty({ format: 'date-time', nullable: true, type: 'string' })
+  readonly cancelledAt!: string | null;
+
+  @ApiProperty({ nullable: true, type: 'string', description: 'What the patient wrote' })
+  readonly patientNote!: string | null;
+
+  @ApiProperty({ nullable: true, type: 'string', description: 'Why the practice cancelled' })
+  readonly cancelReason!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: 'string',
+    description: "Why the team booked it past the practice's limit (BR-02)",
+  })
+  readonly limitOverrideReason!: string | null;
+
+  @ApiProperty({ format: 'uuid', nullable: true, type: 'string', description: 'BR-05' })
+  readonly rescheduledFromId!: string | null;
+}
+
+/** The profile as the practice keeps it, with the whole insurance number: the person's copy. */
+export class DeskPatientExportProfileDto {
+  @ApiProperty({ format: 'uuid' })
+  readonly id!: string;
+
+  @ApiProperty()
+  readonly firstName!: string;
+
+  @ApiProperty()
+  readonly lastName!: string;
+
+  @ApiProperty({ format: 'date' })
+  readonly dateOfBirth!: string;
+
+  @ApiProperty({ nullable: true, type: 'string' })
+  readonly phone!: string | null;
+
+  @ApiProperty({ enum: INSURANCE_TYPES })
+  readonly insuranceType!: (typeof INSURANCE_TYPES)[number];
+
+  @ApiProperty({ nullable: true, type: 'string' })
+  readonly insuranceProvider!: string | null;
+
+  @ApiProperty({ nullable: true, type: 'string', description: 'The whole number, for this copy' })
+  readonly insuranceNumber!: string | null;
+
+  @ApiProperty({
+    description:
+      'The profile belongs to an account; false for one the practice keeps, whose details the team took down',
+  })
+  readonly hasAccount!: boolean;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  readonly updatedAt!: string;
+}
+
+/**
+ * Everything the practice keeps about one patient, as a copy for the person (RT-97, GDPR Art. 15):
+ * for an admin, who checks it before handing it over. The read is audited.
+ */
+export class DeskPatientExportDto {
+  @ApiProperty({
+    format: 'date-time',
+    description: 'When the copy was made, by the clock of the API',
+  })
+  readonly exportedAt!: string;
+
+  @ApiProperty({ description: "The practice's IANA time zone, in which to show the times" })
+  readonly timeZone!: string;
+
+  @ApiProperty({ type: DeskPatientExportProfileDto })
+  readonly patient!: DeskPatientExportProfileDto;
+
+  @ApiProperty({
+    type: [DeskPatientExportAppointmentDto],
+    description: 'Every appointment of the patient, the earliest first',
+  })
+  readonly appointments!: readonly DeskPatientExportAppointmentDto[];
 }

@@ -57,6 +57,7 @@ const DETAIL = {
   ...ROW,
   bookedAt: new Date('2026-11-14T15:00:00Z'),
   patientNoteEncrypted: 'sealed-note',
+  limitOverrideReasonEncrypted: null,
   patient: {
     ...ROW.patient,
     dateOfBirth: new Date('1990-04-12T00:00:00Z'),
@@ -165,7 +166,17 @@ function setUp({
       });
       return work();
     });
-  return { service, db, platform, audit, encrypt, conditionOf, bookAsPractice, inPractice };
+  return {
+    service,
+    db,
+    platform,
+    audit,
+    encrypt,
+    decrypt,
+    conditionOf,
+    bookAsPractice,
+    inPractice,
+  };
 }
 
 /** The statement of a call of the mocked `$queryRaw`, with every value it binds. */
@@ -475,6 +486,7 @@ describe('DeskService.appointment', () => {
       id: ID,
       patientNote: 'Synthetic note',
       cancelReason: null,
+      limitOverrideReason: null,
       bookedAt: '2026-11-14T15:00:00Z',
       timeZone: 'Asia/Riyadh',
       patient: {
@@ -512,6 +524,18 @@ describe('DeskService.appointment', () => {
       patient: { email: null },
     });
     expect(platform.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("opens the team's reason to book past the limit, bound to this row (BR-02)", async () => {
+    const pastLimit = { ...DETAIL, limitOverrideReasonEncrypted: 'sealed-override' };
+    const { service, decrypt, inPractice } = setUp({ detail: pastLimit });
+    const view = await inPractice(() => service.appointment(ACTOR, ID, undefined));
+    expect(view.limitOverrideReason).toBe('Synthetic reason');
+    expect(decrypt).toHaveBeenCalledWith(
+      'practice-a',
+      'sealed-override',
+      `appointment:${ID}:limit-override-reason`,
+    );
   });
 
   it('answers 404 for what is no appointment here', async () => {

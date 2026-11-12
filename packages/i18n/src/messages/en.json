@@ -34,6 +34,7 @@
     "EMAIL_NOT_VERIFIED": "Please confirm your e-mail address first. We sent you a link.",
     "ALREADY_JOINED": "You are already registered with this practice.",
     "PATIENT_MAY_EXIST": "A patient with these details may exist already.",
+    "PATIENT_HAS_ACCOUNT": "The patient keeps this profile through their account: only they can change it.",
     "SLOT_NOT_AVAILABLE": "This time was just booked. Please choose another one.",
     "APPOINTMENT_OVERLAP": "You already have an appointment at this time. You find it under My appointments.",
     "BOOKING_LIMIT_REACHED": "You already have the most upcoming appointments this practice allows ({maxFutureAppointments}).",
@@ -526,13 +527,14 @@
       "hintFuture": "Check-in opens on the day of the appointment.",
       "hintBeforeStart": "\"Did not come\" is possible from the start of the appointment.",
       "hintPast": "This day is over: only a cancellation is still possible.",
-      "audited": "Opening an appointment is recorded in the practice's log."
+      "audited": "Opening an appointment is recorded in the practice's log.",
+      "overrideLabel": "Booked past the limit of upcoming appointments. Reason"
     },
     "cancel": {
       "title": "Cancel this appointment?",
       "body": "{name} · {service} · {when}. The time becomes free for other patients.",
-      "reason": "Reason, for the team only",
-      "reasonHint": "The patient does not see it. They are not told automatically yet, so please call them.",
+      "reason": "Reason, for the team",
+      "reasonHint": "The patient does not see it in the app, but it is part of their copy if they ask for one (GDPR Art. 15). They are not told automatically yet, so please call them.",
       "phone": "The patient's phone: {phone}",
       "required": "Please write why the practice cancels.",
       "confirm": "Cancel appointment",
@@ -594,7 +596,19 @@
       "nothingRecent": "No appointments yet.",
       "insuranceNumber": "Insurance number ending in {end}",
       "audited": "Opening a patient is recorded in the practice's log.",
-      "loadingRecord": "Loading the patient"
+      "loadingRecord": "Loading the patient",
+      "edit": "Edit details",
+      "editTitle": "Correct the details",
+      "editHint": "The practice keeps this profile: correct what the patient tells you. The change is recorded in the practice's log.",
+      "save": "Save details",
+      "saveAnyway": "Save anyway",
+      "cancelEdit": "Cancel",
+      "saved": "The details are saved.",
+      "numberKeep": "Leave this empty to keep the number ending in {end}.",
+      "mayExist": "Another patient with this name and date of birth, or with this insurance number, exists already. Check first, or save anyway.",
+      "export": "Export data",
+      "exportHint": "Everything the practice keeps about this patient, as a file for a request for access (GDPR Art. 15), with the whole insurance number and the team's reasons. Check it before you hand it over, delete it afterwards, and never send it by unencrypted e-mail.",
+      "exported": "The file was downloaded. Check it before you hand it over, and delete it afterwards."
     },
     "book": {
       "open": "Book for patient",
@@ -644,7 +658,10 @@
         "NOT_FOUND": "The patient, the service or the doctor is no longer there. Please choose again.",
         "PATIENT_MAY_EXIST": "A patient with this name and date of birth, or with this insurance number, exists already. Search for them, or add this patient anyway."
       },
-      "serviceOptionReferral": "{name} · approx. {minutes} min · referral required"
+      "serviceOptionReferral": "{name} · approx. {minutes} min · referral required",
+      "overrideReason": "Reason to book past the limit",
+      "overrideHint": "The patient does not see it in the app, but it is part of their copy if they ask for one (GDPR Art. 15). A booking past the limit is recorded in the practice's log.",
+      "bookAnyway": "Book anyway"
     },
     "calendar": {
       "title": "Calendar",

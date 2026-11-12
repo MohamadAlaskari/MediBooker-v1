@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, HttpCode, Ip, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Ip,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -13,6 +24,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
 import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
+import { PatientDto } from '../patients/patients.dto.js';
 import {
   PRACTICE_AUDIENCE,
   PublicFreeTimesService,
@@ -36,6 +48,8 @@ import {
   DeskDayDto,
   DeskDayQueryDto,
   DeskNewPatientDto,
+  DeskPatientChangeDto,
+  DeskPatientExportDto,
   DeskPatientPageDto,
   DeskPatientRecordDto,
   DeskPatientRowDto,
@@ -63,6 +77,10 @@ const DESK_SEARCH_LIMIT = { default: { limit: 60, ttl: 60_000 } };
  */
 const DESK_BOOK_LIMIT = { default: { limit: 30, ttl: 60_000 } };
 const DESK_ADD_PATIENT_LIMIT = { default: { limit: 20, ttl: 60_000 } };
+const DESK_CHANGE_PATIENT_LIMIT = { default: { limit: 30, ttl: 60_000 } };
+
+/** A patient's whole copy is read rarely, by an admin who checks it before handing it over. */
+const DESK_EXPORT_LIMIT = { default: { limit: 5, ttl: 60_000 } };
 
 /**
  * The practice's side of its appointments (M05), for every role of its team with both factors
@@ -104,7 +122,8 @@ export class DeskController {
   @Throttle(DESK_BOOK_LIMIT)
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
   @ApiOperation({
-    summary: 'Book a free time for a patient of the practice (W7); the row as the desk shows it',
+    summary:
+      'Book a free time for a patient of the practice (W7), past the limit of BR-02 with a reason; the row as the desk shows it',
   })
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiCreatedResponse({ type: DeskAppointmentRowDto })
@@ -186,6 +205,41 @@ export class DeskController {
     @Ip() ip: string,
   ): Promise<DeskPatientRecordDto> {
     return this.patients.record(actor, patientId, ip);
+  }
+
+  @Throttle(DESK_CHANGE_PATIENT_LIMIT)
+  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @ApiOperation({
+    summary:
+      'Correct a patient without an account (RT-97); one of an account is 409 PATIENT_HAS_ACCOUNT; audited',
+  })
+  @ApiParam({ name: 'patientId', format: 'uuid' })
+  @ApiOkResponse({ type: PatientDto })
+  @Patch('patients/:patientId')
+  async changeDeskPatient(
+    @CurrentUser() actor: Actor,
+    @Param('patientId') patientId: string,
+    @Body() input: DeskPatientChangeDto,
+    @Ip() ip: string,
+  ): Promise<PatientDto> {
+    return this.patients.change(actor, patientId, input, ip);
+  }
+
+  @Throttle(DESK_EXPORT_LIMIT)
+  @PracticeScoped('id', { staff: ['ADMIN'] })
+  @ApiOperation({
+    summary:
+      "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited",
+  })
+  @ApiParam({ name: 'patientId', format: 'uuid' })
+  @ApiOkResponse({ type: DeskPatientExportDto })
+  @Get('patients/:patientId/export')
+  async exportDeskPatient(
+    @CurrentUser() actor: Actor,
+    @Param('patientId') patientId: string,
+    @Ip() ip: string,
+  ): Promise<DeskPatientExportDto> {
+    return this.patients.export(actor, patientId, ip);
   }
 
   @PracticeScoped('id', { staff: ALL_STAFF_ROLES })

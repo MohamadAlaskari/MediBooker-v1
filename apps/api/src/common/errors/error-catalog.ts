@@ -22,6 +22,10 @@ export const ERROR_CATALOG = {
   CONFLICT: { status: 409, title: 'Conflict' },
   ALREADY_JOINED: { status: 409, title: 'Already a patient of this practice' },
   PATIENT_MAY_EXIST: { status: 409, title: 'A patient like this may exist already' },
+  PATIENT_HAS_ACCOUNT: {
+    status: 409,
+    title: 'The patient keeps this profile through an account',
+  },
   MFA_ALREADY_ENABLED: { status: 409, title: 'The second factor is already set up' },
   SLOT_NOT_AVAILABLE: { status: 409, title: 'Slot not available' },
   SLOT_HAS_APPOINTMENT: { status: 409, title: 'An appointment holds this time' },

@@ -21,7 +21,11 @@ import {
   type InsuranceTypeName,
 } from '../account-profile/domain/profile.rules.js';
 import { dayRange } from '../scheduling/domain/slots.rules.js';
-import { cancelReasonContextOf, noteContextOf } from './appointment-texts.js';
+import {
+  cancelReasonContextOf,
+  limitOverrideReasonContextOf,
+  noteContextOf,
+} from './appointment-texts.js';
 import { AppointmentsService } from './appointments.service.js';
 import { DeskPatients } from './desk-patients.js';
 import {
@@ -93,6 +97,7 @@ const DETAIL_FIELDS = {
   ...ROW_FIELDS,
   bookedAt: true,
   patientNoteEncrypted: true,
+  limitOverrideReasonEncrypted: true,
   patient: {
     select: {
       ...ROW_FIELDS.patient.select,
@@ -662,6 +667,14 @@ export class DeskService {
               practiceId,
               row.cancelReasonEncrypted,
               cancelReasonContextOf(row.id),
+            ),
+      limitOverrideReason:
+        row.limitOverrideReasonEncrypted === null
+          ? null
+          : await this.keys.decrypt(
+              practiceId,
+              row.limitOverrideReasonEncrypted,
+              limitOverrideReasonContextOf(row.id),
             ),
       ...settings,
     };

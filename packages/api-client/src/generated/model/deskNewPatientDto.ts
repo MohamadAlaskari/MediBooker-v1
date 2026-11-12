@@ -7,7 +7,7 @@
 import type { DeskNewPatientDtoInsuranceType } from './deskNewPatientDtoInsuranceType';
 
 export interface DeskNewPatientDto {
-  /** Add although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart */
+  /** Go on although a patient with the same name and date of birth, or the same insurance number, exists (PATIENT_MAY_EXIST); audited apart */
   confirmDuplicate?: boolean;
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   dateOfBirth?: string;

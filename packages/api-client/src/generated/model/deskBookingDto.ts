@@ -6,6 +6,13 @@
  */
 
 export interface DeskBookingDto {
+  /**
+     * Book although the patient has the most upcoming appointments the practice allows (BR-02): why. Not shown to the patient in the app, and part of the person's copy (Art. 15). It can be health data: stored encrypted, never logged; the booking past the limit is audited apart. Kept only when the limit is reached
+     * @minLength 1
+     * @maxLength 500
+     * @pattern ^(?=[\s\S]*[^\s\u{200C}\u{200D}])(?:[^\p{C}\p{Zl}\p{Zp}]|[\n\u{200C}\u{200D}])+$
+     */
+  limitOverrideReason?: string;
   patientId: string;
   /** A doctor of the practice; left out, any doctor free at that time */
   providerId?: string;

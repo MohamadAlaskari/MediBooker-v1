@@ -2,6 +2,7 @@
 
 import { useGetDeskPatient, type DeskAppointmentRowDto } from '@medibooker/api-client';
 import { isolate } from '@medibooker/i18n';
+import { Pencil } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import { textIn } from '../portal/appointment-view';
 import { BookForPatient } from './book-for-patient';
 import { useDesk } from './desk-context';
 import { initialsOf, statusVariantOf } from './desk-view';
+import { EditPatient, PatientExport } from './edit-patient';
 
 function Visits({
   title,
@@ -88,8 +90,9 @@ export function PatientSheet({
   const t = useTranslations('dashboard.patients');
   const details = useTranslations('dashboard.details');
   const locale = useLocale();
-  const { practiceId } = useDesk();
+  const { practiceId, role } = useDesk();
   const [news, setNews] = useState('');
+  const [editing, setEditing] = useState(false);
   const record = useGetDeskPatient(practiceId, patientId ?? '', {
     query: { enabled: patientId !== undefined, retry: false },
   });
@@ -104,6 +107,7 @@ export function PatientSheet({
       onOpenChange={(open) => {
         if (!open) {
           setNews('');
+          setEditing(false);
           onClose();
         }
       }}
@@ -167,13 +171,38 @@ export function PatientSheet({
             </div>
           </section>
           <div className="flex flex-col gap-2">
-            <div>
+            <div className="flex flex-wrap gap-3">
               <BookForPatient patient={patient} format={format} onBooked={setNews} />
+              {/* A profile of an account is the person's to change, through the account. */}
+              {data.hasAccount || editing ? null : (
+                <Button
+                  variant="outline"
+                  onPress={() => {
+                    setNews('');
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil aria-hidden data-icon="inline-start" />
+                  {t('edit')}
+                </Button>
+              )}
             </div>
             <p role="status" className="text-body-default text-text-primary">
               {news}
             </p>
           </div>
+          {editing ? (
+            <EditPatient
+              record={data}
+              onSaved={(saved) => {
+                setEditing(false);
+                setNews(saved);
+              }}
+              onCancel={() => {
+                setEditing(false);
+              }}
+            />
+          ) : null}
           <Visits
             title={t('upcoming')}
             empty={t('nothingUpcoming')}
@@ -188,6 +217,7 @@ export function PatientSheet({
             format={format}
             onOpen={onOpenAppointment}
           />
+          {role === 'ADMIN' ? <PatientExport patientId={patient.id} onDone={setNews} /> : null}
           <p className="mt-auto text-caption text-text-tertiary">{t('audited')}</p>
         </>
       )}

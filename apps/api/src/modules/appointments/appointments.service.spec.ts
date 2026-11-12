@@ -402,6 +402,81 @@ describe('AppointmentsService.book', () => {
   });
 });
 
+describe('AppointmentsService.bookAsPractice (BR-02 for the team)', () => {
+  const PATIENT = '00000000-0000-4000-8000-0000000000a1';
+  const DESK_INPUT = { patientId: PATIENT, serviceId: SERVICE, startsAt: STARTS_AT };
+  const REASON = 'Synthetic: a follow-up the doctor asked for';
+
+  it('books within the limit as before, and keeps no reason it was given', async () => {
+    const context = setUp();
+    const id = await context.inPractice(() =>
+      context.service.bookAsPractice(
+        ACTOR,
+        { ...DESK_INPUT, limitOverrideReason: REASON },
+        KEY,
+        'x',
+      ),
+    );
+    const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data.id).toBe(id);
+    expect(data.limitOverrideReasonEncrypted).toBeNull();
+    expect(context.record).toHaveBeenCalledWith({
+      userId: USER,
+      action: 'appointment.book_by_practice',
+      subjectId: id,
+      ipHash: 'ip-hash',
+    });
+  });
+
+  it('refuses past the limit without a reason, and books nothing', async () => {
+    const context = setUp();
+    context.db.appointment.count.mockResolvedValueOnce(2);
+    await expect(
+      context.inPractice(() => context.service.bookAsPractice(ACTOR, DESK_INPUT, KEY, 'x')),
+    ).rejects.toMatchObject({
+      code: 'BOOKING_LIMIT_REACHED',
+      params: { maxFutureAppointments: 2 },
+    });
+    expect(context.holds.take).not.toHaveBeenCalled();
+    expect(context.db.appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('books past the limit with the reason sealed for this row, and audits it apart', async () => {
+    const context = setUp();
+    context.db.appointment.count.mockResolvedValueOnce(2);
+    const id = await context.inPractice(() =>
+      context.service.bookAsPractice(
+        ACTOR,
+        { ...DESK_INPUT, limitOverrideReason: REASON },
+        KEY,
+        'x',
+      ),
+    );
+    expect(context.encrypt).toHaveBeenCalledWith(
+      'practice-a',
+      REASON,
+      `appointment:${id}:limit-override-reason`,
+    );
+    const { data } = context.db.appointment.create.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data).toMatchObject({ id, limitOverrideReasonEncrypted: 'sealed-note' });
+    expect(context.record).toHaveBeenCalledWith({
+      userId: USER,
+      action: 'appointment.book_by_practice_over_limit',
+      subjectId: id,
+      ipHash: 'ip-hash',
+    });
+    // The reason is part of the request: a key sent again with another one is another request.
+    const [, , hashed] = context.keyedHash.mock.calls.find(
+      ([, purpose]) => purpose === 'idempotency-request',
+    ) as [string, string, string];
+    expect(JSON.parse(hashed)).toContain(REASON);
+  });
+});
+
 describe('AppointmentsService.cancel', () => {
   it('BR-04 cancels with who and when, frees the slot and audits it', async () => {
     const context = setUp({ stored: SELF_PAYER, patient: null });

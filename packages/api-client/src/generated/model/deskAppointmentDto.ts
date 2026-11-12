@@ -36,6 +36,11 @@ export interface DeskAppointmentDto {
   /** The practice's hour cycle, for showing the times */
   hourCycle: string;
   id: string;
+  /**
+     * Why the team booked it past the practice's limit (BR-02); null for any other
+     * @nullable
+     */
+  limitOverrideReason: string | null;
   /** The practice's digits, for showing the times */
   numberingSystem: string;
   patient: DeskPatientDetailsDto;

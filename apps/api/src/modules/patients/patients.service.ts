@@ -47,7 +47,7 @@ const RULE_FIELDS = {
   insuranceNumberTypes: true,
 } as const;
 
-const PATIENT_FIELDS = {
+export const PATIENT_FIELDS = {
   id: true,
   firstName: true,
   lastName: true,
@@ -69,7 +69,7 @@ interface PatientFields {
   readonly insuranceNumberEnd: string | null;
 }
 
-function dtoOf(row: PatientFields): PatientDto {
+export function patientDtoOf(row: PatientFields): PatientDto {
   return {
     id: row.id,
     firstName: row.firstName,
@@ -330,7 +330,7 @@ export class PatientsService {
       select: PATIENT_FIELDS,
     });
     if (row === null) throw new DomainException('NOT_FOUND');
-    return dtoOf(row);
+    return patientDtoOf(row);
   }
 
   /** Delegation per patient arrives with family links (FA01); until then only the own profile. */

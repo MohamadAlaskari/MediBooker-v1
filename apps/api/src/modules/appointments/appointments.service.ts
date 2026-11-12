@@ -21,7 +21,7 @@ import { type HoldLength, holdRangeOf } from '../scheduling/domain/hold.rules.js
 import { PUBLIC_PROVIDER } from '../scheduling/domain/public-profile.js';
 import { bookableWindow, practiceBookableWindow } from '../scheduling/domain/slots.rules.js';
 import { AppointmentReader } from './appointment-reader.js';
-import { noteContextOf } from './appointment-texts.js';
+import { limitOverrideReasonContextOf, noteContextOf } from './appointment-texts.js';
 import type {
   AppointmentDto,
   BookAppointmentDto,
@@ -97,7 +97,15 @@ interface Placement {
   readonly key: string;
   readonly now: Temporal.Instant;
   readonly rescheduledFromId?: string;
+  /** Why the team booked past BR-02's limit, sealed (W7). */
+  readonly sealedOverrideReason?: string | null;
 }
+
+/** The audit actions of a booking by the team (W7), within and past BR-02's limit. */
+export const DESK_BOOKING_AUDIT = {
+  book: 'appointment.book_by_practice',
+  bookPastLimit: 'appointment.book_by_practice_over_limit',
+} as const;
 
 function fieldError(field: string, code: 'REQUIRED' | 'INVALID_VALUE'): DomainException {
   return new DomainException('VALIDATION_FAILED', {
@@ -122,6 +130,13 @@ function keyOfHeader(idempotencyKey: string | undefined): string {
 
 function isUniqueViolation(error: unknown): boolean {
   return isPrismaKnownRequestError(error) && error.code === 'P2002';
+}
+
+/** BR-02, with the limit, which the answer names. */
+function limitReached({
+  maxFutureAppointmentsPerPatient: maxFutureAppointments,
+}: Pick<BookingSettings, 'maxFutureAppointmentsPerPatient'>): DomainException {
+  return new DomainException('BOOKING_LIMIT_REACHED', { params: { maxFutureAppointments } });
 }
 
 /**
@@ -210,8 +225,10 @@ export class AppointmentsService {
   /**
    * W7: the team books for a patient of the practice, on the phone or at the desk. Any active
    * service the patient's insurance allows, any doctor, from now on (BR-03 and BR-08 for the team);
-   * BR-01, BR-02 and BR-25 hold as for a patient's own booking, with the same locks in the same
-   * order and the same key. Answers the id of the appointment, also of the first one on a replay.
+   * BR-01 and BR-25 hold as for a patient's own booking, with the same locks in the same order and
+   * the same key. BR-02 too, unless the team gives a reason to book past the limit: kept sealed with
+   * the appointment, and the booking is audited apart. Answers the id of the appointment, also of the
+   * first one on a replay.
    */
   async bookAsPractice(
     { userId }: Actor,
@@ -220,6 +237,7 @@ export class AppointmentsService {
       readonly serviceId: string;
       readonly startsAt: string;
       readonly providerId?: string | undefined;
+      readonly limitOverrideReason?: string | undefined;
     },
     idempotencyKey: string | undefined,
     ip: string | undefined,
@@ -232,7 +250,8 @@ export class AppointmentsService {
       startsAt: instantOfInput(input.startsAt),
       providerId: input.providerId?.toLowerCase(),
     };
-    // Keyed like a patient's request; the patient is part of it, since the team books for many.
+    // Keyed like a patient's request, which a reason may be part of; the patient is part of it,
+    // since the team books for many.
     const requestHash = await this.keys.keyedHash(
       practice.id,
       'idempotency-request',
@@ -242,9 +261,19 @@ export class AppointmentsService {
         wanted.serviceId,
         wanted.startsAt.toString(),
         wanted.providerId ?? null,
+        input.limitOverrideReason ?? null,
       ]),
     );
     const id = randomUUID();
+    // Before the transaction, as a patient's note: sealing may have to read a key.
+    const sealedReason =
+      input.limitOverrideReason === undefined
+        ? null
+        : await this.keys.encrypt(
+            practice.id,
+            input.limitOverrideReason,
+            limitOverrideReasonContextOf(id),
+          );
     const ipHash = await this.audit.ipHashOf(practice.id, ip);
 
     return this.transaction(userId, async () => {
@@ -255,7 +284,9 @@ export class AppointmentsService {
       const patient = await this.lockPatient(patientId);
       const settings = await this.bookingSettings();
       const length = await this.requireBookableByPractice(wanted, patient, settings, now);
-      await this.requireBookingPlace(patientId, settings, now);
+      const pastLimit = !(await this.hasBookingPlace(patientId, settings, now));
+      // BR-02: past the limit only with the team's reason; within it, a reason is not kept.
+      if (pastLimit && sealedReason === null) throw limitReached(settings);
 
       const taken = await this.takeTime(wanted, length, patientId);
       await this.place({
@@ -267,10 +298,11 @@ export class AppointmentsService {
         userId,
         key,
         now,
+        sealedOverrideReason: pastLimit ? sealedReason : null,
       });
       await this.audit.record({
         userId,
-        action: 'appointment.book_by_practice',
+        action: pastLimit ? DESK_BOOKING_AUDIT.bookPastLimit : DESK_BOOKING_AUDIT.book,
         subjectId: id,
         ipHash,
       });
@@ -481,6 +513,15 @@ export class AppointmentsService {
     settings: BookingSettings,
     now: Temporal.Instant,
   ): Promise<void> {
+    if (!(await this.hasBookingPlace(patientId, settings, now))) throw limitReached(settings);
+  }
+
+  /** BR-02: whether the profile may have one more upcoming appointment, under its lock. */
+  private async hasBookingPlace(
+    patientId: string,
+    settings: BookingSettings,
+    now: Temporal.Instant,
+  ): Promise<boolean> {
     const upcoming = await this.txHost.tx.appointment.count({
       where: {
         patientId,
@@ -488,10 +529,7 @@ export class AppointmentsService {
         slot: { startsAt: { gt: dbInstantOf(now) } },
       },
     });
-    const maxFutureAppointments = settings.maxFutureAppointmentsPerPatient;
-    if (!hasBookingPlace(upcoming, maxFutureAppointments)) {
-      throw new DomainException('BOOKING_LIMIT_REACHED', { params: { maxFutureAppointments } });
-    }
+    return hasBookingPlace(upcoming, settings.maxFutureAppointmentsPerPatient);
   }
 
   /** As for the public free times: a doctor without a public profile is not offered by name. */
@@ -557,6 +595,7 @@ export class AppointmentsService {
     key,
     now,
     rescheduledFromId,
+    sealedOverrideReason,
   }: Placement): Promise<void> {
     const db = this.txHost.tx;
     await db.appointment.create({
@@ -568,6 +607,7 @@ export class AppointmentsService {
         serviceId,
         status: 'BOOKED',
         patientNoteEncrypted: sealedNote,
+        limitOverrideReasonEncrypted: sealedOverrideReason ?? null,
         bookedById: userId,
         bookedAt: dbInstantOf(now),
         ...(rescheduledFromId === undefined ? {} : { rescheduledFromId }),

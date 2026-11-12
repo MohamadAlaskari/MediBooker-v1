@@ -147,6 +147,14 @@ function Details({
           {appointment.patientNote ?? t('noNote')}
         </p>
       </section>
+      {appointment.limitOverrideReason === null ? null : (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-body-small text-text-secondary">{t('overrideLabel')}</h3>
+          <p dir="auto" className="text-body-default whitespace-pre-line text-text-primary">
+            {appointment.limitOverrideReason}
+          </p>
+        </section>
+      )}
       {appointment.checkedInAt === null ? null : (
         <p className="text-body-default text-text-primary">
           {t('checkedInAt', { time: format.instantTime(appointment.checkedInAt) })}

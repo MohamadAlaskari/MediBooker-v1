@@ -220,6 +220,17 @@ async function book(
     return;
   }
   const day = dayOf(owner);
+  // BR-02 as the stub practice keeps it: two upcoming appointments, more with the team's reason.
+  const upcoming = [...day.values()].filter(
+    (appointment) =>
+      rowOf(appointment).patient.id === patient.id &&
+      appointment.status === 'BOOKED' &&
+      Date.parse(appointment.startsAt) > Date.parse(NOW),
+  );
+  if (upcoming.length >= 2 && input.limitOverrideReason === undefined) {
+    problem(response, 'BOOKING_LIMIT_REACHED', { params: { maxFutureAppointments: 2 } });
+    return;
+  }
   const appointment: Appointment = {
     id: `40000000-0000-4000-8000-0000000001${String(day.size).padStart(2, '0')}`,
     date: input.startsAt.slice(0, 10),

@@ -16,12 +16,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, ChevronLeft, ChevronRight, UserPlus } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
-import { Label } from 'react-aria-components';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { DialogContent, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { TextField } from '@/components/ui/text-field';
+import { TextAreaField, TextField } from '@/components/ui/text-field';
 import type { PracticeFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FormError } from '../auth/form-parts';
@@ -30,10 +28,19 @@ import {
   ROVING_ITEM,
   useRovingFocus,
 } from '../practice-page/free-times/use-roving-focus';
-import { textIn } from '../portal/appointment-view';
+import { noteToSend, textIn } from '../portal/appointment-view';
 import { useDesk } from './desk-context';
 import { initialsOf } from './desk-view';
 import { useSettled } from './pager';
+import {
+  asksOf,
+  Choice,
+  LABEL,
+  PATIENT_FIELDS,
+  type PatientField,
+  PatientFields,
+  type PatientValues,
+} from './patient-fields';
 import { isDeskQueryOf } from './use-desk-change';
 
 /** A patient the dialog books for: one found, one added, or the one of an open record (W8). */
@@ -46,7 +53,8 @@ const ANY = 'any';
 const DAYS_SHOWN = 7;
 const MATCHES_SHOWN = 5;
 const MIN_QUERY_LENGTH = 2;
-const LABEL = 'text-label-default text-text-primary';
+/** As long as the API takes a reason of the team (`MAX_NOTE_LENGTH`). */
+const MAX_REASON_LENGTH = 500;
 const FOCUS_RING =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus';
 /** What the dialog says in its own words: the API's texts of these codes speak to a patient. */
@@ -58,18 +66,6 @@ const OWN_ERRORS = [
   'SERVICE_NOT_BOOKABLE',
   'NOT_FOUND',
 ] as const;
-const NEW_PATIENT_FIELDS = [
-  'firstName',
-  'lastName',
-  'dateOfBirth',
-  'phone',
-  'insuranceType',
-  'insuranceProvider',
-  'insuranceNumber',
-] as const;
-
-type NewPatientField = (typeof NEW_PATIENT_FIELDS)[number];
-
 function nameOf(patient: Pick<BookPatient, 'firstName' | 'lastName'>): string {
   return isolate(`${patient.firstName} ${patient.lastName}`);
 }
@@ -86,40 +82,6 @@ function BookingError({ error }: { readonly error: unknown }): ReactNode {
         {t(code, (error.params ?? {}) as Record<string, string | number>)}
       </AlertDescription>
     </Alert>
-  );
-}
-
-function Choice({
-  label,
-  value,
-  placeholder,
-  onChange,
-  options,
-}: {
-  readonly label: string;
-  readonly value: string | undefined;
-  readonly placeholder?: string;
-  readonly onChange: (value: string) => void;
-  readonly options: readonly { readonly id: string; readonly label: string }[];
-}): ReactNode {
-  return (
-    <Select
-      value={value ?? null}
-      placeholder={placeholder}
-      onChange={(key) => {
-        if (key !== null) onChange(String(key));
-      }}
-    >
-      <Label className={LABEL}>{label}</Label>
-      <SelectTrigger className="mt-2" />
-      <SelectContent>
-        {options.map(({ id, label: text }) => (
-          <SelectItem key={id} id={id} textValue={text}>
-            <bdi>{text}</bdi>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -239,11 +201,10 @@ function NewPatient({
   readonly onBack: () => void;
 }): ReactNode {
   const t = useTranslations('dashboard.book');
-  const labels = useTranslations('auth.details');
   const { practiceId } = useDesk();
   // Its request holds the insurance number: kept no longer than the dialog shows it.
   const add = useAddDeskPatient({ mutation: { gcTime: 0 } });
-  const [values, setValues] = useState<Record<NewPatientField, string>>({
+  const [values, setValues] = useState<PatientValues>({
     firstName: '',
     lastName: '',
     dateOfBirth: '',
@@ -253,15 +214,14 @@ function NewPatient({
     insuranceNumber: '',
   });
   const type = values.insuranceType;
-  const asksProvider = insurance.providerTypes.some((asked) => asked === type);
-  const asksNumber = insurance.numberTypes.some((asked) => asked === type);
-  const errorOf = (field: NewPatientField): string | undefined => {
+  const asks = asksOf(insurance, type);
+  const errorOf = (field: PatientField): string | undefined => {
     if (!isApiError(add.error)) return undefined;
     const problem = add.error.fieldErrors.find((fieldError) => fieldError.field === field);
     if (problem === undefined) return undefined;
     return problem.code === 'REQUIRED' ? t('required') : t('invalid');
   };
-  const set = (field: NewPatientField) => (value: string) => {
+  const set = (field: PatientField) => (value: string) => {
     setValues((before) => ({ ...before, [field]: value }));
     // Other details are another question: "add anyway" must not confirm them unseen.
     if (add.error !== null) add.reset();
@@ -280,10 +240,10 @@ function NewPatient({
           dateOfBirth: filled(values.dateOfBirth),
           insuranceType: filled(type) as (typeof insurance.types)[number] | undefined,
           ...(filled(values.phone) === undefined ? {} : { phone: values.phone.trim() }),
-          ...(asksProvider && filled(values.insuranceProvider) !== undefined
+          ...(asks.provider && filled(values.insuranceProvider) !== undefined
             ? { insuranceProvider: values.insuranceProvider.trim() }
             : {}),
-          ...(asksNumber && filled(values.insuranceNumber) !== undefined
+          ...(asks.number && filled(values.insuranceNumber) !== undefined
             ? { insuranceNumber: values.insuranceNumber.trim() }
             : {}),
         },
@@ -317,83 +277,15 @@ function NewPatient({
           </AlertDescription>
         </Alert>
       ) : (
-        <FormError error={add.error} fields={[...NEW_PATIENT_FIELDS]} />
+        <FormError error={add.error} fields={[...PATIENT_FIELDS]} />
       )}
-      <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2">
-        <TextField
-          label={labels('firstName')}
-          value={values.firstName}
-          onChange={set('firstName')}
-          autoComplete="off"
-          {...enterAdds}
-          isRequired
-          error={errorOf('firstName')}
-        />
-        <TextField
-          label={labels('lastName')}
-          value={values.lastName}
-          onChange={set('lastName')}
-          autoComplete="off"
-          {...enterAdds}
-          isRequired
-          error={errorOf('lastName')}
-        />
-        <TextField
-          label={labels('dateOfBirth')}
-          hint={t('dateOfBirthHint')}
-          value={values.dateOfBirth}
-          onChange={set('dateOfBirth')}
-          autoComplete="off"
-          {...enterAdds}
-          dir="ltr"
-          isRequired
-          error={errorOf('dateOfBirth')}
-        />
-        <TextField
-          label={t('phone')}
-          value={values.phone}
-          onChange={set('phone')}
-          autoComplete="off"
-          {...enterAdds}
-          inputMode="tel"
-          dir="ltr"
-          error={errorOf('phone')}
-        />
-        <div>
-          <Choice
-            label={labels('insuranceType')}
-            value={type === '' ? undefined : type}
-            onChange={set('insuranceType')}
-            options={insurance.types.map((id) => ({ id, label: labels(id) }))}
-          />
-          {errorOf('insuranceType') === undefined ? null : (
-            <p className="mt-1 text-body-small text-text-danger">{errorOf('insuranceType')}</p>
-          )}
-        </div>
-        {asksProvider ? (
-          <TextField
-            label={labels('insuranceProvider')}
-            value={values.insuranceProvider}
-            onChange={set('insuranceProvider')}
-            autoComplete="off"
-            {...enterAdds}
-            isRequired
-            error={errorOf('insuranceProvider')}
-          />
-        ) : null}
-        {asksNumber ? (
-          <TextField
-            label={labels('insuranceNumber')}
-            value={values.insuranceNumber}
-            onChange={set('insuranceNumber')}
-            autoComplete="off"
-            {...enterAdds}
-            dir="ltr"
-            isRequired
-            error={errorOf('insuranceNumber')}
-          />
-        ) : null}
-      </div>
+      <PatientFields
+        insurance={insurance}
+        values={values}
+        onChange={set}
+        errorOf={errorOf}
+        fieldProps={enterAdds}
+      />
       <div className="flex flex-wrap gap-3">
         <Button isPending={add.isPending} onPress={submit}>
           {mayExist ? t('addAnyway') : t('addPatient')}
@@ -590,6 +482,10 @@ function BookingForm({
   const [startsAt, setStartsAt] = useState<string | undefined>(undefined);
   // A new attempt gets a new key; the same attempt sent again gets the first answer (BR-01).
   const [key, setKey] = useState(() => crypto.randomUUID());
+  // BR-02: past the practice's limit the team books only with a reason, which the practice keeps.
+  const [overriding, setOverriding] = useState(false);
+  const [reason, setReason] = useState('');
+  const [reasonMissing, setReasonMissing] = useState(false);
   const catalog = useGetDeskCatalog(practiceId, { query: { retry: false } });
   const doctor = providerId === ANY ? {} : { providerId };
   const ready = patient !== undefined && serviceId !== undefined;
@@ -613,6 +509,9 @@ function BookingForm({
   const anew = (): void => {
     setStartsAt(undefined);
     setKey(crypto.randomUUID());
+    setOverriding(false);
+    setReason('');
+    setReasonMissing(false);
     booking.reset();
   };
   const when =
@@ -626,10 +525,21 @@ function BookingForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (patient === undefined || serviceId === undefined || startsAt === undefined) return;
+        const limitOverrideReason = overriding ? noteToSend(reason) : undefined;
+        if (overriding && limitOverrideReason === undefined) {
+          setReasonMissing(true);
+          return;
+        }
         booking.mutate(
           {
             practiceId,
-            data: { patientId: patient.id, serviceId, startsAt, ...doctor },
+            data: {
+              patientId: patient.id,
+              serviceId,
+              startsAt,
+              ...doctor,
+              ...(limitOverrideReason === undefined ? {} : { limitOverrideReason }),
+            },
             headers: { 'Idempotency-Key': key },
           },
           {
@@ -643,6 +553,8 @@ function BookingForm({
                 void freeTimes.refetch();
                 void availability.refetch();
               }
+              // The limit reached: the team may book anyway, with a reason (BR-02).
+              if (isApiError(error) && error.code === 'BOOKING_LIMIT_REACHED') setOverriding(true);
             },
           },
         );
@@ -771,6 +683,20 @@ function BookingForm({
         <p className="text-body-default text-text-secondary">{t('chooseFirst')}</p>
       )}
       <BookingError error={booking.error} />
+      {overriding ? (
+        <TextAreaField
+          label={t('overrideReason')}
+          hint={t('overrideHint')}
+          value={reason}
+          onChange={(value) => {
+            setReason(value);
+            setReasonMissing(false);
+          }}
+          maxLength={MAX_REASON_LENGTH}
+          isRequired
+          error={reasonMissing ? t('required') : undefined}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-4">
         {patient === undefined || service === undefined || startsAt === undefined ? null : (
           <p className="me-auto text-body-small text-text-secondary">
@@ -791,7 +717,7 @@ function BookingForm({
           isDisabled={patient === undefined || startsAt === undefined}
         >
           <CalendarPlus aria-hidden data-icon="inline-start" />
-          {t('confirm')}
+          {overriding ? t('bookAnyway') : t('confirm')}
         </Button>
       </div>
     </form>
@@ -818,6 +744,8 @@ export function BookForPatient({
   const [isOpen, setOpen] = useState(false);
   const booking = useBookDeskAppointment({
     mutation: {
+      // Its request may hold a reason to book past the limit: kept no longer than the dialog.
+      gcTime: 0,
       // Whatever the answer: the day, the lists and the records show what is now there.
       onSettled: () =>
         queryClient.invalidateQueries({

@@ -48,6 +48,8 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   addDeskPatient: { account: 403 },
   getDeskWeek: { account: 403 },
   getDeskPatient: { account: 403 },
+  changeDeskPatient: { account: 403 },
+  exportDeskPatient: { account: 403 },
   // What the team sets up (M02): MFA_REQUIRED before anything else too.
   listServices: { account: 403 },
   createService: { account: 403 },

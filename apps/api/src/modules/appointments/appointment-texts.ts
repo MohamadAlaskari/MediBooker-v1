@@ -12,3 +12,8 @@ export function noteContextOf(appointmentId: string): string {
 export function cancelReasonContextOf(appointmentId: string): string {
   return `appointment:${appointmentId}:cancel-reason`;
 }
+
+/** Why the team booked past the practice's limit of upcoming appointments (BR-02). */
+export function limitOverrideReasonContextOf(appointmentId: string): string {
+  return `appointment:${appointmentId}:limit-override-reason`;
+}
