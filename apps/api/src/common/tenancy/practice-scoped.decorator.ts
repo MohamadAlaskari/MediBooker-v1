@@ -1,5 +1,5 @@
 import { applyDecorators, type ExecutionContext, SetMetadata } from '@nestjs/common';
-import type { StaffRole } from '../../generated/practice/enums.js';
+import { STAFF_CAPABILITIES, type StaffCapability } from './staff-capability.js';
 
 /**
  * How a route names its practice (02 §5): `id`, the path parameter `practiceId`, or `slug`, the
@@ -14,21 +14,19 @@ export type PracticeScope = 'id' | 'slug';
  * account, on a published practice, to create its own patient profile. `account`: a signed-in
  * account with a confirmed address, on a published practice, without a row there (B07: the free
  * times); signing up asks for no proof of the address, so without one it would be public. `staff`:
- * an active membership of the practice in one of these roles, and a sign-in with both factors (A04).
- * A route names exactly one of them; `confirmed` goes only with `patient`.
+ * an active membership of the practice with this capability (D17: `team`, `planning` or
+ * `management`), and a sign-in with both factors (A04). A route names exactly one of them;
+ * `confirmed` goes only with `patient`.
  */
 export interface PracticeScopedOptions {
   readonly patient?: true;
   readonly account?: true;
   readonly confirmed?: true;
   readonly join?: true;
-  readonly staff?: readonly [StaffRole, ...StaffRole[]];
+  readonly staff?: StaffCapability;
 }
 
 export type PracticeAccess = 'patient' | 'confirmed-patient' | 'account' | 'join' | 'staff';
-
-/** Every role of the practice: what a route names that all of its staff may reach. */
-export const ALL_STAFF_ROLES: readonly [StaffRole, ...StaffRole[]] = ['STAFF', 'DOCTOR', 'ADMIN'];
 
 /**
  * The one rule a route names. Two would silently become one of them, which could be the weaker one
@@ -54,7 +52,7 @@ function accessOf(options: PracticeScopedOptions): PracticeAccess | undefined {
 
 const PRACTICE_SCOPE = 'medibooker:practiceScope';
 const PRACTICE_ACCESS = 'medibooker:practiceAccess';
-const PRACTICE_STAFF_ROLES = 'medibooker:practiceStaffRoles';
+const PRACTICE_STAFF_CAPABILITY = 'medibooker:practiceStaffCapability';
 
 /**
  * Marks a route handler as practice-scoped: the PracticeContextInterceptor resolves the practice
@@ -74,7 +72,7 @@ export function PracticeScoped(
   return applyDecorators(
     SetMetadata(PRACTICE_SCOPE, scope),
     ...(access === undefined ? [] : [SetMetadata(PRACTICE_ACCESS, access)]),
-    ...(options.staff === undefined ? [] : [SetMetadata(PRACTICE_STAFF_ROLES, options.staff)]),
+    ...(options.staff === undefined ? [] : [SetMetadata(PRACTICE_STAFF_CAPABILITY, options.staff)]),
   );
 }
 
@@ -100,10 +98,10 @@ export function practiceAccessOf(
     : undefined;
 }
 
-/** The roles a staff route admits; empty for any other route. */
-export function practiceStaffRolesOf(
+/** What a staff route asks of the caller's membership; undefined for any other route. */
+export function practiceStaffCapabilityOf(
   handler: ReturnType<ExecutionContext['getHandler']>,
-): readonly StaffRole[] {
-  const roles: unknown = Reflect.getMetadata(PRACTICE_STAFF_ROLES, handler);
-  return Array.isArray(roles) ? (roles as StaffRole[]) : [];
+): StaffCapability | undefined {
+  const capability: unknown = Reflect.getMetadata(PRACTICE_STAFF_CAPABILITY, handler);
+  return STAFF_CAPABILITIES.find((known) => known === capability);
 }

@@ -5,11 +5,13 @@ import type { PracticeLease } from './practice-client.js';
 import { PracticeContextMissingError } from './practice-errors.js';
 import type { PracticeListing, ResolvedPractice } from './practice-route.js';
 
-/** The caller's membership on a staff route, as the practice database says now (A04). */
+/** The caller's membership on a staff route, as the practice database says now (A04, D17). */
 export interface StaffMembership {
   readonly membershipId: string;
   readonly role: StaffRole;
-  /** The doctor this account is (M04): a doctor changes only its own hours. */
+  /** Practice management (D17): services, the team, settings, exports and the audit log. */
+  readonly managesPractice: boolean;
+  /** The doctor this account is (M04): a doctor without planning changes only its own hours. */
   readonly providerId: string | null;
 }
 
@@ -25,7 +27,7 @@ export interface PracticeContext {
   readonly listing?: PracticeListing;
   /** Only on a `{ patient: true }` route: the caller's own profile in this practice. */
   readonly selfPatientId?: string;
-  /** Only on a `{ staff: [...] }` route: the caller's membership in this practice. */
+  /** Only on a `{ staff: … }` route: the caller's membership in this practice. */
   readonly staff?: StaffMembership;
 }
 

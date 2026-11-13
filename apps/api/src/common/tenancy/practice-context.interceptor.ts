@@ -19,13 +19,13 @@ import { DomainException } from '../errors/domain.exception.js';
 import { bindLogFields } from '../logging/bind-log-fields.js';
 import { type Actor, AMR_ONE_TIME_CODE } from '../security/actor.js';
 import type { PracticeCapacity } from '../../generated/platform/enums.js';
-import type { StaffRole } from '../../generated/practice/enums.js';
 import { PracticeAccessIndex } from './practice-access-index.js';
 import type { PracticeLease } from './practice-client.js';
 import type { StaffMembership } from './practice-context.js';
 import { PracticeConnectionManager } from './practice-connection-manager.js';
 import { PRACTICE_RETRY_AFTER_SECONDS, PracticeUnavailableError } from './practice-errors.js';
 import { PracticeResolver } from './practice-resolver.js';
+import { hasCapability, type StaffCapability } from './staff-capability.js';
 import {
   isPracticeSlug,
   type PracticeListing,
@@ -37,7 +37,7 @@ import {
   type PracticeAccess,
   practiceAccessOf,
   practiceScopeOf,
-  practiceStaffRolesOf,
+  practiceStaffCapabilityOf,
 } from './practice-scoped.decorator.js';
 
 /** The practice of a request after its checks: its client's lease, and a public route's listing. */
@@ -63,9 +63,10 @@ interface PracticeScopedRequest {
  * A `{ patient: true }` route, with `confirmed` after a look at the account, first reads the membership index, so a caller without a row gets 404
  * and no client is opened, and then asks the practice database, which decides: a stale index row is
  * overruled there. A `{ join: true }` route needs a published practice and a confirmed account
- * (BR-09), and so does an `{ account: true }` route, which reads the caller first. A `{ staff: [...] }` route needs a sign-in with both factors first (`MFA_REQUIRED`,
+ * (BR-09), and so does an `{ account: true }` route, which reads the caller first. A `{ staff: capability }` route needs a sign-in with both factors first (`MFA_REQUIRED`,
  * whatever the index says), then a STAFF index row, and then an active membership in the practice
- * database, whose role decides: another role is 403. The route's guard has verified the caller.
+ * database, whose base role and practice management give the capability it names
+ * (`staff-capability.ts`, D17): otherwise 403. The route's guard has verified the caller.
  *
  * A PracticeUnavailableError is answered with 503 and `Retry-After`, as is a query that fails in
  * the handler because the practice's connection failed, whose client is closed, or because its
@@ -103,7 +104,7 @@ export class PracticeContextInterceptor implements NestInterceptor {
           : undefined;
       const staff =
         access === 'staff'
-          ? await this.membershipOf(lease, practiceStaffRolesOf(handler))
+          ? await this.membershipOf(lease, practiceStaffCapabilityOf(handler))
           : undefined;
       this.cls.set('practice', {
         practice: resolvedPracticeOf(route),
@@ -184,21 +185,25 @@ export class PracticeContextInterceptor implements NestInterceptor {
 
   /**
    * The practice database decides: no active membership means the index row was stale (404), and
-   * a role the route does not name is 403.
+   * a membership without the capability the route asks is 403 (D17). A route without one admits
+   * nobody.
    */
   private async membershipOf(
     lease: PracticeLease,
-    roles: readonly StaffRole[],
+    capability: StaffCapability | undefined,
   ): Promise<StaffMembership> {
     const membership = await lease.client.membership.findFirst({
       where: { userId: this.actor().userId, status: 'ACTIVE' },
-      select: { id: true, role: true, staffMemberId: true },
+      select: { id: true, role: true, managesPractice: true, staffMemberId: true },
     });
     if (membership === null) throw new NotFoundException();
-    if (!roles.includes(membership.role)) throw new ForbiddenException();
+    if (capability === undefined || !hasCapability(capability, membership)) {
+      throw new ForbiddenException();
+    }
     return {
       membershipId: membership.id,
       role: membership.role,
+      managesPractice: membership.managesPractice,
       providerId: membership.staffMemberId,
     };
   }

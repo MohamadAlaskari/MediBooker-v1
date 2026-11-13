@@ -22,7 +22,7 @@ import type {
 } from '../../model';
 
 
-export const getGetMyMembershipResponseMock = (overrideResponse: Partial<Extract<MembershipDto, object>> = {}): MembershipDto => ({providerId: faker.helpers.arrayElement([faker.string.uuid(), null]), role: faker.helpers.arrayElement(['STAFF','DOCTOR','ADMIN'] as const), ...overrideResponse})
+export const getGetMyMembershipResponseMock = (overrideResponse: Partial<Extract<MembershipDto, object>> = {}): MembershipDto => ({managesPractice: faker.datatype.boolean(), providerId: faker.helpers.arrayElement([faker.string.uuid(), null]), role: faker.helpers.arrayElement(['STAFF','DOCTOR'] as const), ...overrideResponse})
 
 
 export const getGetMyMembershipMockHandler = (overrideResponse?: MembershipDto | ((info: Parameters<HttpResponseResolver<{ practiceId: string }>>[0]) => Promise<MembershipDto> | MembershipDto), options?: RequestHandlerOptions) => {

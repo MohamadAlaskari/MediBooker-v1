@@ -656,7 +656,7 @@ export const ChangeDeskPatientResponse = zod.object({
 })
 
 /**
- * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited
+ * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); practice management only; audited
  */
 export const ExportDeskPatientParams = zod.object({
   "patientId": zod.uuid(),

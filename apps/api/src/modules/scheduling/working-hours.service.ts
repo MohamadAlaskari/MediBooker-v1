@@ -9,6 +9,7 @@ import { MAX_FIELD_ERRORS } from '../../common/errors/validation.js';
 import type { Actor } from '../../common/security/actor.js';
 import { PracticeAudit } from '../../common/tenancy/practice-audit.js';
 import { requirePracticeContext } from '../../common/tenancy/practice-context.js';
+import { plansEveryDoctor } from '../../common/tenancy/staff-capability.js';
 import type { PracticeTransactionHost } from '../../common/tenancy/practice-transactional.adapter.js';
 import { RunningLimit } from '../../common/tenancy/running-limit.js';
 import { Clock } from '../../common/time/clock.js';
@@ -98,9 +99,9 @@ interface AbsenceRow {
 }
 
 /**
- * A doctor's working hours, absences and times (M04, W14, BR-06, BR-07). The reception and the
- * admin plan every doctor; a doctor plans itself only, and another doctor is not there for it (404),
- * like a doctor whose account names no doctor yet (M03 links them). Every change makes the free
+ * A doctor's working hours, absences and times (M04, W14, BR-06, BR-07). The practice team and
+ * practice management plan every doctor; a doctor plans itself only, and another doctor is not there
+ * for it (404), like a doctor whose account names no doctor yet (the team page W15 links them). Every change makes the free
  * times anew at once: a booked or blocked time stays as it is.
  */
 @Injectable()
@@ -457,14 +458,14 @@ export class WorkingHours {
   }
 
   /**
-   * The doctor a route names: one of the practice's doctors, and for a doctor its own only. Another
-   * one is not there for it (404), as for anyone a doctor that does not exist.
+   * The doctor a route names: one of the practice's doctors, and for a doctor without planning (D17)
+   * its own only. Another one is not there for it (404), as for anyone a doctor that does not exist.
    */
   private async providerOf(providerId: string): Promise<void> {
     const { staff } = requirePracticeContext(this.cls);
     if (staff === undefined) throw new Error('schedule route without a staff membership');
     if (!isUuid(providerId)) throw new DomainException('NOT_FOUND');
-    if (staff.role === 'DOCTOR' && staff.providerId !== providerId) {
+    if (!plansEveryDoctor(staff) && staff.providerId !== providerId) {
       throw new DomainException('NOT_FOUND');
     }
     const provider = await this.txHost.tx.staffMember.findFirst({

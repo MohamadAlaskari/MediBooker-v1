@@ -23,7 +23,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
-import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
+import { PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
 import { PatientDto } from '../patients/patients.dto.js';
 import { PRACTICE_AUDIENCE, FreeTimesService } from '../scheduling/free-times.service.js';
 import {
@@ -76,7 +76,7 @@ const DESK_BOOK_LIMIT = { default: { limit: 30, ttl: 60_000 } };
 const DESK_ADD_PATIENT_LIMIT = { default: { limit: 20, ttl: 60_000 } };
 const DESK_CHANGE_PATIENT_LIMIT = { default: { limit: 30, ttl: 60_000 } };
 
-/** A patient's whole copy is read rarely, by an admin who checks it before handing it over. */
+/** A patient's whole copy is read rarely, by practice management, who checks it first (D17). */
 const DESK_EXPORT_LIMIT = { default: { limit: 5, ttl: 60_000 } };
 
 /**
@@ -96,7 +96,7 @@ export class DeskController {
     private readonly freeTimes: FreeTimesService,
   ) {}
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Days with free times for the team (W7): every active service and doctor, from now on',
   })
@@ -106,7 +106,7 @@ export class DeskController {
     return this.freeTimes.availability(query, PRACTICE_AUDIENCE);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'The free times of one day for the team (W7)' })
   @ApiOkResponse({ type: FreeTimesDto })
   @Get('free-times')
@@ -115,7 +115,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_BOOK_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       'Book a free time for a patient of the practice (W7), past the limit of BR-02 with a reason; the row as the desk shows it',
@@ -133,7 +133,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_ADD_PATIENT_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Add a patient without an account (W7), to book on the phone and at the desk',
   })
@@ -147,7 +147,7 @@ export class DeskController {
     return this.patients.add(actor, input, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'The doctors and services of the practice, for filters and booking' })
   @ApiOkResponse({ type: DeskCatalogDto })
   @Get('catalog')
@@ -156,7 +156,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_SEARCH_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       'The appointments of some days, a page at a time; reads only, and every one shown is audited',
@@ -173,7 +173,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_SEARCH_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       'The patients of the practice, found as the team types; reads only, and every one shown is audited',
@@ -189,7 +189,7 @@ export class DeskController {
     return this.patients.page(actor, search, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'One patient with what is to come and what was; the read is audited' })
   @ApiParam({ name: 'patientId', format: 'uuid' })
   @ApiOkResponse({ type: DeskPatientRecordDto })
@@ -203,7 +203,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_CHANGE_PATIENT_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       'Correct a patient without an account (RT-97); one of an account is 409 PATIENT_HAS_ACCOUNT; audited',
@@ -221,10 +221,10 @@ export class DeskController {
   }
 
   @Throttle(DESK_EXPORT_LIMIT)
-  @PracticeScoped('id', { staff: ['ADMIN'] })
+  @PracticeScoped('id', { staff: 'management' })
   @ApiOperation({
     summary:
-      "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited",
+      "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); practice management only; audited",
   })
   @ApiParam({ name: 'patientId', format: 'uuid' })
   @ApiOkResponse({ type: DeskPatientExportDto })
@@ -237,7 +237,7 @@ export class DeskController {
     return this.patients.export(actor, patientId, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'A day of the practice: its appointments, counts and what is left free',
   })
@@ -251,7 +251,7 @@ export class DeskController {
     return this.desk.day(actor, query, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       "W2: one doctor's week, the slots with their appointments and the absences; every appointment shown is audited",
@@ -266,7 +266,7 @@ export class DeskController {
     return this.desk.week(actor, query, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'One appointment, with what the patient wrote; the read is audited' })
   @ApiParam({ name: 'appointmentId', format: 'uuid' })
   @ApiOkResponse({ type: DeskAppointmentDto })
@@ -280,7 +280,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: "Check the patient in, on the appointment's day (BR-11)" })
   @ApiParam({ name: 'appointmentId', format: 'uuid' })
   @ApiOkResponse({ type: DeskAppointmentRowDto })
@@ -295,7 +295,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: "Complete a checked-in visit, on the appointment's day (BR-11)" })
   @ApiParam({ name: 'appointmentId', format: 'uuid' })
   @ApiOkResponse({ type: DeskAppointmentRowDto })
@@ -310,7 +310,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary:
       "Record that the patient did not come: on the appointment's day, from its start (BR-11)",
@@ -328,7 +328,7 @@ export class DeskController {
   }
 
   @Throttle(DESK_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Cancel a booked appointment for the practice, with a reason; its time is free again',
   })

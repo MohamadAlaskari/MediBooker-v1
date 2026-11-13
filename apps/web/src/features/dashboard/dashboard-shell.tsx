@@ -8,6 +8,7 @@ import {
   HeartPulse,
   LayoutGrid,
   Settings,
+  UserCog,
   Users,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -22,15 +23,18 @@ const PRODUCT = 'MediBooker';
 /**
  * The frame of the practice dashboard (W1): the practice's name, the way through the dashboard, who
  * is signed in and in which role, and the way out. A bar above the page on a small screen, a column
- * at the start of the reading direction from the desktop width on.
+ * at the start of the reading direction from the desktop width on. The team (W15) is there for
+ * practice management only (D17).
  */
 export function DashboardShell({
   brand,
   role,
+  managesPractice,
   children,
 }: {
   readonly brand?: string | undefined;
   readonly role: MembershipDtoRole;
+  readonly managesPractice: boolean;
   readonly children: ReactNode;
 }): ReactNode {
   const t = useTranslations('dashboard.shell');
@@ -45,6 +49,7 @@ export function DashboardShell({
     { href: `${home}/appointments`, label: t('appointments'), Icon: ClipboardList },
     { href: `${home}/patients`, label: t('patients'), Icon: Users },
     { href: `${home}/services`, label: t('services'), Icon: HeartPulse },
+    ...(managesPractice ? [{ href: `${home}/team`, label: t('team'), Icon: UserCog }] : []),
     { href: `${home}/settings`, label: t('settings'), Icon: Settings },
   ];
   return (
@@ -83,6 +88,7 @@ export function DashboardShell({
               {me.data?.email ?? ''}
             </span>
             {t('role', { role })}
+            {managesPractice ? <span className="block">{t('management')}</span> : null}
           </p>
           <LanguageSwitch />
           <SignOutButton />

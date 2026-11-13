@@ -63,10 +63,10 @@ export function DashboardGate({
     query: { enabled: practiceId !== undefined, retry: false },
   });
   if (practiceId !== undefined && membership.data !== undefined) {
-    const { role, providerId } = membership.data;
+    const { role, managesPractice, providerId } = membership.data;
     return (
-      <DeskContext.Provider value={{ practiceId, role, providerId }}>
-        <DashboardShell brand={brand} role={role}>
+      <DeskContext.Provider value={{ practiceId, role, managesPractice, providerId }}>
+        <DashboardShell brand={brand} role={role} managesPractice={managesPractice}>
           {children}
         </DashboardShell>
         <IdleSignOut

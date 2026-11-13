@@ -23,8 +23,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
-import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
-import type { StaffRole } from '../../generated/practice/enums.js';
+import { PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
 import {
   AbsenceCreatedDto,
   AbsenceInputDto,
@@ -37,8 +36,8 @@ import {
 } from './working-hours.dto.js';
 import { WorkingHours } from './working-hours.service.js';
 
-/** Who makes every doctor's free times anew: the reception and the admin. */
-const GENERATORS: readonly [StaffRole, ...StaffRole[]] = ['STAFF', 'ADMIN'];
+/** Who makes every doctor's free times anew: the practice team and practice management (D17). */
+const GENERATORS = 'planning';
 /**
  * Per route, address and minute: what the team changes by hand, with room for a team that shares
  * one address. Each change also makes the free times anew, which reads the practice's rules.
@@ -48,8 +47,8 @@ const GENERATE_LIMIT = { default: { limit: 6, ttl: 60_000 } };
 
 /**
  * The doctors' schedules (M04, W14): working hours, absences, the free times made from them, and a
- * time blocked or freed (BR-06, BR-07). The reception and the admin plan every doctor; a doctor
- * plans itself only (another doctor answers 404).
+ * time blocked or freed (BR-06, BR-07). The practice team and practice management plan every
+ * doctor; a doctor plans itself only (another doctor answers 404), D17.
  */
 @ApiTags('scheduling')
 @ApiBearerAuth()
@@ -59,7 +58,7 @@ const GENERATE_LIMIT = { default: { limit: 6, ttl: 60_000 } };
 export class WorkingHoursController {
   constructor(private readonly schedule: WorkingHours) {}
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: "A doctor's week from today, with its free times" })
   @ApiParam({ name: 'providerId', format: 'uuid' })
   @ApiOkResponse({ type: WorkingHoursDto })
@@ -69,7 +68,7 @@ export class WorkingHoursController {
   }
 
   @Throttle(SCHEDULE_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: "Replace a doctor's week from today; the free times follow at once",
   })
@@ -85,7 +84,7 @@ export class WorkingHoursController {
     return this.schedule.replaceWeek(actor, providerId, input, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: "A doctor's absences that are not over" })
   @ApiParam({ name: 'providerId', format: 'uuid' })
   @ApiOkResponse({ type: AbsenceListDto })
@@ -95,7 +94,7 @@ export class WorkingHoursController {
   }
 
   @Throttle(SCHEDULE_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Add an absence: its free times go, and its booked appointments are counted',
   })
@@ -112,7 +111,7 @@ export class WorkingHoursController {
   }
 
   @Throttle(SCHEDULE_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'Remove an absence: its free times come back' })
   @ApiParam({ name: 'providerId', format: 'uuid' })
   @ApiParam({ name: 'absenceId', format: 'uuid' })
@@ -138,7 +137,7 @@ export class WorkingHoursController {
   }
 
   @Throttle(SCHEDULE_CHANGE_LIMIT)
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Block a free time or free a blocked one; a booked one is SLOT_HAS_APPOINTMENT',
   })

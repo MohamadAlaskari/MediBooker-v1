@@ -47,11 +47,11 @@ Data residency is decided per market before infrastructure is built: one deploym
 - Passwords: argon2id with at least the OWASP parameters (m = 19 MiB, t = 2, p = 1). Minimum length 10 for patients and 12 for staff, check against known breached passwords, no composition rules, allow paste and password managers.
 - E-mail verification before the first booking; a sign-in does not need it (the user's decision, accepted risk RT-89). Verification and reset tokens are single-use, stored hashed, expire after 30 minutes.
 - Login: one generic error ("The e-mail address or the password is not correct." / "البريد الإلكتروني أو كلمة المرور غير صحيحة."). An attempt is counted before its password is checked, under a lock of the account's row, so a burst of guesses cannot pass the wait. Rate limits per IP and per account with exponential backoff. Register and password reset give the same response whether the account exists or not.
-- MFA (TOTP) is mandatory for Staff, Doctor and Admin. Recovery codes are stored hashed.
+- MFA (TOTP) is mandatory for every member of a practice team. Recovery codes are stored hashed.
 - Tokens: short-lived access JWT (≤ 15 min, asymmetric signature, claims `iss`, `aud`, `sub`, `sid`, `amr` and a `kid`; no role, because a role changes and belongs to one practice). Opaque random refresh token (256 bit), stored as a SHA-256 hash in `Session`, rotated on every use; reuse of an old refresh token revokes the whole token family. Signing keys come from the secret store and survive restarts (v1 generated a new secret at every start).
 - Web: tokens only in `HttpOnly; Secure; SameSite=Strict` cookies, plus CSRF protection. Nothing in `localStorage`.
 - Mobile: tokens in Keychain/Keystore (`expo-secure-store`). Biometric unlock is optional.
-- Logout and password change revoke sessions. A practice admin disables a membership, effective on the next request; revoking all sessions is an account-level action of the user.
+- Logout and password change revoke sessions. Practice management deactivates a membership (D17): effective on the next request, and every session of the account ends with it (E14).
 
 ## 4. Authorization
 
@@ -148,7 +148,7 @@ Data residency is decided per market before infrastructure is built: one deploym
 - Device tokens are personal data: encrypted at rest, never logged, deleted on sign-out and after 60 days without use.
 - E-mail: no tracking pixels or click tracking; plain-text part; SPF, DKIM and DMARC on the sender domain; action links use single-use, hashed tokens (verify and reset 30 minutes, invitations 7 days, the "this was not me" link of the security e-mails 7 days: it only takes access away, and every such link of an account is used up together with the first).
 - Preferences are enforced server-side (BR-21); a locked type cannot be disabled through the API.
-- Security e-mails (new sign-in E10, password changed E11, authenticator app set up E12): the "This was not me" action revokes all sessions, stops the password and forces a reset by e-mail; the second factor stays, and an admin or the operator removes one that an intruder set up. E10 names the device as the client names itself, which anyone can fake, and says so.
+- Security e-mails (new sign-in E10, password changed E11, authenticator app set up E12): the "This was not me" action revokes all sessions, stops the password and forces a reset by e-mail; the second factor stays, and practice management (W15, E15) or the operator removes one that an intruder set up. E10 names the device as the client names itself, which anyone can fake, and says so.
 - E-mail, push and SMS providers are processors: data processing agreement and the market's region.
 - Channels per practice (e-mail only, SMS only, both): when SMS is not possible the message falls back to e-mail, so changes by the clinic always arrive; account and security messages stay e-mail.
 - SMS: only to a verified phone number; verification codes are single-use, stored hashed, expire after 10 minutes, rate-limited per number and per account (SMS pumping and toll fraud). No links in SMS. Phone numbers and SMS texts never appear in logs; delivery receipts are matched by provider message ID. Changing the phone number requires a new verification and a notice e-mail.
@@ -160,7 +160,7 @@ Data residency is decided per market before infrastructure is built: one deploym
 - Next.js (ADR 0003): strict CSP with per-request nonces from middleware; pages with personal or health data are never cached by Next.js or a CDN (`no-store`); only the public practice page may be cached.
 - Public pages set no cookies and load no third-party scripts, fonts, maps or analytics; "Open in maps" is a plain link (`rel="noopener noreferrer"`). This keeps visitors' IP addresses away from third parties and avoids a consent banner.
 - Staff photos and public profiles: consent from the person themselves, stored with timestamp and text version, revocable; on withdrawal the page cache and CDN copies are purged. Photos are re-encoded (no EXIF/GPS) like other images.
-- Logo upload (admin only): PNG or WebP only — no SVG (scripts, external references) — checked by magic bytes, ≤ 1 MB, virus-scanned, re-encoded, served with the correct `Content-Type` and `nosniff`.
+- Logo upload (practice management only): PNG or WebP only — no SVG (scripts, external references) — checked by magic bytes, ≤ 1 MB, virus-scanned, re-encoded, served with the correct `Content-Type` and `nosniff`.
 - Theme input: only `^#[0-9A-Fa-f]{6}$`; the server generates the CSS values. Never interpolate user text into CSS, HTML attributes or e-mail styles.
 - Slug: lowercase `[a-z0-9-]{3,40}`, reserved words blocked (`admin`, `api`, `login`, …); a changed slug keeps a redirect so old links do not land on another practice.
 - The page tells visitors not to send medical details by e-mail. A contact form is out of scope; if it ever comes, it is health data.

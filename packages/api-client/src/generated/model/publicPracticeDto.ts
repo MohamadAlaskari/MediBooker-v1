@@ -66,7 +66,7 @@ export interface PublicPracticeDto {
   /** The next 60 days */
   specialDays: PublicSpecialDayDto[];
   supportedLocales: string[];
-  /** Only members with an active public-profile consent that no admin has hidden */
+  /** Only members with an active public-profile consent whom practice management has not hidden */
   team: PublicTeamMemberDto[];
   theme: PublicThemeDto;
   /** IANA zone: every wall-clock time here is local to it */

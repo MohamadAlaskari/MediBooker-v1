@@ -244,7 +244,7 @@ export class AccountService {
    * account ends, its password stops working, its browsers become strangers, and a link to choose a
    * new password goes to the mailbox. Whoever signed in with a stolen password is out and stays out.
    * The second factor stays: an older link with the mailbox must not take away the one the owner
-   * set up; one that an intruder set up only an admin or the operator removes (RT-96, M03).
+   * set up; one that an intruder set up only practice management or the operator removes (RT-96, D17).
    */
   async secureAccount(token: string): Promise<void> {
     const unusable = await hashPassword(randomBytes(32).toString('base64url'));

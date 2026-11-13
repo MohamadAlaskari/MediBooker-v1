@@ -7,11 +7,13 @@
 import type { MembershipDtoRole } from './membershipDtoRole';
 
 export interface MembershipDto {
+  /** Practice management (D17): services, the team, settings, exports, the audit log */
+  managesPractice: boolean;
   /**
      * The doctor this account is: a doctor changes only its own working hours (M04)
      * @nullable
      */
   providerId: string | null;
-  /** STAFF is the reception; what a role may do is in the domain skill */
+  /** The base role (D17): STAFF is the practice team, DOCTOR a doctor; what each may do is in the domain skill */
   role: MembershipDtoRole;
 }

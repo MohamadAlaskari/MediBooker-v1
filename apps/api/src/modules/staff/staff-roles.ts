@@ -16,13 +16,15 @@ class NoSuchDoctorError extends Error {
   override readonly name = 'NoSuchDoctorError';
 }
 
-export const STAFF_ROLES: readonly StaffRole[] = ['STAFF', 'DOCTOR', 'ADMIN'];
+/** The base roles (D17): the practice team and the doctors; management is an add-on. */
+export const STAFF_ROLES: readonly StaffRole[] = ['STAFF', 'DOCTOR'];
 
 /** What the operator's command did, or why it did nothing. */
 export type StaffRoleOutcome =
   | {
       readonly result: 'SET';
       readonly role: StaffRole;
+      readonly managesPractice: boolean;
       /** An app was set up before this: the operator asks the person whether it was them (RT-96). */
       readonly mfaEnabled: boolean;
     }
@@ -38,11 +40,19 @@ export type StaffRoleOutcome =
         | 'DOCTOR_ALREADY_LINKED';
     };
 
+/** What the operator gives along with a base role (D17). */
+export interface StaffRoleOptions {
+  /** Practice management: the first one comes from the operator, before anyone can give it. */
+  readonly managesPractice?: boolean;
+  /** The doctor this account is (M04); left out, the link stays as it was. */
+  readonly providerId?: string;
+}
+
 /**
- * The operator's way to give an account a role in the installation's practice (A04, ADR 0016),
- * before any admin exists who could invite one: for example the first admin. The account must
- * exist with a confirmed address. The membership and its index event commit in one practice
- * transaction, and the index follows at once, or through the relay.
+ * The operator's way to give an account its place in the installation's practice (A04, ADR 0016,
+ * D17), before anyone in the practice can: for example the first person with practice management.
+ * The account must exist with a confirmed address. The membership and its index event commit in one
+ * practice transaction, and the index follows at once, or through the relay.
  */
 @Injectable()
 export class StaffRoles {
@@ -60,8 +70,7 @@ export class StaffRoles {
     email: string,
     role: StaffRole | null,
     operator: string,
-    /** The doctor this account is (M04); left out, the link stays as it was. */
-    providerId?: string,
+    { managesPractice = false, providerId }: StaffRoleOptions = {},
   ): Promise<StaffRoleOutcome> {
     const practiceId = await this.installationPracticeId();
     if (practiceId === undefined) return { result: 'NO_PRACTICE' };
@@ -80,7 +89,7 @@ export class StaffRoles {
         practiceId,
         async () => {
           const version = await this.practiceTx.withTransaction(() =>
-            this.write(user.id, role, operator, change, providerId),
+            this.write(user.id, role, managesPractice, operator, change, providerId),
           );
           if (version !== undefined) await this.relay.applyNow(practiceId, version, change);
           return version !== undefined;
@@ -94,7 +103,9 @@ export class StaffRoles {
       }
       throw error;
     }
-    if (role !== null) return { result: 'SET', role, mfaEnabled: user.totpEnabledAt !== null };
+    if (role !== null) {
+      return { result: 'SET', role, managesPractice, mfaEnabled: user.totpEnabledAt !== null };
+    }
     return changed ? { result: 'REMOVED' } : { result: 'NOT_A_MEMBER' };
   }
 
@@ -102,6 +113,7 @@ export class StaffRoles {
   private async write(
     userId: string,
     role: StaffRole | null,
+    managesPractice: boolean,
     operator: string,
     change: AccessChange,
     providerId: string | undefined,
@@ -129,11 +141,27 @@ export class StaffRoles {
           : providerId === undefined
             ? {}
             : { staffMemberId: providerId };
+      const before = await db.membership.findUnique({
+        where: { userId },
+        select: { managesPractice: true, status: true },
+      });
       await db.membership.upsert({
         where: { userId },
-        create: { userId, role, ...link },
-        update: { role, status: 'ACTIVE', ...link },
+        create: { userId, role, managesPractice, ...link },
+        update: { role, managesPractice, status: 'ACTIVE', ...link },
       });
+      const managedBefore = before?.status === 'ACTIVE' && before.managesPractice;
+      if (managedBefore !== managesPractice) {
+        const { id: subjectId } = await db.membership.findUniqueOrThrow({
+          where: { userId },
+          select: { id: true },
+        });
+        await this.audit.recordOperator({
+          operator,
+          action: managesPractice ? 'staff.management.grant' : 'staff.management.revoke',
+          subjectId,
+        });
+      }
     }
     const { id } = await db.membership.findUniqueOrThrow({
       where: { userId },

@@ -23,6 +23,12 @@ export const AUTHZ_MATRIX: Readonly<Record<string, { readonly account: number }>
   confirmTotp: { account: 400 },
   // A sign-in with the password only: MFA_REQUIRED before anything else.
   getMyMembership: { account: 403 },
+  // The team page (M03, D17): practice management only, MFA_REQUIRED before anything else too.
+  listTeam: { account: 403 },
+  changeTeamRole: { account: 403 },
+  deactivateTeamMember: { account: 403 },
+  reactivateTeamMember: { account: 403 },
+  resetTeamSecondFactor: { account: 403 },
   getProfile: { account: 200 },
   updateProfile: { account: 200 },
   listMyPractices: { account: 200 },

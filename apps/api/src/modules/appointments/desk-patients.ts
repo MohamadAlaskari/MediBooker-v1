@@ -521,7 +521,7 @@ export class DeskPatients {
   /**
    * Everything the practice keeps about one patient, as the person's copy (RT-97, GDPR Art. 15): the
    * profile with the whole insurance number, and every appointment with what the patient wrote and
-   * the team's reasons. For an admin, who checks it before handing it over; audited for the patient
+   * the team's reasons. For practice management, who checks it before handing it over; audited for the patient
    * and for every appointment it holds.
    */
   async export(

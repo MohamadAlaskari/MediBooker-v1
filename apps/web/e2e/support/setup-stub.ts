@@ -23,8 +23,12 @@ import {
   PROVIDER_ID,
   SETTINGS,
   TODAY,
+  hasPlanning,
   type DeskAccess,
 } from './desk-stub.ts';
+
+/** Who asks, as the practice context admitted it. */
+type Member = Exclude<DeskAccess, { readonly refusal: unknown }>;
 
 const LOCALES = ['ar', 'en'];
 /** A second doctor of the stub practice, without working hours: it can offer no service yet. */
@@ -96,7 +100,7 @@ function sortedWeek(intervals: readonly OpeningIntervalDto[]): OpeningIntervalDt
 async function answerServices(
   setup: Setup,
   id: string | undefined,
-  role: string,
+  who: Member,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -113,7 +117,7 @@ async function answerServices(
     });
     return;
   }
-  if (role !== 'ADMIN') {
+  if (!who.managesPractice) {
     problem(response, 'FORBIDDEN');
     return;
   }
@@ -171,7 +175,7 @@ async function answerServices(
 async function answerProviders(
   setup: Setup,
   id: string | undefined,
-  role: string,
+  who: Member,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -179,7 +183,7 @@ async function answerProviders(
     problem(response, 'NOT_FOUND');
     return;
   }
-  if (role !== 'ADMIN') {
+  if (!who.managesPractice) {
     problem(response, 'FORBIDDEN');
     return;
   }
@@ -209,12 +213,12 @@ async function answerProviders(
 
 async function answerWeek(
   setup: Setup,
-  role: string,
+  who: Member,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   if (request.method === 'PUT') {
-    if (role === 'DOCTOR') {
+    if (!hasPlanning(who)) {
       problem(response, 'FORBIDDEN');
       return;
     }
@@ -247,7 +251,7 @@ async function answerWeek(
 async function answerSpecialDays(
   setup: Setup,
   id: string | undefined,
-  role: string,
+  who: Member,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -260,7 +264,7 @@ async function answerSpecialDays(
     });
     return;
   }
-  if (role === 'DOCTOR') {
+  if (!hasPlanning(who)) {
     problem(response, 'FORBIDDEN');
     return;
   }
@@ -310,12 +314,12 @@ export function handleSetup(
   }
   const setup = setupOf(who.email);
   if (resource === 'services' && providers !== undefined) {
-    void answerProviders(setup, id, who.role, request, response);
-  } else if (resource === 'services') void answerServices(setup, id, who.role, request, response);
+    void answerProviders(setup, id, who, request, response);
+  } else if (resource === 'services') void answerServices(setup, id, who, request, response);
   else if (resource === 'opening-hours' && id === undefined) {
-    void answerWeek(setup, who.role, request, response);
+    void answerWeek(setup, who, request, response);
   } else if (resource === 'special-days') {
-    void answerSpecialDays(setup, id, who.role, request, response);
+    void answerSpecialDays(setup, id, who, request, response);
   } else problem(response, 'NOT_FOUND');
   return true;
 }

@@ -27,6 +27,12 @@ export const ERROR_CATALOG = {
     title: 'The patient keeps this profile through an account',
   },
   MFA_ALREADY_ENABLED: { status: 409, title: 'The second factor is already set up' },
+  LAST_PRACTICE_MANAGER: {
+    status: 409,
+    title: 'The practice keeps at least one active member with practice management',
+  },
+  NOT_ON_YOURSELF: { status: 409, title: 'Not on your own membership' },
+  DOCTOR_ALREADY_LINKED: { status: 409, title: 'Another account is this doctor already' },
   SLOT_NOT_AVAILABLE: { status: 409, title: 'Slot not available' },
   SLOT_HAS_APPOINTMENT: { status: 409, title: 'An appointment holds this time' },
   APPOINTMENT_OVERLAP: { status: 409, title: 'Appointment overlaps another one' },

@@ -18,7 +18,7 @@ apps/web/
       (public)/[slug]/        public practice page: server component, generateMetadata with hreflang, JSON-LD;
                               free times refreshed on the client (30–60 s); reserved slugs blocked
       (patient)/              portal: appointments, book, record, family, settings (sign-in required)
-      (practice)/practice/    dashboard (roles STAFF, DOCTOR, ADMIN); realtime client
+      (practice)/practice/    dashboard (base roles STAFF, DOCTOR; practice management, D17); realtime client
     sitemap.ts, robots.ts
   src/
     providers/                QueryClient, i18n, theme, auth (client providers)

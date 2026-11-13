@@ -200,6 +200,12 @@ enum AccountNotificationTemplate {
   PASSWORD_CHANGED
   /// An authenticator app was set up for the account (BR-21, the review of A04 part 2b)
   SECOND_FACTOR_ENABLED
+  /// E13: practice management changed the person's role in the team (D17), without saying which
+  TEAM_ROLE_CHANGED
+  /// E14: practice management ended the person's access to the team's pages (D17)
+  TEAM_ACCESS_ENDED
+  /// E15: practice management removed the person's authenticator app (D17, RT-96)
+  TEAM_SECOND_FACTOR_RESET
 
   @@map("account_notification_template")
 }

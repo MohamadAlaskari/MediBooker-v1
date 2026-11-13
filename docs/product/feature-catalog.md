@@ -11,12 +11,12 @@ Status legend: **v0.1** = first iteration · **v0.2** = records, notes, files, f
 
 | Role | Arabic | Uses | Can |
 |---|---|---|---|
-| Visitor (not signed in) | زائر | Public practice page (web) | See the practice, services, free times, team, opening hours and directions; choose a time (sign-in or sign-up follows) |
+| Visitor (not signed in) | زائر | Public practice page (web) | See the practice, services, team, opening hours and directions; sign in or create an account to see free times and book (D19) |
 | Patient / account holder | المريض / صاحب الحساب | Patient app (iOS, Android), patient web portal | Book and manage appointments for self and managed family members; see shared notes and files |
 | Family member (managed) | فرد من العائلة | – (or own account for adults) | Is booked for; adults accept an invitation before anyone else manages them |
-| Receptionist | موظف الاستقبال | Clinic dashboard | Calendar, appointments, check-in, patients, administrative files |
-| Doctor | الطبيب | Clinic dashboard | Everything a receptionist can + clinical notes, clinical files, full patient record |
-| Clinic admin | مدير العيادة | Clinic dashboard | Services, working hours, team, settings, audit log (no clinical content by default) |
+| Practice team (reception, assistants; base role `STAFF`) | فريق العيادة | Clinic dashboard | Calendar, appointments, check-in, patients, opening hours, every doctor's working hours, administrative files |
+| Doctor (base role `DOCTOR`) | الطبيب | Clinic dashboard | Calendar, appointments, check-in, patients, its own working hours, clinical notes, clinical files, full patient record |
+| Practice management (an add-on to either base role, D17) | إدارة العيادة | Clinic dashboard | Adds services, the team and its roles, settings, patient exports, audit log with an export (D18); nothing clinical by itself |
 
 ## 2. Patient app (mobile; the patient web portal mirrors these features)
 
@@ -135,7 +135,7 @@ Texts contain date, time, clinic and the first name of the person only — never
 | D-24 | Family links in the record ("managed by", dependents, pending invitations) | BR-19 | W9 | v0.2 |
 | D-30 | Services: list, create, edit (names ar/en, duration, online, insurance types) | BR-08 | W12 Services, W13 Edit service | v0.2 |
 | D-31 | Working hours per doctor, exceptions (vacation), generate times | BR-06, BR-07 | W14 Working hours | v0.2 |
-| D-32 | Team: list, invite with role, MFA status, disable | – | W15 Team, W16 Invite staff | v0.2 |
+| D-32 | Team: list with views by place, base role and practice management, doctor link, MFA status and reset, deactivate and reactivate (built in M03 part 1); invite with role (M03 part 2) | D17 | W15 Team, W16 Invite staff | v0.2 |
 | D-33 | Settings (tabs General · Practice page · Appearance · Notifications) — General: clinic, region & language (time zone, digits, week start, weekend), booking rules, clinical data policy; link to reminders and notifications | BR-02–04, BR-15 | W17 Settings | v0.2 (v0.4: tabs) |
 | D-38 | Notification settings: channels for appointment messages (e-mail only, SMS only, e-mail and SMS), reminders on/off and timing, SMS sender name, SMS provider status ("not connected yet" → everything goes by e-mail), SMS preview with length, send a test | BR-13, BR-21 | W21 Settings – Notifications | v0.4 |
 | D-34 | Audit log (record access, notes, files, status changes, settings) | BR-12, BR-18 | W18 Audit log | v0.2 |
@@ -156,7 +156,7 @@ Texts contain date, time, clinic and the first name of the person only — never
 | X-07 | Market configuration: country, data residency region, time zone, digits, weekend, insurance model |
 | X-08 | i18n (Arabic, English; more later) with RTL / LTR |
 | X-09 | Practice themes at runtime: brand colour layer (presets or a generated, contrast-checked custom palette) for web, app and e-mails; no hard-coded colours (ADR 0002) |
-| X-10 | Public practice page delivery with Next.js (ADR 0003): server-rendered and cached for search engines, free times refreshed every 30–60 s, one URL per language (`hreflang`), structured data (`schema.org/MedicalClinic`), no cookies or third-party trackers |
+| X-10 | Public practice page delivery with Next.js (ADR 0003): server-rendered and cached for search engines (free times only after signing in, D19), one URL per language (`hreflang`), structured data (`schema.org/MedicalClinic`), no cookies or third-party trackers |
 | X-11 | Responsive layouts: phone, tablet (portrait and landscape) and desktop; web breakpoints in the `design-system` skill |
 
 ## 5. Screen inventory
@@ -218,7 +218,7 @@ All screens are designed in Figma ([Mediboocker](https://www.figma.com/design/8W
 | [W12 Services](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=71-3153) | Service table, online booking switch | Switch, Badge, Alert |
 | [W13 Edit service](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=71-3357) | Modal: texts per language, duration, doctors, online, referral | Tab, Text Field, Text Area, Checkbox, Switch |
 | [W14 Working hours](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=72-3358) | Doctor picker (photo + name), weekly schedule per doctor, exceptions, generate booking times | Doctor Option, Switch, Text Field, List Item, Alert |
-| [W15 Team](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=72-3650) | Staff table: role, 2FA, last active, status | Avatar, Badge, Alert |
+| [W15 Team](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=72-3650) | Views: all, doctors, practice team, practice management, deactivated; table: person (name, e-mail, you), base role with a practice-management badge, linked doctor, 2FA, status; change role (dialog: base role, doctor, practice management), deactivate, reactivate, reset 2FA (each asks first); for practice management only (D17) | Badge, Tabs, Dialog, Radio, Select, Checkbox, Alert |
 | [W16 Invite staff](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=72-3901) | Modal: name, e-mail, role with permissions | Text Field, Radio, Alert |
 | [W17 Settings](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=73-3783) | Tabs General · Practice page · Appearance · Notifications; clinic, region & language, booking rules (link to reminders and notifications), clinical data | Tab, Text Field, Radio, Switch, Button |
 | [W18 Audit log](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=73-4054) | Filters, event table, export | Avatar, Badge, Text Field |
@@ -243,8 +243,8 @@ All screens are designed in Figma ([Mediboocker](https://www.figma.com/design/8W
 | [PW10 Health record](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=111-947) | Person tabs, visits, visit details with shared note and files | Tab, Timeline Item, Note Card, Attachment Tile |
 | [PW11 Family](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=111-1113) | Members, add a child (guardian declaration) | Person Card, Radio, Checkbox |
 | [PW12 Settings – Notifications](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=111-1275) | Settings navigation, push / e-mail / SMS per message type | Sidebar Item, Switch |
-| [PW13 Practice page (public)](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=147-4916) | Desktop, no sign-in: header with section links, hero with open-now status and opening hours, free times (service, doctor, week, times), services, team, find us, contact, footer | Practice Mark, Badge, Button, Text Field, Doctor Option, Calendar Day, Time Slot, Service Card, Team Card, List Item, Alert, Logo |
-| [PW14 Practice page (public, mobile)](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=148-5083) | The same page for phones (390 px), one column, free times right after the hero | as PW13, Icon Button |
+| [PW13 Practice page (public)](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=147-4916) | Desktop, no sign-in: header with section links, language switch, Sign in and Create account; hero with open-now status, Book appointment (through sign-in to the booking page) and Call us, opening hours; book online (sign in or create an account; free times only after signing in, D19); services, team, find us, contact, footer | Practice Mark, Badge, Button, Service Card, Team Card, List Item, Alert, Logo |
+| [PW14 Practice page (public, mobile)](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=148-5083) | The same page for phones (390 px), one column; Sign in and Create account in a second header row; book online right after the hero | as PW13, Icon Button |
 | [PW13 · Theme Violet](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=153-6497) / [PW14 · AR · Dark · Theme Ocean](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=153-6609) | Examples of the practice page in other clinic themes | – |
 
 PW13 and PW14 are longer than one screen, so they sit in their own band below the portal rows (columns: Arabic, Arabic dark, English, English dark; mobile next to desktop). Portal sign-up uses the same steps as the app (09–12); a separate desktop layout is not designed.
@@ -263,7 +263,7 @@ Each template shows subject and preview text above the e-mail. Texts and trigger
 | [E06 Appointment cancelled](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-193) | Clinic cancels | Book a new time |
 | [E07 New in health record](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-231) | A note or file is shared | Open health record |
 | [E08 Family invitation](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-259) | An adult is invited to a family account | Review invitation |
-| [E09 Staff invitation](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-290) | Admin invites a staff member | Set up your account |
+| [E09 Staff invitation](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-290) | Practice management invites a staff member | Set up your account |
 | [E10 New sign-in](https://www.figma.com/design/8Ww6QyOO2Ni9kSfN6E5hNK/Mediboocker?node-id=114-327) | Sign-in from a new device | This was not me – secure my account |
 
 ### 5.5 Clickable prototype
@@ -274,10 +274,10 @@ Open a page in Figma, press **Present** and pick a flow (Figma prototypes work p
 |---|---|---|---|
 | Patient App (Mobile) | App · العربية / English, light and dark; Push · العربية / English; SMS · العربية / English | 348 | Sign in and sign up, booking flow, my appointments (cancel, reschedule, past), details, health record and documents, profile, family, notification settings, tab bar, back buttons; language "Apply" switches between the Arabic and English rows; tapping a push preview opens the app screen |
 | Clinic Dashboard (Web) | Dashboard · العربية / English, light and dark | 783 | Sign in → two-factor → Today; sidebar; appointments → drawer → patient record (tabs); book for patient; services → edit; calendar → working hours; team → invite; settings tabs General ↔ Practice page ↔ Appearance ↔ Notifications, practice page → working hours, general → notifications, settings → audit log; language switch |
-| Patient Portal (Web) | Portal · …; Practice page · …; Practice page (mobile) · … (each Arabic / English, light and dark) | 536 | Header navigation, language switch (jumps to the other row), booking flow, appointments → details → cancel, health record, family, settings; practice page: section links scroll to Services / Team / Opening hours, "Book appointment" and service cards scroll to the free times, a free time and "Sign in" open PW1 |
+| Patient Portal (Web) | Portal · …; Practice page · …; Practice page (mobile) · … (each Arabic / English, light and dark) | 512 | Header navigation, language switch (jumps to the other row), booking flow, appointments → details → cancel, health record, family, settings; practice page: section links scroll to Services / Team / Opening hours; "Sign in" and "Book appointment" open PW1; "Create account" opens the app's sign-up (09) in a new tab |
 | Tablet Layouts | Tablet app · …, Tablet dashboard · …, Tablet portal · … (each AR, AR dark, EN, EN dark) | 84 | App: book, tab bar, back; dashboard: sidebar, all appointments, details, open record, back to patients; portal: book, back; language switch |
 
-Not designed yet: WhatsApp texts, a separate desktop sign-up, sign-in and booking in the phone browser (a free time on PW14 continues there), a tablet patient list, the staff profile screen where a person gives photo / public-page consent (W20 shows the status), a full editor for opening hours and special days (W20 shows the summary).
+Not designed yet: WhatsApp texts, a separate desktop sign-up ("Create account" on PW13/PW14 opens the app's 09–12), sign-in and the booking page in the phone browser ("Sign in" and "Book appointment" on PW14 open the desktop PW1), a tablet patient list, the staff profile screen where a person gives photo / public-page consent (W20 shows the status), a full editor for opening hours and special days (W20 shows the summary).
 
 ### 5.6 Tablet layouts — page "Tablet Layouts"
 

@@ -23,8 +23,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Actor } from '../../common/security/actor.js';
 import { CurrentUser } from '../../common/security/current-user.decorator.js';
-import { ALL_STAFF_ROLES, PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
-import type { StaffRole } from '../../generated/practice/enums.js';
+import { PracticeScoped } from '../../common/tenancy/practice-scoped.decorator.js';
 import { PracticeHours } from './practice-hours.js';
 import {
   OpeningHoursDto,
@@ -40,12 +39,12 @@ import {
 } from './practice-setup.dto.js';
 import { ServiceCatalog } from './service-catalog.js';
 
-/** Who manages services (roles and permissions: the admin only). */
-const SERVICE_EDITORS: readonly [StaffRole, ...StaffRole[]] = ['ADMIN'];
-/** Who changes when the practice is open: the reception and the admin, not the doctors. */
-const HOURS_EDITORS: readonly [StaffRole, ...StaffRole[]] = ['STAFF', 'ADMIN'];
+/** Who manages services: practice management (D17). */
+const SERVICE_EDITORS = 'management';
+/** Who changes when the practice is open: the practice team and practice management (D17). */
+const HOURS_EDITORS = 'planning';
 /**
- * Per route, address and minute: what an admin or the reception changes by hand, with room for a
+ * Per route, address and minute: what the practice team or management changes by hand, with room for a
  * team that shares one address (security review of M02).
  */
 const SETUP_CHANGE_LIMIT = { default: { limit: 30, ttl: 60_000 } };
@@ -65,7 +64,7 @@ export class PracticeSetupController {
     private readonly hours: PracticeHours,
   ) {}
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({
     summary: 'Every service, also the archived ones, with the doctors who offer it',
   })
@@ -77,7 +76,7 @@ export class PracticeSetupController {
 
   @Throttle(SETUP_CHANGE_LIMIT)
   @PracticeScoped('id', { staff: SERVICE_EDITORS })
-  @ApiOperation({ summary: 'Add a service; admins only' })
+  @ApiOperation({ summary: 'Add a service; practice management only' })
   @ApiCreatedResponse({ type: ServiceDto })
   @Post('services')
   async createService(
@@ -90,7 +89,7 @@ export class PracticeSetupController {
 
   @Throttle(SETUP_CHANGE_LIMIT)
   @PracticeScoped('id', { staff: SERVICE_EDITORS })
-  @ApiOperation({ summary: 'Change or archive a service; admins only' })
+  @ApiOperation({ summary: 'Change or archive a service; practice management only' })
   @ApiParam({ name: 'serviceId', format: 'uuid' })
   @ApiOkResponse({ type: ServiceDto })
   @Patch('services/:serviceId')
@@ -106,7 +105,8 @@ export class PracticeSetupController {
   @Throttle(SETUP_CHANGE_LIMIT)
   @PracticeScoped('id', { staff: SERVICE_EDITORS })
   @ApiOperation({
-    summary: 'The doctors who offer a service, through their working hours; admins only',
+    summary:
+      'The doctors who offer a service, through their working hours; practice management only',
   })
   @ApiParam({ name: 'serviceId', format: 'uuid' })
   @ApiOkResponse({ type: ServiceDto })
@@ -120,7 +120,7 @@ export class PracticeSetupController {
     return this.services.setProviders(actor, serviceId, input, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: "The practice's opening hours, by weekday" })
   @ApiOkResponse({ type: OpeningHoursDto })
   @Get('opening-hours')
@@ -143,7 +143,7 @@ export class PracticeSetupController {
     return this.hours.replaceWeek(actor, input, ip);
   }
 
-  @PracticeScoped('id', { staff: ALL_STAFF_ROLES })
+  @PracticeScoped('id', { staff: 'team' })
   @ApiOperation({ summary: 'The special days from today on' })
   @ApiOkResponse({ type: SpecialDayListDto })
   @Get('special-days')

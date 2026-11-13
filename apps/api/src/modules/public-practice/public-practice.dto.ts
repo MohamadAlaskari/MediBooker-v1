@@ -259,7 +259,8 @@ export class PublicPracticeDto {
 
   @ApiProperty({
     type: [PublicTeamMemberDto],
-    description: 'Only members with an active public-profile consent that no admin has hidden',
+    description:
+      'Only members with an active public-profile consent whom practice management has not hidden',
   })
   readonly team!: readonly PublicTeamMemberDto[];
 }

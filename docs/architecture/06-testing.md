@@ -82,7 +82,7 @@ The Cairo fixture uses a Friday/Saturday weekend and Arabic-Indic digits. Elapse
 ### Registries
 
 - `apps/api/test/integration/authz/matrix.ts` exports three registries:
-  - `AUTHZ_MATRIX`: per operationId the expected status for an anonymous caller (401), per role (`PATIENT`, `STAFF`, `DOCTOR`, `ADMIN`), and for another owner (404);
+  - `AUTHZ_MATRIX`: per operationId the expected status for an anonymous caller (401), per role (`PATIENT`; for the team the base roles `STAFF` and `DOCTOR` with and without practice management, D17), and for another owner (404);
   - `PUBLIC_OPERATIONS`: operationId → the reason it is public (provider callbacks included);
   - `CROSS_PRACTICE`: the operationIds of every practice-scoped operation.
 - `authz-matrix.int-spec.ts` runs every entry through `expectAuthMatrix`. For `CROSS_PRACTICE` it tests both directions: a caller of practice A on B's path (404, and no client for B is opened), and a resource id of B under A's path (404, because the row does not exist in A's database).

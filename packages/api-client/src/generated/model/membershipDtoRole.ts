@@ -6,7 +6,7 @@
  */
 
 /**
- * STAFF is the reception; what a role may do is in the domain skill
+ * The base role (D17): STAFF is the practice team, DOCTOR a doctor; what each may do is in the domain skill
  */
 export type MembershipDtoRole = typeof MembershipDtoRole[keyof typeof MembershipDtoRole];
 
@@ -14,5 +14,4 @@ export type MembershipDtoRole = typeof MembershipDtoRole[keyof typeof Membership
 export const MembershipDtoRole = {
   STAFF: 'STAFF',
   DOCTOR: 'DOCTOR',
-  ADMIN: 'ADMIN',
 } as const;

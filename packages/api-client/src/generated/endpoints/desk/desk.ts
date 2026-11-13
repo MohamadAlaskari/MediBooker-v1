@@ -1569,7 +1569,7 @@ export const useChangeDeskPatient = <TError = ErrorType<ProblemDetailsDto>,
 }
 
 /**
- * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited
+ * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); practice management only; audited
  */
 export const exportDeskPatient = async (practiceId: string,
     patientId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DeskPatientExportDto> => {
@@ -1646,7 +1646,7 @@ export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDes
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited
+ * @summary Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); practice management only; audited
  */
 
 export function useExportDeskPatient<TData = Awaited<ReturnType<typeof exportDeskPatient>>, TError = ErrorType<ProblemDetailsDto>>(

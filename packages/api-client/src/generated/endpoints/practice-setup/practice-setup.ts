@@ -357,7 +357,7 @@ export const getCreateServiceUrl = (practiceId: string,) => {
 }
 
 /**
- * @summary Add a service; admins only
+ * @summary Add a service; practice management only
  */
 export const createService = async (practiceId: string,
     serviceInputDto: ServiceInputDto, options?: Parameters<typeof apiFetch>[1]): Promise<ServiceDto> => {
@@ -424,7 +424,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateServiceMutationVariables = {practiceId: string;data: ServiceInputDto}
 
     /**
- * @summary Add a service; admins only
+ * @summary Add a service; practice management only
  */
 export const useCreateService = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createService>>, TError,CreateServiceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
@@ -446,7 +446,7 @@ export const useCreateService = <TError = ErrorType<ProblemDetailsDto>,
 }
 
 /**
- * @summary Change or archive a service; admins only
+ * @summary Change or archive a service; practice management only
  */
 export const updateService = async (practiceId: string,
     serviceId: string,
@@ -514,7 +514,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateServiceMutationVariables = {practiceId: string;serviceId: string;data: ServicePatchDto}
 
     /**
- * @summary Change or archive a service; admins only
+ * @summary Change or archive a service; practice management only
  */
 export const useUpdateService = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateService>>, TError,UpdateServiceMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}
@@ -536,7 +536,7 @@ export const useUpdateService = <TError = ErrorType<ProblemDetailsDto>,
 }
 
 /**
- * @summary The doctors who offer a service, through their working hours; admins only
+ * @summary The doctors who offer a service, through their working hours; practice management only
  */
 export const setServiceProviders = async (practiceId: string,
     serviceId: string,
@@ -604,7 +604,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SetServiceProvidersMutationVariables = {practiceId: string;serviceId: string;data: ServiceProvidersInputDto}
 
     /**
- * @summary The doctors who offer a service, through their working hours; admins only
+ * @summary The doctors who offer a service, through their working hours; practice management only
  */
 export const useSetServiceProviders = <TError = ErrorType<ProblemDetailsDto>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setServiceProviders>>, TError,SetServiceProvidersMutationVariables, TContext>, request?: SecondParameter<typeof apiFetch>}

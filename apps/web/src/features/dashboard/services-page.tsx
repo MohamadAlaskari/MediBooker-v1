@@ -483,7 +483,7 @@ function ServiceDialog({
   );
 }
 
-/** The online switch of a row (W12): only the admin changes it, and only for an offered service. */
+/** The online switch of a row (W12): only practice management changes it, for an offered service. */
 function OnlineSwitch({
   service,
   onDone,
@@ -531,12 +531,11 @@ function OnlineSwitch({
   );
 }
 
-/** W12: the practice's services. Everyone of the team reads them; the admin changes them. */
+/** W12: the practice's services. Everyone of the team reads them; practice management changes them. */
 export function ServicesPage(): ReactNode {
   const t = useTranslations('dashboard.services');
   const locale = useLocale();
-  const { practiceId, role } = useDesk();
-  const isAdmin = role === 'ADMIN';
+  const { practiceId, managesPractice: manages } = useDesk();
   const list = useListServices(practiceId, { query: { retry: false } });
   const [news, setNews] = useState('');
   const newsRef = useRef<HTMLParagraphElement>(null);
@@ -572,7 +571,7 @@ export function ServicesPage(): ReactNode {
           </p>
           <h1 className="text-heading-h1 text-text-primary">{t('title')}</h1>
         </div>
-        {isAdmin && data !== undefined ? <ServiceDialog list={data} onDone={setNews} /> : null}
+        {manages && data !== undefined ? <ServiceDialog list={data} onDone={setNews} /> : null}
       </header>
       <p
         ref={newsRef}
@@ -582,7 +581,7 @@ export function ServicesPage(): ReactNode {
       >
         {news}
       </p>
-      {isAdmin ? null : (
+      {manages ? null : (
         <p className="mb-4 text-body-default text-text-secondary">{t('readOnly')}</p>
       )}
       <section
@@ -630,7 +629,7 @@ export function ServicesPage(): ReactNode {
                 >
                   {t('online')}
                 </th>
-                {isAdmin ? (
+                {manages ? (
                   <th
                     scope="col"
                     className="px-5 py-3 text-start text-body-small text-text-secondary"
@@ -675,7 +674,7 @@ export function ServicesPage(): ReactNode {
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      {isAdmin ? (
+                      {manages ? (
                         <OnlineSwitch service={service} onDone={setNews} />
                       ) : (
                         <span className="text-body-default text-text-primary">
@@ -683,7 +682,7 @@ export function ServicesPage(): ReactNode {
                         </span>
                       )}
                     </td>
-                    {isAdmin ? (
+                    {manages ? (
                       <td className="px-5 py-4 text-end">
                         <ServiceDialog service={service} list={data} onDone={setNews} />
                       </td>

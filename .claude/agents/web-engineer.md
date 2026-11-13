@@ -1,6 +1,6 @@
 ---
 name: web-engineer
-description: React/TypeScript engineer for the MediBooker v2 web app — the patient portal and the practice dashboard (Praxis-Dashboard) for staff and admins. Use for implementing screens from Figma, design-system components for the web, forms, data fetching with the generated API client, realtime updates in the dashboard, i18n, accessibility and web tests.
+description: React/TypeScript engineer for the MediBooker v2 web app — the patient portal and the practice dashboard (Praxis-Dashboard) for the practice team, doctors and practice management. Use for implementing screens from Figma, design-system components for the web, forms, data fetching with the generated API client, realtime updates in the dashboard, i18n, accessibility and web tests.
 model: inherit
 skills:
   - react-web-feature

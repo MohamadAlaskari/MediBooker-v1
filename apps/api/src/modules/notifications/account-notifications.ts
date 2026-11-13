@@ -10,7 +10,8 @@ export interface AccountNotificationRequest {
   readonly template: AccountNotificationTemplate;
   /** One e-mail per reason. */
   readonly dedupeKey: string;
-  readonly accountTokenId: string;
+  /** The link's token; none for a notice of the team (E13 to E15), which has no link. */
+  readonly accountTokenId?: string;
   /** E10: the sign-in it tells of. */
   readonly sessionId?: string;
 }

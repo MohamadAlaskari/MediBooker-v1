@@ -9,7 +9,16 @@ const PASSWORD = 'a synthetic passphrase';
 const NOTE = 'Synthetic note: I may come ten minutes late.';
 
 type Locale = 'ar' | 'en';
-type Role = 'STAFF' | 'DOCTOR' | 'ADMIN';
+/** A base role, or one with practice management (D17): MANAGER is the practice team's. */
+type Role = 'STAFF' | 'DOCTOR' | 'MANAGER' | 'MANAGING_DOCTOR';
+
+/** The operator's command as the stub takes it: a base role, and practice management. */
+const PLACES: Readonly<Record<Role, string>> = {
+  STAFF: 'role=STAFF',
+  DOCTOR: 'role=DOCTOR',
+  MANAGER: 'role=STAFF&manages=true',
+  MANAGING_DOCTOR: 'role=DOCTOR&manages=true',
+};
 
 function localeOf({ project }: TestInfo): Locale {
   return project.name.startsWith('ar') ? 'ar' : 'en';
@@ -55,7 +64,7 @@ async function searchAsked(page: Page, list: 'appointments' | 'patients', query:
   );
 }
 
-/** A staff account as the operator's command leaves it: a role, and maybe a second factor. */
+/** A staff account as the operator's command leaves it: a place, and maybe a second factor. */
 async function staffAccount(
   testInfo: TestInfo,
   {
@@ -72,7 +81,7 @@ async function staffAccount(
     body: JSON.stringify({ email, password: PASSWORD, locale: localeOf(testInfo) }),
   });
   const link = provider === undefined ? '' : `&provider=${provider}`;
-  if (role !== undefined) await fetch(`${STUB}/__staff?${query}&role=${role}${link}`);
+  if (role !== undefined) await fetch(`${STUB}/__staff?${query}&${PLACES[role]}${link}`);
   if (secondFactor === true) await fetch(`${STUB}/__second-factor?${query}`);
   return email;
 }
@@ -118,7 +127,7 @@ test.describe('the practice dashboard (08 A04)', () => {
   }, testInfo) => {
     const locale = localeOf(testInfo);
     const t = texts(locale).twoFactor;
-    await signInFromDashboard(page, locale, await staffAccount(testInfo, { role: 'ADMIN' }));
+    await signInFromDashboard(page, locale, await staffAccount(testInfo, { role: 'MANAGER' }));
     await expect(page).toHaveURL(`/${locale}/dashboard`);
     await expect(page.getByRole('heading', { name: t.title })).toBeVisible();
     await page.getByRole('button', { name: t.start }).click();
@@ -140,8 +149,9 @@ test.describe('the practice dashboard (08 A04)', () => {
     await page.getByRole('button', { name: t.done }).click();
     await expect(page.getByRole('table')).toBeVisible();
     await expect(page.getByRole('complementary')).toContainText(
-      selected(desk(locale).shell.role, 'ADMIN'),
+      selected(desk(locale).shell.role, 'STAFF'),
     );
+    await expect(page.getByRole('complementary')).toContainText(desk(locale).shell.management);
     const stored = await page.evaluate(() => localStorage.length + sessionStorage.length);
     expect(stored).toBe(0);
   });
@@ -540,7 +550,7 @@ test.describe('the team’s care for its patients (08 M04 part 3)', () => {
     const locale = await onTheDay(page, testInfo);
     const d = desk(locale);
     const record = await openRecord(page, locale, 'Omar Beispiel');
-    // Only an admin hands out a patient's copy.
+    // Only practice management hands out a patient's copy.
     await expect(record.getByRole('button', { name: d.patients.export })).toHaveCount(0);
     const bookAt = async (time: RegExp) => {
       await record.getByRole('button', { name: d.book.openFor }).click();
@@ -575,10 +585,10 @@ test.describe('the team’s care for its patients (08 M04 part 3)', () => {
     await expect(record.getByRole('status')).toContainText('Omar Beispiel');
   });
 
-  test('lets the team correct a patient the practice keeps, and an admin export the copy', async ({
+  test('lets the team correct a patient the practice keeps, and management export the copy', async ({
     page,
   }, testInfo) => {
-    const locale = await onTheDay(page, testInfo, 'ADMIN');
+    const locale = await onTheDay(page, testInfo, 'MANAGER');
     const d = desk(locale);
     const details = texts(locale).details;
     const record = await openRecord(page, locale, 'Omar Beispiel');
@@ -593,7 +603,7 @@ test.describe('the team’s care for its patients (08 M04 part 3)', () => {
     await expect(form).toBeHidden();
     await expect(record.getByRole('status')).toContainText(d.patients.saved);
     await expect(record.getByRole('heading', { name: /Omar Beispielmann/ })).toBeVisible();
-    // The person's copy (GDPR Art. 15): a file for the admin, who checks it before handing it over.
+    // The person's copy (GDPR Art. 15): a file for practice management, who checks it first.
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       record.getByRole('button', { name: d.patients.export }).click(),
@@ -658,10 +668,10 @@ function languageName(code: Locale): string {
 }
 
 test.describe('what the team sets up (08 M02, W12, W13, W20)', () => {
-  test('lets the admin add a service, take it offline and archive it', async ({
+  test('lets practice management add a service, take it offline and archive it', async ({
     page,
   }, testInfo) => {
-    const locale = await onTheDay(page, testInfo, 'ADMIN');
+    const locale = await onTheDay(page, testInfo, 'MANAGER');
     const d = desk(locale);
     await page
       .getByRole('navigation', { name: d.shell.nav })
@@ -869,10 +879,120 @@ test.describe('the doctors’ schedules (08 M04, W14, W2)', () => {
     await expect(page.getByRole('button', { name: d.workingHours.generate })).toHaveCount(0);
   });
 
+  test('lets a doctor with practice management plan every doctor', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'MANAGING_DOCTOR', STUB_DOCTOR_ID);
+    const d = desk(locale);
+    await page.goto(`/${locale}/dashboard/calendar/working-hours`);
+    await expect(page.getByRole('button', { name: d.workingHours.generate })).toBeVisible();
+  });
+
   test('tells a doctor whose account names no doctor yet', async ({ page }, testInfo) => {
     const locale = await onTheDay(page, testInfo, 'DOCTOR');
     const d = desk(locale);
     await page.goto(`/${locale}/dashboard/calendar/working-hours`);
     await expect(page.getByText(d.workingHours.notLinked)).toBeVisible();
+  });
+});
+
+test.describe('the team (08 M03, W15)', () => {
+  test('lets practice management see the team by place and change a role', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'MANAGER');
+    const d = desk(locale);
+    await page
+      .getByRole('navigation', { name: d.shell.nav })
+      .getByRole('link', { name: d.shell.team, exact: true })
+      .click();
+    await expect(page.getByRole('heading', { level: 1, name: d.team.title })).toBeVisible();
+    const people = page.getByRole('table').getByRole('rowheader');
+    await expect(people).toHaveCount(4);
+    await expectAccessibleAtBothWidths(page, 'the team');
+
+    // The views by place: the doctors, and the deactivated on their own.
+    const view = (filter: string) =>
+      page.getByRole('tab', { name: new RegExp(selected(d.team.filter, filter)) });
+    await view('DOCTORS').click();
+    await expect(people).toHaveText([/Lina Example/]);
+    await view('INACTIVE').click();
+    await expect(people).toHaveText([/Nadia Example/]);
+    await view('other').click();
+    await expect(people).toHaveCount(4);
+
+    // The last person with practice management keeps it, and cannot lock itself out.
+    const you = page.getByRole('row').filter({ hasText: d.team.you });
+    await expect(you.getByRole('button', { name: d.team.deactivate })).toHaveCount(0);
+    await you.getByRole('button', { name: d.team.changeRole }).click();
+    const own = page.getByRole('dialog', { name: d.roleForm.title });
+    await own.getByText(d.roleForm.management, { exact: true }).click();
+    await own.getByRole('button', { name: d.roleForm.save }).click();
+    await expect(own.getByRole('alert')).toHaveText(messages[locale].errors.LAST_PRACTICE_MANAGER);
+    await own.getByRole('button', { name: d.roleForm.cancel }).click();
+    await expect(own).toBeHidden();
+
+    // Sara of the practice team becomes the doctor no account is yet, with practice management.
+    const sara = page.getByRole('row').filter({ hasText: 'Sara Example' });
+    await sara.getByRole('button', { name: d.team.changeRole }).click();
+    const form = page.getByRole('dialog', { name: d.roleForm.title });
+    await form.getByText(d.roleForm.doctor, { exact: true }).click();
+    await form.getByRole('button', { name: new RegExp(d.roleForm.doctorLink) }).click();
+    // Another account is Lina already: one account per doctor.
+    await expect(page.getByRole('option', { name: /Dr\. Lina Example/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await page.getByRole('option', { name: 'Dr. Omar Example' }).click();
+    await form.getByText(d.roleForm.management, { exact: true }).click();
+    await expectAccessibleAtBothWidths(page, 'the role form');
+    await form.getByRole('button', { name: d.roleForm.save }).click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('status')).toContainText('Sara Example');
+    await expect(sara).toContainText(selected(d.shell.role, 'DOCTOR'));
+    await expect(sara).toContainText(d.shell.management);
+    await expect(sara).toContainText('Dr. Omar Example');
+  });
+
+  test('resets a lost authenticator app, deactivates a member and gives the access back', async ({
+    page,
+  }, testInfo) => {
+    const locale = await onTheDay(page, testInfo, 'MANAGER');
+    const d = desk(locale);
+    await page.goto(`/${locale}/dashboard/team`);
+    const lina = page.getByRole('row').filter({ hasText: 'Lina Example' });
+    const dialog = page.getByRole('dialog');
+
+    await lina.getByRole('button', { name: d.team.resetSecondFactor }).click();
+    await expect(dialog).toContainText('Lina Example');
+    await expectAccessibleAtBothWidths(page, 'resetting an authenticator app');
+    await dialog.getByRole('button', { name: d.team.resetSecondFactor }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('status')).toContainText('Lina Example');
+    await expect(lina).toContainText(d.team.secondFactorOff);
+
+    await lina.getByRole('button', { name: d.team.deactivate }).click();
+    await dialog.getByRole('button', { name: d.team.deactivate }).click();
+    await expect(dialog).toBeHidden();
+    await expect(lina).toContainText(d.team.inactive);
+    // The doctor's link goes with the access.
+    await expect(lina).toContainText(d.team.notLinked);
+
+    await lina.getByRole('button', { name: d.team.reactivate }).click();
+    await dialog.getByRole('button', { name: d.team.reactivate }).click();
+    await expect(dialog).toBeHidden();
+    await expect(lina).toContainText(d.team.active);
+    await expect(lina.getByRole('button', { name: d.team.changeRole })).toBeVisible();
+  });
+
+  test('keeps the team to practice management', async ({ page }, testInfo) => {
+    const locale = await onTheDay(page, testInfo);
+    const d = desk(locale);
+    await expect(
+      page
+        .getByRole('navigation', { name: d.shell.nav })
+        .getByRole('link', { name: d.shell.team, exact: true }),
+    ).toHaveCount(0);
+    await page.goto(`/${locale}/dashboard/team`);
+    await expect(page.getByText(d.team.onlyManagement)).toBeVisible();
+    await expect(page.getByRole('table')).toHaveCount(0);
   });
 });

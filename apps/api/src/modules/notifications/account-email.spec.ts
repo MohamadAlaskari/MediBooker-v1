@@ -130,6 +130,44 @@ describe('renderAccountEmail', () => {
     });
   });
 
+  describe('the notices of the team (E13 to E15, D17)', () => {
+    const TEAM = ['TEAM_ROLE_CHANGED', 'TEAM_ACCESS_ENDED', 'TEAM_SECOND_FACTOR_RESET'] as const;
+
+    it('tell what practice management did, without a link, a token or the role', () => {
+      for (const template of TEAM) {
+        for (const locale of ['ar', 'en']) {
+          const { text, html } = renderAccountEmail(template, locale, WEB, undefined, PRACTICE);
+          expect(text).toContain(isolated(PRACTICE));
+          expect(text).not.toContain(WEB);
+          expect(html).not.toContain('<a ');
+          expect(html).not.toContain('#token=');
+          for (const role of ['STAFF', 'DOCTOR', 'ADMIN', 'MANAGER']) {
+            expect(text).not.toContain(role);
+          }
+        }
+      }
+    });
+
+    it('say who to ask, in both languages, and the next step after a lost app', () => {
+      const reset = renderAccountEmail('TEAM_SECOND_FACTOR_RESET', 'en', WEB, undefined, PRACTICE);
+      expect(reset.subject).toBe('The authenticator app was removed from your account');
+      expect(reset.text).toContain('you set up an authenticator app again');
+      expect(reset.text).toContain('contact the practice at once');
+      const ended = renderAccountEmail('TEAM_ACCESS_ENDED', 'ar', WEB, undefined, PRACTICE);
+      expect(ended.subject).toBe('انتهى وصولك إلى صفحات فريق العيادة');
+      expect(ended.html).toContain('<html lang="ar" dir="rtl">');
+    });
+
+    it('refuse a token where there is no link, and a link without a token', () => {
+      expect(() => renderAccountEmail('TEAM_ROLE_CHANGED', 'en', WEB, 'a-token', PRACTICE)).toThrow(
+        'a token exactly when it has a link',
+      );
+      expect(() => renderAccountEmail('PASSWORD_RESET', 'en', WEB, undefined, PRACTICE)).toThrow(
+        'a token exactly when it has a link',
+      );
+    });
+  });
+
   it('holds no tracking and loads nothing', () => {
     const { html } = renderAccountEmail('EMAIL_VERIFICATION', 'en', WEB, 't', PRACTICE);
     expect(html).not.toMatch(/<img|<script|<link|url\(/);

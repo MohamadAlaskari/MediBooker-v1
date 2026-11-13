@@ -247,7 +247,7 @@ model StaffMember {
   specialty  Json      @default("{}")
   /// class: personal
   languages  String[]  @default([])
-  /// class: personal (an admin hid the profile; no admin can consent for someone)
+  /// class: personal (practice management hid the profile; nobody can consent for someone else)
   hiddenAt   DateTime? @map("hidden_at") @db.Timestamptz(3)
   /// class: personal
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -560,11 +560,11 @@ model IdempotencyKey {
   @@map("idempotency_keys")
 }
 
-/// The role of a person in this practice (A04): reception, doctor or admin.
+/// The base role of a person in this practice (A04, D17): the practice team (reception, medical
+/// assistants) or a doctor. Practice management is the add-on `managesPractice`.
 enum StaffRole {
   STAFF
   DOCTOR
-  ADMIN
 
   @@map("staff_role")
 }
@@ -587,7 +587,9 @@ model Membership {
   /// class: personal (the doctor this account is: a doctor changes only its own hours, M04)
   staffMemberId String?          @unique @map("staff_member_id") @db.Uuid
   /// class: personal
-  role          StaffRole
+  role            StaffRole
+  /// class: personal (D17: services, team, settings, the audit log and exports)
+  managesPractice Boolean          @default(false) @map("manages_practice")
   /// class: personal
   status        MembershipStatus @default(ACTIVE)
   /// class: personal

@@ -9,7 +9,7 @@ Every feature passes the same gates, in this order. Skip a gate only when it doe
 
 ## 0. Frame the request (main agent)
 
-- Write user stories per role: `As a <patient | receptionist | doctor | clinic admin> I want … so that …`.
+- Write user stories per role: `As a <patient | receptionist | doctor | practice management> I want … so that …`.
 - Write acceptance criteria as Given/When/Then, including failure cases: slot taken meanwhile, past date, deadline passed, DST switch, offline on mobile, missing permissions.
 - Check `medibooker-domain` for existing business rules (BR-xx). Flag conflicts with the request.
 - Classify the data involved: none, personal, or health (DSGVO Art. 9). Health data makes the security review mandatory.

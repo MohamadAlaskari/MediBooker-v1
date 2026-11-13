@@ -225,7 +225,7 @@ async function changePatient(
   respond(response, 200, answer);
 }
 
-/** The person's copy (Art. 15), for an admin only, as the API answers it. */
+/** The person's copy (Art. 15), for practice management only, as the API answers it. */
 function exportOf(appointments: readonly Appointment[]): DeskPatientExportDto | undefined {
   const first = appointments[0];
   if (first === undefined) return undefined;
@@ -323,7 +323,7 @@ export function handleDeskLists(
   if (exported !== undefined) {
     const copy = exportOf(appointmentsOfPatient(who.email, exported));
     if (request.method !== 'GET' || copy === undefined) problem(response, 'NOT_FOUND');
-    else if (who.role !== 'ADMIN') problem(response, 'FORBIDDEN');
+    else if (!who.managesPractice) problem(response, 'FORBIDDEN');
     else respond(response, 200, copy);
     return true;
   }

@@ -31,11 +31,13 @@ const WEEK = {
 
 function setUp({
   role = 'STAFF',
+  managesPractice = false,
   providerId = null,
   slotStatus = 'OPEN',
   deleted = 1,
 }: {
-  readonly role?: 'STAFF' | 'DOCTOR' | 'ADMIN';
+  readonly role?: 'STAFF' | 'DOCTOR';
+  readonly managesPractice?: boolean;
   readonly providerId?: string | null;
   readonly slotStatus?: string;
   readonly deleted?: number;
@@ -127,7 +129,7 @@ function setUp({
       cls.set('practice', {
         practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
         lease: {} as never,
-        staff: { membershipId: 'membership', role, providerId },
+        staff: { membershipId: 'membership', role, managesPractice, providerId },
       });
       return work();
     });
@@ -173,6 +175,11 @@ describe('WorkingHours.week', () => {
     const unlinked = setUp({ role: 'DOCTOR' });
     await expect(unlinked.inPractice(() => unlinked.schedule.week(DOCTOR))).rejects.toMatchObject({
       code: 'NOT_FOUND',
+    });
+    // A doctor with practice management plans every doctor (D17).
+    const managing = setUp({ role: 'DOCTOR', managesPractice: true, providerId: DOCTOR });
+    await expect(managing.inPractice(() => managing.schedule.week(OTHER))).resolves.toMatchObject({
+      providerId: OTHER,
     });
     const staff = setUp();
     await expect(staff.inPractice(() => staff.schedule.week('not-a-uuid'))).rejects.toMatchObject({

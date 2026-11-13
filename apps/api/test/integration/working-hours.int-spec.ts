@@ -8,8 +8,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { base32Decode, hotp, stepOf } from '../../src/modules/auth/domain/totp.js';
 import { StaffRoles } from '../../src/modules/staff/staff-roles.js';
 import { API, type Person, useBookingWorld } from './appointments/booking-world.js';
+import { placeOf, type TeamRole } from './support/team-roles.js';
 
-type Role = 'STAFF' | 'DOCTOR' | 'ADMIN';
+type Role = TeamRole;
 type Method = 'get' | 'put' | 'post' | 'patch' | 'delete';
 
 /** Monday 16 November 2026, 09:00 and 09:30 in Riyadh; the clock stands on Sunday at 10:00. */
@@ -25,7 +26,14 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
 
   const member = async (role: Role, providerId?: string): Promise<Person> => {
     const who = await world.person();
-    await world.app().get(StaffRoles).setRole(who.email, role, 'local:test', providerId);
+    const place = placeOf(role);
+    await world
+      .app()
+      .get(StaffRoles)
+      .setRole(who.email, place.role, 'local:test', {
+        managesPractice: place.managesPractice,
+        ...(providerId === undefined ? {} : { providerId }),
+      });
     const start = await world
       .send(request(world.server()).post(`${API}/me/mfa/totp`), who)
       .expect(200);
@@ -88,7 +96,7 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
   beforeAll(async () => {
     const { providerId } = world.alNoor();
     team.set('staff', await member('STAFF'));
-    team.set('admin', await member('ADMIN'));
+    team.set('admin', await member('MANAGER'));
     team.set('doctor', await member('DOCTOR', providerId));
     team.set('unlinked', await member('DOCTOR'));
   });
@@ -121,7 +129,7 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
     await call('get', `providers/${randomUUID()}/working-hours`, as('staff')).expect(404);
     await call('get', 'providers/not-a-uuid/working-hours', as('staff')).expect(404);
     const membership = await call('get', 'me/membership', as('doctor')).expect(200);
-    expect(membership.body).toEqual({ role: 'DOCTOR', providerId });
+    expect(membership.body).toEqual({ role: 'DOCTOR', managesPractice: false, providerId });
 
     const patient = await world.patient(world.alNoor());
     const refused = await world
@@ -382,18 +390,22 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
     const roles = world.app().get(StaffRoles);
     const first = await world.person();
     const second = await world.person();
-    expect(await roles.setRole(first.email, 'STAFF', 'local:test', otherProviderId)).toEqual({
+    expect(
+      await roles.setRole(first.email, 'STAFF', 'local:test', { providerId: otherProviderId }),
+    ).toEqual({
       result: 'LINK_NEEDS_DOCTOR_ROLE',
     });
     // The seeded doctor is the account of beforeAll already.
-    expect(await roles.setRole(first.email, 'DOCTOR', 'local:test', providerId)).toEqual({
+    expect(await roles.setRole(first.email, 'DOCTOR', 'local:test', { providerId })).toEqual({
       result: 'DOCTOR_ALREADY_LINKED',
     });
     expect(await auditCount('staff.provider.link', providerId)).toBe(1);
-    expect(await roles.setRole(first.email, 'DOCTOR', 'local:test', otherProviderId)).toMatchObject(
-      { result: 'SET' },
-    );
-    expect(await roles.setRole(second.email, 'DOCTOR', 'local:test', otherProviderId)).toEqual({
+    expect(
+      await roles.setRole(first.email, 'DOCTOR', 'local:test', { providerId: otherProviderId }),
+    ).toMatchObject({ result: 'SET' });
+    expect(
+      await roles.setRole(second.email, 'DOCTOR', 'local:test', { providerId: otherProviderId }),
+    ).toEqual({
       result: 'DOCTOR_ALREADY_LINKED',
     });
     // Another role drops the link, and the doctor can be another account.
@@ -401,7 +413,7 @@ describe('the doctors’ schedules on real databases (08 M04)', () => {
       result: 'SET',
     });
     expect(
-      await roles.setRole(second.email, 'DOCTOR', 'local:test', otherProviderId),
+      await roles.setRole(second.email, 'DOCTOR', 'local:test', { providerId: otherProviderId }),
     ).toMatchObject({ result: 'SET' });
     expect(await auditCount('staff.provider.link', otherProviderId)).toBe(2);
   });

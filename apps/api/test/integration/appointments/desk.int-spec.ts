@@ -8,12 +8,13 @@ import { describe, expect, it } from 'vitest';
 import { base32Decode, hotp, stepOf } from '../../../src/modules/auth/domain/totp.js';
 import { StaffRoles } from '../../../src/modules/staff/staff-roles.js';
 import { API, type Fixture, NOW, type Person, useBookingWorld } from './booking-world.js';
+import { placeOf, type TeamRole } from '../support/team-roles.js';
 
 const SLUG = 'al-noor';
 const NOTE = 'Synthetic note: please bring the old results.';
 const REASON = 'Synthetic reason: the doctor is away that day.';
 
-type Role = 'STAFF' | 'DOCTOR' | 'ADMIN';
+type Role = TeamRole;
 
 interface Row {
   id: string;
@@ -47,7 +48,11 @@ describe('the practice desk on real databases (08 M05)', () => {
   /** A member of the team with this role, signed in with both factors (A04). */
   const member = async (role: Role = 'STAFF'): Promise<Person & { refreshToken: string }> => {
     const who = await world.person();
-    await world.app().get(StaffRoles).setRole(who.email, role, 'local:test');
+    const place = placeOf(role);
+    await world
+      .app()
+      .get(StaffRoles)
+      .setRole(who.email, place.role, 'local:test', { managesPractice: place.managesPractice });
     const start = await world
       .send(request(world.server()).post(`${API}/me/mfa/totp`), who)
       .expect(200);
@@ -299,7 +304,7 @@ describe('the practice desk on real databases (08 M05)', () => {
   describe('a cancel by the practice (BR-04)', () => {
     it('needs a reason, keeps it for the team only, and frees the time', async () => {
       const practice = world.alNoor();
-      const team = await member('ADMIN');
+      const team = await member('MANAGER');
       const startsAt = await world.changeableSlot(practice);
       const { id, patient } = await booked(practice, startsAt);
       const missing = await cancel(team, practice, id).expect(400);
@@ -399,7 +404,7 @@ describe('the practice desk on real databases (08 M05)', () => {
   describe('who may reach the desk', () => {
     it('admits every role of the team with both factors (A04)', async () => {
       const practice = world.alNoor();
-      for (const role of ['STAFF', 'DOCTOR', 'ADMIN'] as const) {
+      for (const role of ['STAFF', 'DOCTOR', 'MANAGER'] as const) {
         const who = await member(role);
         const response = await day(who, practice).expect(200);
         expect((response.body as Day).today).toBe('2026-11-15');

@@ -14,6 +14,7 @@ import type { Env } from '../../config/env.schema.js';
 import type { AccountNotificationTemplate } from '../../generated/platform/enums.js';
 import {
   isSecurityTemplate,
+  hasLink,
   renderAccountEmail,
   type AccountEmailDetails,
 } from './account-email.js';
@@ -134,8 +135,13 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
     if (row === null) return false;
     const now = this.clock.now();
     const { accountToken: token } = row;
-    // A link that cannot work any more helps nobody: the person asks for a new one.
-    if (token?.usedAt !== null || Temporal.Instant.compare(instantOf(token.expiresAt), now) <= 0) {
+    const linked = hasLink(row.template);
+    // A link that cannot work any more helps nobody: the person asks for a new one. A notice of the
+    // team (E13 to E15) has no link to lose.
+    const linkGone =
+      linked &&
+      (token?.usedAt !== null || Temporal.Instant.compare(instantOf(token.expiresAt), now) <= 0);
+    if (linkGone) {
       await this.platform.accountNotification.updateMany({
         where: { id },
         data: { status: 'FAILED' },
@@ -147,7 +153,7 @@ export class AccountOutbox implements OnApplicationBootstrap, OnApplicationShutd
         row.template,
         row.user.locale,
         this.env.PUBLIC_WEB_URL,
-        await this.secrets.accountTokenOf(token.id),
+        linked && token !== null ? await this.secrets.accountTokenOf(token.id) : undefined,
         // In the practice's name (ADR 0016); the product's where an installation names none.
         (await this.practice.nameIn(row.user.locale)) ?? 'MediBooker',
         await this.detailsOf(row),

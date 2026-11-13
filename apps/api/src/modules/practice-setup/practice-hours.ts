@@ -67,8 +67,8 @@ function specialDayView(row: SpecialDayRow): SpecialDayDto {
 
 /**
  * When the practice is open (M02, W20): its week and its special days. The public page shows them
- * (BR-22); the doctors' working hours, which make the bookable times, are apart (M04). The reception
- * and the admin change them; every role of the team reads them.
+ * (BR-22); the doctors' working hours, which make the bookable times, are apart (M04). The practice
+ * team and practice management change them; every member of the team reads them (D17).
  */
 @Injectable()
 export class PracticeHours {

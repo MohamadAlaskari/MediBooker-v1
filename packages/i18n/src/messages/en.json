@@ -49,6 +49,9 @@
     "MFA_CODE_INVALID": "This code is not correct or was already used. Please enter the current code.",
     "MFA_REQUIRED": "Please sign in again with the code from your authenticator app.",
     "MFA_ALREADY_ENABLED": "Two-step sign-in is already set up for this account.",
+    "LAST_PRACTICE_MANAGER": "The practice needs at least one active person with practice management. Give it to someone else first.",
+    "NOT_ON_YOURSELF": "You cannot do this to your own account here.",
+    "DOCTOR_ALREADY_LINKED": "Another account is already linked to this doctor.",
     "SLOT_HAS_APPOINTMENT": "An appointment holds this time. Please cancel or move it first."
   },
   "validation": {
@@ -325,7 +328,7 @@
       "title": "Practice dashboard",
       "loading": "Loading the dashboard",
       "noAccessTitle": "No access to this practice",
-      "noAccessBody": "This account is not part of the practice team. Please ask the administrator of the practice.",
+      "noAccessBody": "This account is not part of the practice team. Please ask the practice management.",
       "againTitle": "Please sign in again",
       "againBody": "This sign-in has no code from your authenticator app yet.",
       "noPractice": "This installation has no practice yet."
@@ -382,6 +385,21 @@
       "heading": "An authenticator app was set up for your account",
       "body": "An authenticator app was set up for your account on {when}: from now on, signing in also needs its code. If that was you, there is nothing to do. If not, secure your account: every sign-in ends, and you choose a new password. Then ask the practice to remove the app from your account.",
       "action": "This was not me: secure my account"
+    },
+    "teamRoleChanged": {
+      "subject": "Your place in the practice team has changed",
+      "heading": "Your place in the practice team has changed",
+      "body": "Practice management at {practice} changed your role or your access in its team. Sign in to see what you can do now. If you did not expect this, please contact the practice."
+    },
+    "teamAccessEnded": {
+      "subject": "Your access to the practice team's pages has ended",
+      "heading": "Your access to the practice team's pages has ended",
+      "body": "Practice management at {practice} ended your access to the team's pages, and every sign-in of your account ended with it. If you did not expect this, please contact the practice."
+    },
+    "teamSecondFactorReset": {
+      "subject": "The authenticator app was removed from your account",
+      "heading": "The authenticator app was removed from your account",
+      "body": "Practice management at {practice} removed the authenticator app and the recovery codes from your account, and every sign-in ended. When you next sign in, you set up an authenticator app again. If you did not ask for this, please contact the practice at once."
     }
   },
   "portal": {
@@ -527,10 +545,12 @@
       "nav": "Practice dashboard",
       "today": "Today",
       "calendar": "Calendar",
-      "role": "{role, select, ADMIN {Administrator} DOCTOR {Doctor} STAFF {Reception} other {Team}}",
+      "role": "{role, select, DOCTOR {Doctor} STAFF {Practice team} other {Team}}",
+      "management": "Practice management",
       "appointments": "Appointments",
       "patients": "Patients",
       "services": "Services",
+      "team": "Team",
       "settings": "Settings"
     },
     "today": {
@@ -786,7 +806,7 @@
       "textsBody": "Service names and preparation notes are entered for every app language. Patients see them in the language they use.",
       "empty": "The practice has no services yet.",
       "loading": "Loading the services",
-      "readOnly": "Only an administrator can change the services.",
+      "readOnly": "Only practice management can change the services.",
       "saved": "{service} was saved.",
       "added": "{service} was added.",
       "archivedNews": "{service} was archived. Its booked appointments stay.",
@@ -836,7 +856,7 @@
       "closed": "Closed",
       "editHours": "Edit opening hours",
       "noHours": "No opening hours yet.",
-      "readOnly": "The reception and the administrator can change them.",
+      "readOnly": "The practice team and practice management can change them.",
       "specialTitle": "Special days",
       "specialBody": "Days with other hours or closed, such as holidays. They replace that weekday's hours.",
       "noSpecial": "No special days ahead.",
@@ -889,7 +909,7 @@
       "title": "Working hours",
       "doctors": "Doctor",
       "noDoctor": "The practice has no doctor yet.",
-      "notLinked": "Your account is not linked to a doctor yet, so you cannot plan working hours. An administrator links it.",
+      "notLinked": "Your account is not linked to a doctor yet, so you cannot plan working hours. Practice management links it on the team page.",
       "scheduleTitle": "Weekly schedule",
       "timeZone": "Practice time zone: {zone}",
       "worksOn": "{day}",
@@ -948,6 +968,63 @@
       "oneDay": "A time of day needs one day: please choose the same first and last day.",
       "timesMissing": "Please enter both times.",
       "endsBeforeStarts": "Ends before it starts."
+    },
+    "team": {
+      "title": "Team",
+      "summary": "{count, plural, one {# person} other {# people}} · {doctors, plural, one {# doctor} other {# doctors}}",
+      "filters": "Show",
+      "filter": "{filter, select, DOCTORS {Doctors} STAFF {Practice team} MANAGEMENT {Practice management} INACTIVE {Deactivated} other {All}}",
+      "table": "The practice's team",
+      "person": "Person",
+      "role": "Role",
+      "doctor": "Doctor",
+      "secondFactor": "Two-step sign-in",
+      "status": "Status",
+      "actions": "Actions",
+      "you": "You",
+      "noName": "No name given yet",
+      "notLinked": "Not linked",
+      "none": "—",
+      "secondFactorOn": "Set up",
+      "secondFactorOff": "Not set up yet",
+      "active": "Active",
+      "inactive": "Deactivated",
+      "empty": "Nobody in this view.",
+      "loading": "Loading the team",
+      "onlyManagement": "Only practice management sees and changes the team.",
+      "changeRole": "Change role",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "resetSecondFactor": "Reset two-step sign-in",
+      "joinTitle": "Adding people",
+      "joinBody": "For now, the operator of this installation gives a confirmed account its place in the team. Invitations by e-mail follow.",
+      "roleNews": "The role of {name} was saved.",
+      "deactivatedNews": "{name} was deactivated, and every sign-in of the account has ended.",
+      "reactivatedNews": "{name} has access to the team’s pages again.",
+      "resetNews": "Two-step sign-in was reset for {name}. They set it up again at their next sign-in."
+    },
+    "roleForm": {
+      "title": "Change role",
+      "description": "What {name} may do in the practice.",
+      "role": "Role",
+      "staff": "Practice team",
+      "doctor": "Doctor",
+      "doctorLink": "Doctor of this account",
+      "notLinked": "Not linked to a doctor yet",
+      "linkedElsewhere": "{name} · linked to another account",
+      "management": "Practice management",
+      "managementHint": "Services, the team, exports and the settings of the practice.",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "teamConfirm": {
+      "deactivateTitle": "Deactivate {name}?",
+      "deactivateBody": "Their access to the team’s pages ends now, and every sign-in of their account ends with it. What they did in the practice stays. You can reactivate them later.",
+      "reactivateTitle": "Reactivate {name}?",
+      "reactivateBody": "They get their access to the team’s pages back, with the role they had. A doctor is linked again with Change role.",
+      "resetTitle": "Reset two-step sign-in for {name}?",
+      "resetBody": "Their authenticator app and recovery codes are removed, and every sign-in ends. At their next sign-in they set up an app again. Do this only once you are sure it is really them, for example in person; if someone else may know their password, have them change it first.",
+      "cancel": "Cancel"
     }
   }
 }

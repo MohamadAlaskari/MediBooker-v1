@@ -20,9 +20,9 @@ A practice publishes bookable time slots for its services (for example check-up,
 |---|---|---|---|
 | العيادة | Clinic | `Practice` | The medical practice: time zone, opening hours, settings |
 | المريض / المريضة | Patient | `Patient` (`User` with role `PATIENT` + `PatientProfile`) | Person who books |
-| موظف الاستقبال | Receptionist | `Staff` (role `STAFF`) | Front-desk staff |
-| الطبيب / الطبيبة | Doctor | `Doctor` (role `DOCTOR`) | Treats patients; provider of slots |
-| مدير العيادة | Clinic admin | `Admin` (role `ADMIN`) | Manages staff, services, settings |
+| فريق العيادة | Practice team (reception, assistants) | base role `STAFF` of a membership (D17) | Front desk: books for patients, plans every doctor, the opening hours |
+| الطبيب / الطبيبة | Doctor | base role `DOCTOR` of a membership, linked to its `StaffMember` | Treats patients; provider of slots; plans its own schedule |
+| إدارة العيادة | Practice management (Praxisverwaltung) | `managesPractice` on a membership (D17) | An add-on to a base role: manages the team, services, settings, exports and the audit log |
 | الخدمة | Service | `Service` | Bookable service with a duration |
 | ساعات العمل | Working hours | `AvailabilityRule` | Weekly template a provider works by (bookable times) |
 | أوقات الدوام | Opening hours | `OpeningHours` | When the practice is open; shown on the public page. Not the same as working hours |
@@ -115,7 +115,7 @@ Reference the IDs in code comments and test names, for example `it('BR-01 reject
 | BR-08 | Patients can book only active services with `isBookableOnline` that allow their insurance type, and only in slots whose rule allows that service. The team (W7) also books a service that is not bookable online. | Service |
 | BR-09 | Booking requires a verified e-mail (`ACTIVE` user) and a complete patient profile. Not for the team (W7), which books for a patient on the phone or at the desk, also for one without an account. | Guard + service |
 | BR-10 | Insurance requirements come from `PracticeSettings`: which types exist, which need a provider and a number, and the number format (validator per market; e.g. Germany `PUBLIC` = letter + 9 digits). `SELF_PAY` never needs a number. | DTO + service |
-| BR-11 | Only staff, doctors and admins set `CHECKED_IN`, `COMPLETED` and `NO_SHOW`, and only on the appointment's day. `NO_SHOW` only after the start time. | Service |
+| BR-11 | Only the practice team and doctors set `CHECKED_IN`, `COMPLETED` and `NO_SHOW`, and only on the appointment's day. `NO_SHOW` only after the start time. | Service |
 | BR-12 | Every state change writes an `AuditEvent` and emits a realtime event after commit. | Service + event bus |
 | BR-13 | Reminders go out `reminderHoursBefore` (default 24 h) before the start, only with consent. Reminder texts contain date, time and practice only, never the service or a note. | Job |
 | BR-14 | Account deletion: deactivate immediately, anonymize after the retention period. Retention periods need legal confirmation (open question). | Job |
@@ -127,46 +127,49 @@ Reference the IDs in code comments and test names, for example `it('BR-01 reject
 | BR-20 | Notifications about a managed patient go to all active managers (and to the patient if they have an account). Texts never contain service names, note text or file contents. | Notification service |
 | BR-21 | Notification preferences per type and channel. Reminders (`REMINDER`) need consent and are off until the user turns them on; changes by the clinic (moved, cancelled) always go out by e-mail, push is optional; security e-mails (new sign-in, password changed, authenticator app set up) and account e-mails (verify, reset, invitations) cannot be turned off. Push goes only to registered device tokens; a tap opens the deep link after sign-in. Appointment messages (`REMINDER`, `CLINIC_CHANGE`) use the practice's `appointmentChannels`: e-mail only, SMS only, or both. SMS only to a verified phone (`phoneVerifiedAt`), sent under `smsSenderId`, never with links; English SMS use GSM-7 characters only. If SMS is not possible (no verified number, no connected SMS provider) the message goes by e-mail instead, so `CLINIC_CHANGE` always reaches the patient on at least one channel; reminders still need consent on every channel. Account and security messages are always e-mail. Each notification is sent once per recipient and event (`dedupeKey`). Catalogue: `docs/product/notifications.md`. | Notification service + outbox job |
 | BR-22 | Public practice page: only when `published`. Shows only public data: practice name, logo or initials, `about` text, "open now" computed from `OpeningHours` and `SpecialDay` in the practice time zone, opening hours, special days of the next 60 days, address, directions, phone, e-mail, languages, insurance and payment hints, online-bookable services (name, duration, hint), team members with public-profile consent (BR-24), and the way to sign in or sign up. **Free times** (start times of open slots for online-bookable services within the booking window, BR-03; filtered by doctor only for doctors with a public profile, otherwise shown under "any doctor") only for a signed-in account with a confirmed address, on the booking page (D19, B07, the user's decision of 2026-11-12; public before). Never patient data, appointment counts or who booked which time — a taken time simply does not appear. Booking requires sign-in (BR-09). Unpublished or unknown slug → 404. One URL per locale; the response is cacheable and is invalidated when any shown field changes. | Public read model + cache |
-| BR-23 | Practice theme: a preset or a custom colour. For a custom colour the server generates the 11-step scale and enforces contrast in light and dark (button text on the brand colour ≥ 4.5:1, links ≥ 4.5:1, focus ring ≥ 3:1), adjusting lightness when needed and returning `adjusted: true`. Status colours, neutrals and the MediBooker logo cannot be themed. Only admins change theme and logo; every change is audited. The theme applies to app, portal, practice page, e-mails and dashboard of that practice. | Service + token generator |
-| BR-24 | Staff photos and public profiles are personal data. A staff photo is shown to patients (doctor picker, team cards) only after the person's own consent (`photoConsentAt`); listing on the public page needs `publicProfileConsentAt`. Both are given and withdrawn only by the person themselves, take effect immediately (cache purge) and are audited; admins can hide a profile but not consent for someone. The free times under "any doctor" also hold the times of doctors without a public profile: compared with each public doctor's answer they show when some other doctor is free, and for a service only one such doctor offers they are that doctor's times (accepted; since B07 only a confirmed account can ask, D19). Without a photo the UI shows initials or a placeholder. | Service + audit |
+| BR-23 | Practice theme: a preset or a custom colour. For a custom colour the server generates the 11-step scale and enforces contrast in light and dark (button text on the brand colour ≥ 4.5:1, links ≥ 4.5:1, focus ring ≥ 3:1), adjusting lightness when needed and returning `adjusted: true`. Status colours, neutrals and the MediBooker logo cannot be themed. Only practice management changes theme and logo; every change is audited. The theme applies to app, portal, practice page, e-mails and dashboard of that practice. | Service + token generator |
+| BR-24 | Staff photos and public profiles are personal data. A staff photo is shown to patients (doctor picker, team cards) only after the person's own consent (`photoConsentAt`); listing on the public page needs `publicProfileConsentAt`. Both are given and withdrawn only by the person themselves, take effect immediately (cache purge) and are audited; practice management can hide a profile but not consent for someone. The free times under "any doctor" also hold the times of doctors without a public profile: compared with each public doctor's answer they show when some other doctor is free, and for a service only one such doctor offers they are that doctor's times (accepted; since B07 only a confirmed account can ask, D19). Without a photo the UI shows initials or a placeholder. | Service + audit |
 
 Open questions (do not decide alone): target countries, services longer than one slot, waiting list, online payment, video consultation, several practices or locations, Hijri calendar display, which note types may be shared, whether receptionists may read notes, patient uploads, retention periods for notes and files, medical imaging (DICOM — out of scope for now), page address of the practice page (path, subdomain or own domain), reception staff by name on the public page, sign-in by phone number for SMS-only practices. Decided 2026-11-01: the practice theme also applies to the dashboard, any custom colour with automatic contrast adjustment, appointment-message channels per practice.
 
 ## Roles and permissions
 
-| Capability | Patient | Staff | Doctor | Admin |
+Every member of a practice's team has one base role, `STAFF` (the practice team) or `DOCTOR`, and may have practice management on top (D17, ADR 0017). Practice management takes nothing away from the base role and adds the last column; a doctor with practice management also plans every doctor. Only practice management gives or changes roles, the add-on too; nobody takes it from the last active member who has it.
+
+| Capability | Patient | Practice team (`STAFF`) | Doctor (`DOCTOR`) | + Practice management |
 |---|---|---|---|---|
-| Create an account | self sign-up | invite | invite | invite |
+| Create an account | self sign-up | invite (M03 part 2; until then the operator's command) | invite | – |
 | See services | ✓ (also visitors without an account) | ✓ | ✓ | ✓ |
 | See free slots (D19) | ✓ (a signed-in account with a confirmed address) | ✓ | ✓ | ✓ |
-| Notification settings of the practice (channels, reminders, SMS sender) | – | read | read | ✓ |
+| Notification settings of the practice (channels, reminders, SMS sender) | – | read | read | change |
 | Book, reschedule, cancel own appointments (BR-04) | ✓ | – | – | – |
 | Book or cancel for any patient | – | ✓ | ✓ | ✓ |
 | See appointments | own | all | all (filter: own) | all |
 | Check in, complete, no-show (BR-11) | – | ✓ | ✓ | ✓ |
-| Manage availability rules, block slots | – | ✓ | own | ✓ |
+| Manage availability rules, block slots | – | every doctor | own | every doctor |
 | See and edit patient profiles | own | ✓ (no deletion) | ✓ | ✓ |
+| Export a patient's copy (Art. 15, RT-97) | – | – | – | ✓ |
 | Manage services | – | – | – | ✓ |
-| Manage staff accounts and roles | – | – | – | ✓ |
-| Practice settings, audit log | – | – | – | ✓ |
+| Manage the team (W15): base roles, practice management, doctor links, deactivate and reactivate, reset a lost second factor | – | – | – | ✓ (never deactivate or reset its own account) |
+| Practice settings, audit log (D18: with an export for the data protection officer) | – | – | – | ✓ |
 | Practice page, theme and logo (BR-22, BR-23) | – | read | read | ✓ |
-| Opening hours and special days | – | ✓ | – | ✓ |
+| Opening hours and special days | – | ✓ | read | ✓ |
 | Own photo and public-profile consent (BR-24) | – | ✓ | ✓ | ✓ |
 | See the public practice page | ✓ (also visitors without an account) | ✓ | ✓ | ✓ |
 | Write clinical notes (BR-16) | – | – | ✓ | – |
-| Read clinical notes | `SHARED` only, own + managed | setting (default no) | ✓ | – |
+| Read clinical notes | `SHARED` only, own + managed | practice setting (default no, D13) | ✓ | adds nothing |
 | Upload files (BR-17) | – | administrative | clinical + administrative | – |
 | Read files | `SHARED` only, own + managed | administrative (+ clinical if setting allows) | ✓ | – |
 | Patient record (BR-18) | own + managed (shared items) | ✓ (without clinical content by default) | ✓ | – |
 | Manage family members (BR-19) | own account | link with documented consent | – | ✓ |
 
-MFA is mandatory for Staff, Doctor and Admin.
+MFA is mandatory for every member of the team, whatever its role.
 
 ## Realtime events
 
 Namespace `/realtime`. After verifying the token, the server puts each socket into its rooms (ADR 0005 §10); clients cannot choose rooms:
 
-- `practice:{practiceId}:staff`: staff, doctors and admins of that practice, joined only after the same membership and practice-status check as a practice-scoped request;
+- `practice:{practiceId}:staff`: every active member of that practice's team, joined only after the same membership and practice-status check as a practice-scoped request;
 - `practice:{practiceId}:doctors`: the doctors of that practice (note events);
 - `user:{userId}`: the signed-in user.
 
@@ -196,7 +199,7 @@ v1 was removed from the repository on 2026-11-02 and exists only in the git hist
 | v1 | v2 |
 |---|---|
 | `Patient` table with password | `User` (role `PATIENT`) + `PatientProfile` |
-| `Employee` table with password | `User` (roles `STAFF`, `DOCTOR`, `ADMIN`) + `StaffProfile` |
+| `Employee` table with password | `User` + a membership (base role `STAFF` or `DOCTOR`, `managesPractice`, D17) + `StaffProfile` |
 | `PatientToken`, `EmployeeToken` (plain JWT stored in the DB) | `Session` with a hashed, rotating refresh token |
 | `Appointment` (date + hour + boolean `status`) | `Slot` (providerId, startsAt, endsAt, status) |
 | `Reservation` (patient + appointment + service) | `Appointment` (lifecycle, audit, reasons) |

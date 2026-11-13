@@ -831,7 +831,7 @@ export class DeskPatientExportProfileDto {
 
 /**
  * Everything the practice keeps about one patient, as a copy for the person (RT-97, GDPR Art. 15):
- * for an admin, who checks it before handing it over. The read is audited.
+ * for practice management, who checks it before handing it over. The read is audited.
  */
 export class DeskPatientExportDto {
   @ApiProperty({

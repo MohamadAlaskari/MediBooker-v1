@@ -56,7 +56,7 @@ export const getGetMyMembershipUrl = (practiceId: string,) => {
 }
 
 /**
- * @summary The own role in this practice, for the dashboard; MFA_REQUIRED without a second factor
+ * @summary The own role in this practice and whether it manages it, for the dashboard; MFA_REQUIRED without a second factor
  */
 export const getMyMembership = async (practiceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<MembershipDto> => {
 
@@ -127,7 +127,7 @@ export function useGetMyMembership<TData = Awaited<ReturnType<typeof getMyMember
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary The own role in this practice, for the dashboard; MFA_REQUIRED without a second factor
+ * @summary The own role in this practice and whether it manages it, for the dashboard; MFA_REQUIRED without a second factor
  */
 
 export function useGetMyMembership<TData = Awaited<ReturnType<typeof getMyMembership>>, TError = ErrorType<ProblemDetailsDto>>(

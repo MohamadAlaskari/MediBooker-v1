@@ -8,8 +8,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { base32Decode, hotp, stepOf } from '../../src/modules/auth/domain/totp.js';
 import { StaffRoles } from '../../src/modules/staff/staff-roles.js';
 import { API, type Fixture, type Person, useBookingWorld } from './appointments/booking-world.js';
+import { placeOf, type TeamRole } from './support/team-roles.js';
 
-type Role = 'STAFF' | 'DOCTOR' | 'ADMIN';
+type Role = TeamRole;
 
 interface PublicPage {
   services: { id: string; name: string | null }[];
@@ -23,7 +24,11 @@ describe('what the team sets up, on real databases (08 M02)', () => {
 
   const member = async (role: Role): Promise<Person> => {
     const who = await world.person();
-    await world.app().get(StaffRoles).setRole(who.email, role, 'local:test');
+    const place = placeOf(role);
+    await world
+      .app()
+      .get(StaffRoles)
+      .setRole(who.email, place.role, 'local:test', { managesPractice: place.managesPractice });
     const start = await world
       .send(request(world.server()).post(`${API}/me/mfa/totp`), who)
       .expect(200);
@@ -66,7 +71,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
     }));
 
   beforeAll(async () => {
-    for (const role of ['STAFF', 'DOCTOR', 'ADMIN'] as const) team.set(role, await member(role));
+    for (const role of ['STAFF', 'DOCTOR', 'MANAGER'] as const) team.set(role, await member(role));
   });
 
   describe('who may do what', () => {
@@ -99,10 +104,10 @@ describe('what the team sets up, on real databases (08 M02)', () => {
       const { id } = created.body as { id: string };
       await send('DOCTOR', server().delete(path(practice, `special-days/${id}`))).expect(403);
       await send('STAFF', server().delete(path(practice, `special-days/${id}`))).expect(204);
-      await send('ADMIN', server().post(path(practice, 'services')))
+      await send('MANAGER', server().post(path(practice, 'services')))
         .send(service)
         .expect(201);
-      for (const role of ['STAFF', 'DOCTOR', 'ADMIN'] as const) {
+      for (const role of ['STAFF', 'DOCTOR', 'MANAGER'] as const) {
         await send(role, server().get(path(practice, 'services'))).expect(200);
         await send(role, server().get(path(practice, 'opening-hours'))).expect(200);
         await send(role, server().get(path(practice, 'special-days'))).expect(200);
@@ -117,7 +122,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
         .expect(403);
       expect(refused.body).toMatchObject({ code: 'MFA_REQUIRED' });
       await world
-        .send(request(world.server()).get(path(world.lindenhof(), 'services')), as('ADMIN'))
+        .send(request(world.server()).get(path(world.lindenhof(), 'services')), as('MANAGER'))
         .expect(404);
       await world
         .send(
@@ -134,7 +139,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
     it('adds a service, which the public page shows at once and hides when it goes offline or is archived', async () => {
       const practice = world.alNoor();
       const added = await world
-        .send(request(world.server()).post(path(practice, 'services')), as('ADMIN'))
+        .send(request(world.server()).post(path(practice, 'services')), as('MANAGER'))
         .send({
           name: { ar: ' تحليل دم ', en: 'Blood test' },
           description: { en: 'Please come fasting.\nWater is allowed.' },
@@ -172,7 +177,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
         world
           .send(
             request(world.server()).patch(path(practice, `services/${service.id}`)),
-            as('ADMIN'),
+            as('MANAGER'),
           )
           .send(body);
       await patch({ isBookableOnline: false }).expect(200);
@@ -202,7 +207,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
     it('asks a name in every language, and refuses what the practice does not take', async () => {
       const practice = world.alNoor();
       const refused = await world
-        .send(request(world.server()).post(path(practice, 'services')), as('ADMIN'))
+        .send(request(world.server()).post(path(practice, 'services')), as('MANAGER'))
         .send({
           name: { en: 'Check-up', de: 'Kontrolle' },
           description: { ar: 'x'.repeat(501) },
@@ -215,7 +220,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
         { field: 'bufferMinutes', code: 'TOO_LARGE' },
       ]);
       const texts = await world
-        .send(request(world.server()).post(path(practice, 'services')), as('ADMIN'))
+        .send(request(world.server()).post(path(practice, 'services')), as('MANAGER'))
         .send({
           name: { en: 'Check-up', de: 'Kontrolle' },
           description: { ar: 'x'.repeat(501) },
@@ -230,12 +235,12 @@ describe('what the team sets up, on real databases (08 M02)', () => {
       await world
         .send(
           request(world.server()).patch(path(practice, `services/${randomUUID()}`)),
-          as('ADMIN'),
+          as('MANAGER'),
         )
         .send({ active: false })
         .expect(404);
       await world
-        .send(request(world.server()).patch(path(practice, 'services/not-a-uuid')), as('ADMIN'))
+        .send(request(world.server()).patch(path(practice, 'services/not-a-uuid')), as('MANAGER'))
         .send({ active: false })
         .expect(404);
     });
@@ -270,7 +275,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
     it('replaces the week, which the public page shows on its next request', async () => {
       const practice = world.alNoor();
       const replaced = await world
-        .send(request(world.server()).put(path(practice, 'opening-hours')), as('ADMIN'))
+        .send(request(world.server()).put(path(practice, 'opening-hours')), as('MANAGER'))
         .send({
           intervals: [
             { weekday: 4, opensAt: '16:00', closesAt: '24:00' },
@@ -291,7 +296,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
       );
       expect(await auditCount('opening_hours.replace', practice.practice.practiceId)).toBe(1);
       const backwards = await world
-        .send(request(world.server()).put(path(practice, 'opening-hours')), as('ADMIN'))
+        .send(request(world.server()).put(path(practice, 'opening-hours')), as('MANAGER'))
         .send({ intervals: [{ weekday: 1, opensAt: '12:00', closesAt: '08:00' }] })
         .expect(400);
       expect(fieldErrorsOf(backwards.body)).toEqual([
@@ -353,7 +358,7 @@ describe('what the team sets up, on real databases (08 M02)', () => {
       const remove = (): request.Test =>
         world.send(
           request(world.server()).delete(path(practice, `special-days/${id}`)),
-          as('ADMIN'),
+          as('MANAGER'),
         );
       await remove().expect(204);
       await remove().expect(404);

@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { base32Decode, hotp, stepOf } from '../../../src/modules/auth/domain/totp.js';
 import { StaffRoles } from '../../../src/modules/staff/staff-roles.js';
 import { API, type Fixture, type Person, useBookingWorld } from './booking-world.js';
+import { placeOf, type TeamRole } from '../support/team-roles.js';
 
 const REASON = 'Synthetic: the doctor asked for a follow-up within the week';
 
@@ -18,9 +19,13 @@ describe('the team’s care for its patients on real databases (08 M04 part 3)',
   let admin: Person;
 
   /** A member of the team in a role, signed in with both factors (A04). */
-  const member = async (role: 'STAFF' | 'DOCTOR' | 'ADMIN'): Promise<Person> => {
+  const member = async (role: TeamRole): Promise<Person> => {
     const who = await world.person();
-    await world.app().get(StaffRoles).setRole(who.email, role, 'local:test');
+    const place = placeOf(role);
+    await world
+      .app()
+      .get(StaffRoles)
+      .setRole(who.email, place.role, 'local:test', { managesPractice: place.managesPractice });
     const start = await world
       .send(request(world.server()).post(`${API}/me/mfa/totp`), who)
       .expect(200);
@@ -83,7 +88,7 @@ describe('the team’s care for its patients on real databases (08 M04 part 3)',
       ),
     );
     team = await member('STAFF');
-    admin = await member('ADMIN');
+    admin = await member('MANAGER');
   });
 
   describe('a booking past the limit (BR-02)', () => {

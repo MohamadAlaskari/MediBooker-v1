@@ -63,7 +63,7 @@ export class SetupProviderDto {
   readonly name!: string;
 }
 
-/** A service as the admin manages it (W12). */
+/** A service as practice management manages it (W12). */
 export class ServiceDto {
   @ApiProperty({ format: 'uuid' })
   readonly id!: string;

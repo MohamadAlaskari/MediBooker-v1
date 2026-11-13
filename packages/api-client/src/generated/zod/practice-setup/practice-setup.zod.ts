@@ -119,7 +119,7 @@ export const ListServicesResponse = zod.object({
 })
 
 /**
- * @summary Add a service; admins only
+ * @summary Add a service; practice management only
  */
 export const CreateServiceParams = zod.object({
   "practiceId": zod.uuid()
@@ -170,7 +170,7 @@ export const CreateServiceResponse = zod.object({
 })
 
 /**
- * @summary Change or archive a service; admins only
+ * @summary Change or archive a service; practice management only
  */
 export const UpdateServiceParams = zod.object({
   "serviceId": zod.uuid(),
@@ -221,7 +221,7 @@ export const UpdateServiceResponse = zod.object({
 })
 
 /**
- * @summary The doctors who offer a service, through their working hours; admins only
+ * @summary The doctors who offer a service, through their working hours; practice management only
  */
 export const SetServiceProvidersParams = zod.object({
   "serviceId": zod.uuid(),

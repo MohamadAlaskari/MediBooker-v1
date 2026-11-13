@@ -8,3 +8,4 @@ export * from './practice-setup/practice-setup.zod';
 export * from './public-practice/public-practice.zod';
 export * from './scheduling/scheduling.zod';
 export * from './staff/staff.zod';
+export * from './team/team.zod';

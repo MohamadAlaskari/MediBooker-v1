@@ -8,14 +8,15 @@ import * as zod from 'zod';
 
 
 /**
- * @summary The own role in this practice, for the dashboard; MFA_REQUIRED without a second factor
+ * @summary The own role in this practice and whether it manages it, for the dashboard; MFA_REQUIRED without a second factor
  */
 export const GetMyMembershipParams = zod.object({
   "practiceId": zod.uuid()
 })
 
 export const GetMyMembershipResponse = zod.object({
+  "managesPractice": zod.boolean().describe('Practice management (D17): services, the team, settings, exports, the audit log'),
   "providerId": zod.uuid().nullable().describe('The doctor this account is: a doctor changes only its own working hours (M04)'),
-  "role": zod.enum(['STAFF', 'DOCTOR', 'ADMIN']).describe('STAFF is the reception; what a role may do is in the domain skill')
+  "role": zod.enum(['STAFF', 'DOCTOR']).describe('The base role (D17): STAFF is the practice team, DOCTOR a doctor; what each may do is in the domain skill')
 })
 

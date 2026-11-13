@@ -14,8 +14,8 @@ export type StatusAnswer = 'SERVE' | 'NOT_FOUND' | 'UNAVAILABLE';
 /**
  * The status table of ADR 0005 §5.1. The purposes are its columns: `public` "Public requests",
  * `request` "Signed-in requests" and `job` "Jobs and relay", where "no" and "paused" are not
- * served. Under restore review only the practice's admins are served; there are no admins before
- * A01, so every signed-in request gets 503 until then.
+ * served. Under restore review only the practice's management is to be served (D17); until that is
+ * built, every signed-in request gets 503.
  */
 const STATUS_TABLE: Readonly<
   Record<PracticeStatus, Readonly<Record<Exclude<PracticePurpose, 'fanOut'>, StatusAnswer>>>

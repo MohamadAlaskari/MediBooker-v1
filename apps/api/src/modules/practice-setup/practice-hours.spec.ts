@@ -74,7 +74,12 @@ function setUp({ deleted = 1 } = {}) {
       cls.set('practice', {
         practice: { id: 'practice-a', market: 'SA', routeVersion: 1, schemaVersion: 'v' },
         lease: {} as never,
-        staff: { membershipId: 'membership', role: 'STAFF', providerId: null },
+        staff: {
+          membershipId: 'membership',
+          role: 'STAFF',
+          managesPractice: false,
+          providerId: null,
+        },
       });
       return work();
     });

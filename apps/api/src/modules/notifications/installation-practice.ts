@@ -25,7 +25,7 @@ export const WRITING_FALLBACK: PracticeWriting = {
 /**
  * Whether a time can be written this way: a zone or a locale this runtime does not take would fail
  * every e-mail with a time on each try, so such settings get the fallback (the security review of A04
- * part 2b). The zone is a column the practice's admin will change (M01).
+ * part 2b). The zone is a column the practice's management will change (M01).
  */
 export function canWrite({ timeZone, numberingSystem, hourCycle }: PracticeWriting): boolean {
   try {

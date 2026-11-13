@@ -22,7 +22,7 @@ import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
 import { AppointmentSheet } from './appointment-sheet';
 import { calendarGrid, minutesOf, type CalendarCell } from './calendar-view';
-import { useDesk } from './desk-context';
+import { hasPlanning, useDesk } from './desk-context';
 import { nextDay, statusVariantOf, type StatusVariant } from './desk-view';
 import { useInvalidatePractice } from './setup-parts';
 
@@ -180,7 +180,7 @@ function Cell({
   readonly past: (slot: DeskWeekSlotDto) => boolean;
   readonly format: PracticeFormat;
   readonly onOpen: (id: string) => void;
-  /** The person plans this doctor: the reception, the admin, or the doctor itself (M04). */
+  /** The person plans this doctor: the practice team, practice management, or the doctor itself (D17). */
   readonly canPlan: boolean;
   readonly onNews: (news: string) => void;
 }): ReactNode {
@@ -254,7 +254,8 @@ function Legend(): ReactNode {
 export function CalendarPage(): ReactNode {
   const t = useTranslations('dashboard.calendar');
   const locale = useLocale();
-  const { practiceId, role, providerId: own } = useDesk();
+  const desk = useDesk();
+  const { practiceId, providerId: own } = desk;
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [from, setFrom] = useState<string | undefined>(undefined);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
@@ -431,7 +432,7 @@ export function CalendarPage(): ReactNode {
                           past={past}
                           format={format}
                           onOpen={setOpenId}
-                          canPlan={role !== 'DOCTOR' || own === providerId}
+                          canPlan={hasPlanning(desk) || own === providerId}
                           onNews={setNews}
                         />
                       </td>

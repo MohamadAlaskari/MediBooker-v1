@@ -16,7 +16,14 @@ import type {
 } from '@medibooker/api-client';
 import { bodyOf, done, problem, respond } from './answers.ts';
 import { changeSlot } from './desk-booking-stub.ts';
-import { CHECK_UP_ID, type DeskAccess, PROVIDER_ID, SETTINGS, TODAY } from './desk-stub.ts';
+import {
+  CHECK_UP_ID,
+  type DeskAccess,
+  hasPlanning,
+  PROVIDER_ID,
+  SETTINGS,
+  TODAY,
+} from './desk-stub.ts';
 
 /** The second doctor of the stub practice. */
 const OTHER_DOCTOR_ID = '70000000-0000-4000-8000-000000000002';
@@ -191,7 +198,7 @@ export function handleSchedule(
   }
   if (slot === 'generate') {
     if (request.method !== 'POST') problem(response, 'NOT_FOUND');
-    else if (who.role === 'DOCTOR') problem(response, 'FORBIDDEN');
+    else if (!hasPlanning(who)) problem(response, 'FORBIDDEN');
     else respond(response, 201, { created: 12, removed: 0 });
     return true;
   }
@@ -199,11 +206,11 @@ export function handleSchedule(
     void answerSlot(who.email, slot, request, response);
     return true;
   }
-  // A doctor plans only itself: another doctor is not there for it.
+  // A doctor without practice management plans only itself: another doctor is not there for it.
   const allowed =
     providerId !== undefined &&
     DOCTORS.has(providerId) &&
-    (who.role !== 'DOCTOR' || who.providerId === providerId);
+    (hasPlanning(who) || who.providerId === providerId);
   if (!allowed) {
     problem(response, 'NOT_FOUND');
     return true;

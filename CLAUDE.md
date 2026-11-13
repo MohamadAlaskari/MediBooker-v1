@@ -24,7 +24,7 @@ When v2 moves to its own repository, move `CLAUDE.md` and `.claude/` with it.
 ## Surfaces
 
 - **Patient app**: React Native for iOS and Android. This is the main channel for patients.
-- **Web**: React with Next.js. Public practice page (no sign-in; its free times only after signing in, D19), patient portal, and the practice dashboard (Praxis-Dashboard) for staff and admins.
+- **Web**: React with Next.js. Public practice page (no sign-in; its free times only after signing in, D19), patient portal, and the practice dashboard (Praxis-Dashboard) for the practice team, doctors and practice management.
 - **API**: NestJS, REST plus realtime events.
 
 ## Tech stack status
@@ -106,7 +106,7 @@ Run from the repository root with Node 26.13.0 and pnpm 12.16.1; gitleaks (the v
 
 | Task | Command |
 |---|---|
-| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, file storage, tests, clean-up, the practice's first admin. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
+| Run everything in Docker, with a menu: first dev or prod, then build, start, stop, logs, health, links, database, mail server, file storage, tests, clean-up, the practice's first manager. Needs only Node and Docker | `medibooker.cmd` (Windows) or `./medibooker.sh`; one entry directly: `medibooker.cmd dev up` |
 | Install (also installs the git hooks) | `pnpm install` |
 | Install exactly from the lockfile (CI) | `pnpm install --frozen-lockfile` |
 | Lint (fails on any warning) | `pnpm lint` |

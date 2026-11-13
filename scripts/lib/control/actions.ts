@@ -355,16 +355,16 @@ function cleanActions(stack: Stack): readonly Action[] {
 }
 
 /**
- * The team of the installation's practice (A04): the operator gives an existing account with a
- * confirmed address the admin role, which nobody else can before there is an admin. At the end of
- * the menu, so that the numbers of the other entries stay as they were.
+ * The team of the installation's practice (A04, D17): the operator gives an existing account with
+ * a confirmed address practice management, which nobody else can give before someone has it. At
+ * the end of the menu, so that the numbers of the other entries stay as they were.
  */
 function practiceActions(stack: Stack): readonly Action[] {
   return [
     {
       id: 'staff-admin',
       group: GROUP_PRACTICE,
-      label: 'Konto zum Admin der Praxis machen (bestätigte E-Mail-Adresse)',
+      label: 'Konto für die Praxisverwaltung freischalten (bestätigte E-Mail-Adresse)',
       failureHint:
         'ACCOUNT_NOT_FOUND: kein Konto mit genau dieser Adresse; die Schreibweise prüfen (etwa .de statt .com), sonst erst registrieren. EMAIL_NOT_VERIFIED: erst den Link der E-Mail öffnen. NO_PRACTICE: keine Praxis eingespielt ("Demo-Praxen einspielen").',
       steps: [

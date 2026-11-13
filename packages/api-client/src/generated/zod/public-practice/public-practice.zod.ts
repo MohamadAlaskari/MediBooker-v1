@@ -89,7 +89,7 @@ export const GetPublicPracticeResponse = zod.object({
   "position": zod.string().nullable(),
   "specialty": zod.string().nullable(),
   "title": zod.string().nullable()
-})).describe('Only members with an active public-profile consent that no admin has hidden'),
+})).describe('Only members with an active public-profile consent whom practice management has not hidden'),
   "theme": zod.object({
   "adjusted": zod.boolean(),
   "customColor": zod.string().nullable(),

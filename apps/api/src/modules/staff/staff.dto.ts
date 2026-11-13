@@ -5,9 +5,15 @@ import { STAFF_ROLES } from './staff-roles.js';
 export class MembershipDto {
   @ApiProperty({
     enum: STAFF_ROLES,
-    description: 'STAFF is the reception; what a role may do is in the domain skill',
+    description:
+      'The base role (D17): STAFF is the practice team, DOCTOR a doctor; what each may do is in the domain skill',
   })
   readonly role!: StaffRole;
+
+  @ApiProperty({
+    description: 'Practice management (D17): services, the team, settings, exports, the audit log',
+  })
+  readonly managesPractice!: boolean;
 
   @ApiProperty({
     type: String,

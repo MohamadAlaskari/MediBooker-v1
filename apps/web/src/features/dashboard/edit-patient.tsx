@@ -160,7 +160,7 @@ function saveFile(copy: DeskPatientExportDto, name: string): void {
 }
 
 /**
- * GDPR Art. 15: everything the practice keeps about the patient, as a file for an admin, who checks
+ * GDPR Art. 15: everything the practice keeps about the patient, as a file for practice management, who checks
  * it before handing it over (RT-97). It holds the whole insurance number.
  */
 export function PatientExport({

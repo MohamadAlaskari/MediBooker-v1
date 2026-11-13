@@ -304,15 +304,26 @@ const DAY_PATH = /^\/api\/v1\/practices\/[^/]+\/desk\/day$/;
 const APPOINTMENT_PATH =
   /^\/api\/v1\/practices\/[^/]+\/desk\/appointments\/([^/]+)(?:\/(check-in|complete|no-show|cancel))?$/;
 
-/** Who may reach the desk, as the API's practice context answers: an email and role, or why not. */
+/** Who may reach the desk, as the API's practice context answers: an email and place, or why not. */
 export type DeskAccess =
   | {
       readonly email: string;
-      readonly role: 'STAFF' | 'DOCTOR' | 'ADMIN';
+      /** The base role (D17). */
+      readonly role: 'STAFF' | 'DOCTOR';
+      /** Practice management (D17): the services, the team, the exports. */
+      readonly managesPractice: boolean;
       /** The doctor this account is (M04). */
       readonly providerId: string | null;
     }
   | { readonly refusal: ErrorCode };
+
+/** Planning (D17), as the API's capabilities: the practice team and practice management. */
+export function hasPlanning(who: {
+  readonly role: 'STAFF' | 'DOCTOR';
+  readonly managesPractice: boolean;
+}): boolean {
+  return who.role === 'STAFF' || who.managesPractice;
+}
 
 /** Takes the requests of the desk, and answers whether it did. */
 export function handleDesk(

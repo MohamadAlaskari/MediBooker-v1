@@ -90,7 +90,7 @@ export function PatientSheet({
   const t = useTranslations('dashboard.patients');
   const details = useTranslations('dashboard.details');
   const locale = useLocale();
-  const { practiceId, role } = useDesk();
+  const { practiceId, managesPractice } = useDesk();
   const [news, setNews] = useState('');
   const [editing, setEditing] = useState(false);
   const record = useGetDeskPatient(practiceId, patientId ?? '', {
@@ -217,7 +217,7 @@ export function PatientSheet({
             format={format}
             onOpen={onOpenAppointment}
           />
-          {role === 'ADMIN' ? <PatientExport patientId={patient.id} onDone={setNews} /> : null}
+          {managesPractice ? <PatientExport patientId={patient.id} onDone={setNews} /> : null}
           <p className="mt-auto text-caption text-text-tertiary">{t('audited')}</p>
         </>
       )}

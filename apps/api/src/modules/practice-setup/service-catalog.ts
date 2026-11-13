@@ -79,8 +79,8 @@ function insuranceTypesOf(
 }
 
 /**
- * The practice's services (M02, W12 and W13): every role of the team reads them, only the admin
- * changes them. A service is never deleted: its appointments keep naming it, so it is archived.
+ * The practice's services (M02, W12 and W13): every member of the team reads them, only practice
+ * management changes them (D17). A service is never deleted: its appointments keep naming it, so it is archived.
  */
 @Injectable()
 export class ServiceCatalog {

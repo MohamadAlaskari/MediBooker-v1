@@ -29,7 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { practiceFormat, type PracticeFormat } from '@/lib/format';
 import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
-import { useDesk } from './desk-context';
+import { hasPlanning, useDesk } from './desk-context';
 import { CONTROL, counter, TimeInput, useInvalidatePractice } from './setup-parts';
 import {
   draftOf,
@@ -739,12 +739,14 @@ function DoctorSchedule({
 }
 
 /**
- * W14: the doctors' working hours, absences and free times (M04). The reception and the admin plan
- * every doctor; a doctor plans itself only, once its account is linked to it.
+ * W14: the doctors' working hours, absences and free times (M04). The practice team and practice
+ * management plan every doctor; a doctor plans itself only, once its account is linked to it (D17).
  */
 export function WorkingHoursPage(): ReactNode {
   const t = useTranslations('dashboard.workingHours');
-  const { practiceId, role, providerId: own } = useDesk();
+  const desk = useDesk();
+  const { practiceId, providerId: own } = desk;
+  const plansAll = hasPlanning(desk);
   const catalog = useGetDeskCatalog(practiceId, { query: { retry: false } });
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [news, setNews] = useState('');
@@ -753,7 +755,7 @@ export function WorkingHoursPage(): ReactNode {
     if (news !== '') newsRef.current?.focus();
   }, [news]);
   const all = catalog.data?.providers ?? [];
-  const doctors = role === 'DOCTOR' ? all.filter(({ id }) => id === own) : all;
+  const doctors = plansAll ? all : all.filter(({ id }) => id === own);
   const doctorId = doctors.some(({ id }) => id === chosen) ? chosen : doctors[0]?.id;
   const doctor = doctors.find(({ id }) => id === doctorId)?.name ?? '';
   const services = (catalog.data?.services ?? []).filter(({ active }) => active);
@@ -779,7 +781,7 @@ export function WorkingHoursPage(): ReactNode {
             {t('loading')}
           </p>
         )
-      ) : role === 'DOCTOR' && own === null ? (
+      ) : !plansAll && own === null ? (
         <p className="text-body-default text-text-secondary">{t('notLinked')}</p>
       ) : doctorId === undefined ? (
         <p className="text-body-default text-text-secondary">{t('noDoctor')}</p>
@@ -810,7 +812,7 @@ export function WorkingHoursPage(): ReactNode {
             doctorId={doctorId}
             doctor={doctor}
             services={services}
-            canGenerate={role !== 'DOCTOR'}
+            canGenerate={plansAll}
             onDone={setNews}
           />
         </div>

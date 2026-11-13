@@ -17,8 +17,10 @@ interface Account {
   locale: string;
   /** The second factor (A04): set up, waiting for its first code, or none. */
   mfa: 'off' | 'pending' | 'on';
-  /** The role in the installation's practice, which the operator's command gives. */
-  role?: 'STAFF' | 'DOCTOR' | 'ADMIN';
+  /** The base role in the installation's practice, which the operator's command gives (D17). */
+  role?: 'STAFF' | 'DOCTOR';
+  /** Practice management (D17), which the operator's command gives with a role. */
+  managesPractice?: boolean;
   /** The doctor this account is (M04): a doctor plans only its own hours. */
   providerId?: string;
 }
@@ -409,7 +411,12 @@ export function deskAccessOf(request: IncomingMessage): DeskAccess {
   if (account === undefined) return { refusal: 'UNAUTHENTICATED' };
   if (!withSecondFactor.has(access)) return { refusal: 'MFA_REQUIRED' };
   if (account.role === undefined) return { refusal: 'NOT_FOUND' };
-  return { email: account.email, role: account.role, providerId: account.providerId ?? null };
+  return {
+    email: account.email,
+    role: account.role,
+    managesPractice: account.managesPractice ?? false,
+    providerId: account.providerId ?? null,
+  };
 }
 
 /** Takes the requests about accounts, and answers whether it did. */
@@ -431,8 +438,9 @@ export function handleAccounts(
   if (pathname === '/__staff') {
     const account = accounts.get(email);
     const role = searchParams.get('role');
-    if (account !== undefined && (role === 'STAFF' || role === 'DOCTOR' || role === 'ADMIN')) {
+    if (account !== undefined && (role === 'STAFF' || role === 'DOCTOR')) {
       account.role = role;
+      account.managesPractice = searchParams.get('manages') === 'true';
       const provider = searchParams.get('provider');
       if (provider !== null) account.providerId = provider;
     }
@@ -456,7 +464,13 @@ export function handleAccounts(
     else if (account === undefined) problem(response, 'UNAUTHENTICATED');
     else if (!withSecondFactor.has(access)) problem(response, 'MFA_REQUIRED');
     else if (account.role === undefined) problem(response, 'NOT_FOUND');
-    else respond(response, 200, { role: account.role, providerId: account.providerId ?? null });
+    else {
+      respond(response, 200, {
+        role: account.role,
+        managesPractice: account.managesPractice ?? false,
+        providerId: account.providerId ?? null,
+      });
+    }
     return true;
   }
   if (pathname === '/__end-access') {

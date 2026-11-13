@@ -23,7 +23,7 @@ import { practiceFormat, type PracticeFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { FormError } from '../auth/form-parts';
 import { textIn } from '../portal/appointment-view';
-import { useDesk } from './desk-context';
+import { hasPlanning, useDesk } from './desk-context';
 import { CONTROL, counter, TimeInput, useInvalidatePractice } from './setup-parts';
 import {
   draftOf,
@@ -534,13 +534,15 @@ function SpecialDayRow({
 
 /**
  * Settings – Practice page (W20), the part M02 brings: the opening hours and the special days that
- * the public page shows. The reception and the admin change them; the doctors read them.
+ * the public page shows. The practice team and practice management change them; a doctor without
+ * practice management reads them (D17).
  */
 export function SettingsPage(): ReactNode {
   const t = useTranslations('dashboard.settings');
   const locale = useLocale();
-  const { practiceId, role } = useDesk();
-  const canEdit = role === 'STAFF' || role === 'ADMIN';
+  const desk = useDesk();
+  const { practiceId } = desk;
+  const canEdit = hasPlanning(desk);
   const week = useGetOpeningHours(practiceId, { query: { retry: false } });
   const special = useListSpecialDays(practiceId, { query: { retry: false } });
   const [news, setNews] = useState('');

@@ -424,6 +424,34 @@
         ],
         "type": "object"
       },
+      "ChangeTeamRoleDto": {
+        "properties": {
+          "managesPractice": {
+            "description": "Practice management; the last person with it keeps it",
+            "type": "boolean"
+          },
+          "providerId": {
+            "description": "Only with DOCTOR: the doctor this account is. Null takes the link away; left out, a doctor keeps its link",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "enum": [
+              "STAFF",
+              "DOCTOR"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "managesPractice"
+        ],
+        "type": "object"
+      },
       "ConfirmEmailDto": {
         "properties": {
           "password": {
@@ -1962,6 +1990,9 @@
           "PATIENT_MAY_EXIST",
           "PATIENT_HAS_ACCOUNT",
           "MFA_ALREADY_ENABLED",
+          "LAST_PRACTICE_MANAGER",
+          "NOT_ON_YOURSELF",
+          "DOCTOR_ALREADY_LINKED",
           "SLOT_NOT_AVAILABLE",
           "SLOT_HAS_APPOINTMENT",
           "APPOINTMENT_OVERLAP",
@@ -2153,6 +2184,10 @@
       },
       "MembershipDto": {
         "properties": {
+          "managesPractice": {
+            "description": "Practice management (D17): services, the team, settings, exports, the audit log",
+            "type": "boolean"
+          },
           "providerId": {
             "description": "The doctor this account is: a doctor changes only its own working hours (M04)",
             "format": "uuid",
@@ -2162,17 +2197,17 @@
             ]
           },
           "role": {
-            "description": "STAFF is the reception; what a role may do is in the domain skill",
+            "description": "The base role (D17): STAFF is the practice team, DOCTOR a doctor; what each may do is in the domain skill",
             "enum": [
               "STAFF",
-              "DOCTOR",
-              "ADMIN"
+              "DOCTOR"
             ],
             "type": "string"
           }
         },
         "required": [
           "role",
+          "managesPractice",
           "providerId"
         ],
         "type": "object"
@@ -2698,7 +2733,7 @@
             "type": "array"
           },
           "team": {
-            "description": "Only members with an active public-profile consent that no admin has hidden",
+            "description": "Only members with an active public-profile consent whom practice management has not hidden",
             "items": {
               "$ref": "#/components/schemas/PublicTeamMemberDto"
             },
@@ -3649,6 +3684,121 @@
           "specialDays",
           "today",
           "locales"
+        ],
+        "type": "object"
+      },
+      "TeamDoctorDto": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "membershipId": {
+            "description": "The membership whose account is this doctor; null when none is",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "Title, first and last name, as the practice wrote them",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "membershipId"
+        ],
+        "type": "object"
+      },
+      "TeamDto": {
+        "properties": {
+          "doctors": {
+            "description": "The practice's doctors, each with the membership linked to it, if any",
+            "items": {
+              "$ref": "#/components/schemas/TeamDoctorDto"
+            },
+            "type": "array"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "members",
+          "doctors"
+        ],
+        "type": "object"
+      },
+      "TeamMemberDto": {
+        "properties": {
+          "active": {
+            "description": "False: deactivated, without access to the team pages",
+            "type": "boolean"
+          },
+          "doctor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamDoctorDto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The doctor this account is"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "id": {
+            "description": "The membership",
+            "format": "uuid",
+            "type": "string"
+          },
+          "managesPractice": {
+            "description": "Practice management (D17)",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "First and last name of the account, when it has them",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "description": "The base role: STAFF the practice team",
+            "enum": [
+              "STAFF",
+              "DOCTOR"
+            ],
+            "type": "string"
+          },
+          "secondFactor": {
+            "description": "An authenticator app is set up",
+            "type": "boolean"
+          },
+          "you": {
+            "description": "The membership of whoever asks",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "managesPractice",
+          "active",
+          "secondFactor",
+          "doctor",
+          "you"
         ],
         "type": "object"
       },
@@ -8292,7 +8442,7 @@
             "bearer": []
           }
         ],
-        "summary": "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); admins only; audited",
+        "summary": "Everything the practice keeps about one patient, as the person's copy (Art. 15, RT-97); practice management only; audited",
         "tags": [
           "desk"
         ]
@@ -8816,7 +8966,7 @@
             "bearer": []
           }
         ],
-        "summary": "The own role in this practice, for the dashboard; MFA_REQUIRED without a second factor",
+        "summary": "The own role in this practice and whether it manages it, for the dashboard; MFA_REQUIRED without a second factor",
         "tags": [
           "staff"
         ]
@@ -10359,7 +10509,7 @@
             "bearer": []
           }
         ],
-        "summary": "Add a service; admins only",
+        "summary": "Add a service; practice management only",
         "tags": [
           "practice-setup"
         ]
@@ -10488,7 +10638,7 @@
             "bearer": []
           }
         ],
-        "summary": "Change or archive a service; admins only",
+        "summary": "Change or archive a service; practice management only",
         "tags": [
           "practice-setup"
         ]
@@ -10617,7 +10767,7 @@
             "bearer": []
           }
         ],
-        "summary": "The doctors who offer a service, through their working hours; admins only",
+        "summary": "The doctors who offer a service, through their working hours; practice management only",
         "tags": [
           "practice-setup"
         ]
@@ -11199,6 +11349,602 @@
         "summary": "Remove a special day",
         "tags": [
           "practice-setup"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/staff": {
+      "get": {
+        "operationId": "listTeam",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The practice's team and its doctors; practice management only",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/staff/{membershipId}/deactivate": {
+      "post": {
+        "operationId": "deactivateTeamMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ends a member's access and every session of its account; not one's own",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/staff/{membershipId}/reactivate": {
+      "post": {
+        "operationId": "reactivateTeamMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Gives a deactivated member its access back",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/staff/{membershipId}/role": {
+      "put": {
+        "operationId": "changeTeamRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeTeamRoleDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A base role, practice management and the doctor of a member; LAST_PRACTICE_MANAGER keeps the last one",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/v1/practices/{practiceId}/staff/{membershipId}/second-factor/reset": {
+      "post": {
+        "operationId": "resetTeamSecondFactor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberDto"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            },
+            "description": "An error, as application/problem+json"
+          }
+        },
+        "security": [
+          {
+            "mb_access": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Removes a member's lost authenticator app and ends its sessions; a new one at the next sign-in",
+        "tags": [
+          "team"
         ]
       }
     },
